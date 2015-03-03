@@ -270,7 +270,7 @@ class SourceCollector(object):
         # Building archive
         print '  Building archive'
         SourceCollector._run(
-            "tar -czf {0}/alba-asdmanager_{1}.tar.gz --transform 's,^,openvstorage-{1}/,' scripts/install scripts/system config ovs webapps *.txt".format(
+            "tar -czf {0}/alba-asdmanager_{1}.tar.gz --transform 's,^,alba-asdmanager-{1}/,' config source *.txt".format(
                 SourceCollector.package_path, version_string
             ), SourceCollector.repo_path_code
         )
