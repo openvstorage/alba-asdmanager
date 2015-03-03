@@ -1,0 +1,12 @@
+#!/bin/bash
+
+cd /opt/alba-asdmanager/source
+if [ ! -f server.crt ]; then
+    echo `openssl rand -base64 32` >> passphrase
+    openssl genrsa -des3 -out server.key -passout file:passphrase
+    openssl req -new -key server.key -out server.csr -passin file:passphrase -batch
+    cp server.key server.key.org
+    openssl rsa -passin file:passphrase -in server.key.org -out server.key
+    openssl x509 -req -days 356 -in server.csr -signkey server.key -out server.crt
+    rm -f server.key.org
+fi

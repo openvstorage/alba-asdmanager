@@ -1,0 +1,13 @@
+#!/bin/bash
+
+pip install flask
+
+id -a alba &> /dev/null
+if [[ $? -eq 1 ]]
+then
+  echo 'Creating ALBA user'
+  useradd -b /home -d /home/alba -m alba
+  echo '%alba ALL=NOPASSWD: ALL' >> /etc/sudoers
+else
+  echo 'alba user already exists'
+fi
