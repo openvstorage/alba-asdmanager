@@ -6,7 +6,7 @@ Configuration related code
 """
 
 import json
-from filemutex import FileMutex
+from source.tools.filemutex import FileMutex
 
 
 class Configuration(object):

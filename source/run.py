@@ -3,8 +3,8 @@
 # All rights reserved
 
 
-from app import app
-from tools.configuration import Configuration
+from source.app import app
+from source.tools.configuration import Configuration
 
 if __name__ == '__main__':
     context = ('server.crt', 'server.key')
