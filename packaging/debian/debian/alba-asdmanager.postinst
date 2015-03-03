@@ -10,3 +10,12 @@ if [ ! -f server.crt ]; then
     openssl x509 -req -days 356 -in server.csr -signkey server.key -out server.crt
     rm -f server.key.org
 fi
+
+cd /opt/alba-asdmanager/config
+sed -i "s/^password =$/password = `date | md5sum | head -c32`/g" config.cfg
+
+if [ -f /etc/init/alba-asdmanager.conf ]; then
+    stop alba-asdmanager
+fi
+cp /opt/alba-asdmanager/config/upstart/alba-asdmanager.conf /etc/init/
+start alba-asdmanager

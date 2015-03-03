@@ -8,6 +8,6 @@ Build-Depends: python (>= 2.7.2)
 Package: alba-asdmanager
 Architecture: amd64
 Pre-Depends: python (>= 2.7.2), python-pip (>= 1.4.1-2)
-Depends: lsscsi (>= 0.27-2), ipython
+Depends: lsscsi (>= 0.27-2), ipython, alba, openssl
 Description: ALBA ASD Manager
  Management suite for ALBA ASDs
