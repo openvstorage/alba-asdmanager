@@ -21,8 +21,9 @@ def requires_auth():
             """
             Wrapped function
             """
+            config = Configuration()
             auth = request.authorization
-            if not auth or auth.username != Configuration.get('main.username') or auth.password != Configuration.get('main.password'):
+            if not auth or auth.username != config.data['main']['username'] or auth.password != config.data['main']['password']:
                 return Response('Invalid credentials', 401)
             return f(*args, **kwargs)
 

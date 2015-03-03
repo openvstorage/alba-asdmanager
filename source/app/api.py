@@ -5,6 +5,7 @@
 API views
 """
 
+import os
 import re
 import json
 from app import app
@@ -49,8 +50,11 @@ class API(object):
                     if re.search('-part\d+', disk_id) is None:
                         if not any(mount for mount in mounts if disk_name in mount):
                             disks.append(disk_id)
-            Configuration.set('asd.available.disks', disks)
-            data['data'] = disks
+            with Configuration() as config:
+                for disk in disks:
+                    if disk not in config.data['disks']:
+                        config.data['disks'][disk] = {'available': True}
+            data['data'] = config.data['disks']
         except Exception as ex:
             data['_success'] = False
             data['_error'] = str(ex)
@@ -70,24 +74,52 @@ class API(object):
     @requires_auth()
     def add_disk(disk):
         try:
-            current_disks = Configuration.get_list('asd.disks')
-            available_disks = Configuration.get_list('asd.available.disks')
-            if disk in current_disks:
-                return json.dumps({'_success': False, '_error': 'Disk already configured'})
-            if disk not in available_disks:
+            config = Configuration()
+
+            # Validate parameters
+            if disk not in config.data['disks']:
                 return json.dumps({'_success': False, '_error': 'Disk not available'})
+            if config.data['disks'][disk]['available'] is False:
+                return json.dumps({'_success': False, '_error': 'Disk already configured'})
 
             # @TODO: Controller magic: start using disk and other stuff
+
+            # Partitioning and mounting
+            check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
             check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
             check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
             check_output('mkfs.ext4 -q /dev/disk/by-id/{0}-part1 -L {0}'.format(disk), shell=True)
             check_output('mkdir -p /mnt/alba-asd/{0}'.format(disk), shell=True)
             FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(disk))
             check_output('mount /mnt/alba-asd/{0}'.format(disk), shell=True)
-            # @TODO: Start services etc
+            check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(disk), shell=True)
 
-            current_disks.append(disk)
-            Configuration.set('asd.disks', current_disks)
+            # Prepare & start service
+            port = int(config.data['ports']['asd'])
+            used_ports = [config.data['disks'][_disk]['port'] for _disk in config.data['disks']
+                          if config.data['disks'][_disk]['available'] is False]
+            while port in used_ports:
+                port += 1
+            asd_config = {'home': '/mnt/alba-asd/{0}'.format(disk),
+                          'box_id': config.data['main']['box_id'],
+                          'log_level': 'debug',
+                          'port': port}
+            with open('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk), 'w') as conffile:
+                conffile.write(json.dumps(asd_config))
+            check_output('chmod 666 /opt/alba-asdmanager/config/asd/{0}.json'.format(disk), shell=True)
+            check_output('chown alba:alba /opt/alba-asdmanager/config/asd/{0}.json'.format(disk), shell=True)
+            with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
+                contents = template.read()
+            contents = contents.replace('<ASD>', disk)
+            with open('/etc/init/alba-asd-{0}.conf'.format(disk), 'w') as upstart:
+                upstart.write(contents)
+            check_output('start alba-asd-{0}'.format(disk), shell=True)
+
+            # Save configurations
+            with Configuration() as config:
+                config.data['disks'][disk]['available'] = False
+                config.data['disks'][disk]['port'] = port
+
             return json.dumps({'_success': True})
         except Exception as ex:
             return json.dumps({'_success': False, '_error': str(ex)})
@@ -97,18 +129,32 @@ class API(object):
     @requires_auth()
     def delete_disk(disk):
         try:
-            current_disks = Configuration.get_list('asd.disks')
-            if disk not in current_disks:
-                return json.dumps({'_success': False, '_error': 'Disk not configured'})
+            config = Configuration()
 
-            # @TODO: Stop services etc
-            check_output('umount /mnt/alba-asd/{0}'.format(disk), shell=True)
+            # Validate parameters
+            if disk not in config.data['disks']:
+                return json.dumps({'_success': False, '_error': 'Disk not available'})
+            if config.data['disks'][disk]['available'] is True:
+                return json.dumps({'_success': False, '_error': 'Disk not yet configured'})
+
+            # Stop and remove service
+            check_output('stop alba-asd-{0} || true'.format(disk), shell=True)
+            if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(disk)):
+                os.remove('/etc/init/alba-asd-{0}.conf'.format(disk))
+            if os.path.exists('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk)):
+                os.remove('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk))
+
+            # Unmount disk
+            check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
             FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
-            check_output('rm -rf /mnt/alba-asd/{0}'.format(disk), shell=True)
+            check_output('rm -rf /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+
             # @TODO: Controller magic: remove disk from controller and/or highlight the disk
 
-            current_disks.remove(disk)
-            Configuration.set('asd.disks', current_disks)
+            # Save configurations
+            with Configuration() as config:
+                config.data['disks'][disk] = {'available': True}
+
             return json.dumps({'_success': True})
         except Exception as ex:
             return json.dumps({'_success': False, '_error': str(ex)})

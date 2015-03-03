@@ -4,31 +4,27 @@
 """
 Configuration related code
 """
-from ConfigParser import RawConfigParser
+
+import json
+from filemutex import FileMutex
 
 
 class Configuration(object):
-    filename = '/opt/alba-asdmanager/config/config.cfg'
+    filename = '/opt/alba-asdmanager/config/config.json'
 
-    @staticmethod
-    def get(key):
-        section, item = key.split('.', 1)
-        config = RawConfigParser()
-        config.read(Configuration.filename)
-        return config.get(section, item)
+    def __init__(self):
+        with open(Configuration.filename, 'r') as config_file:
+            self.data = json.loads(config_file.read())
+        self.mutex = FileMutex('config')
 
-    @staticmethod
-    def set(key, value):
-        if isinstance(value, list):
-            value = ','.join(value)
-        section, item = key.split('.', 1)
-        config = RawConfigParser()
-        config.read(Configuration.filename)
-        config.set(section, item, value)
-        with open(Configuration.filename, 'w') as config_file:
-            config.write(config_file)
+    def __enter__(self):
+        self.mutex.acquire()
+        return self
 
-    @staticmethod
-    def get_list(key):
-        value = Configuration.get(key)
-        return [item.strip() for item in value.split(',') if item.strip() != '']
+    def __exit__(self, *args, **kwargs):
+        _ = args, kwargs
+        try:
+            with open(Configuration.filename, 'w') as config_file:
+                config_file.write(json.dumps(self.data, indent=2))
+        finally:
+            self.mutex.release()

@@ -8,7 +8,8 @@ from tools.configuration import Configuration
 
 if __name__ == '__main__':
     context = ('server.crt', 'server.key')
+    config = Configuration()
     app.run(host='0.0.0.0',
-            port=int(Configuration.get('ports.service')),
+            port=int(config.data['ports']['service']),
             debug=True,
             ssl_context=context)

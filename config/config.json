@@ -1,0 +1,13 @@
+{
+  "main": {
+    "password": "",
+    "box_id": "",
+    "username": "root"
+  },
+  "disks": {
+  },
+  "ports": {
+    "service": 8500,
+    "asd": 8600
+  }
+}
