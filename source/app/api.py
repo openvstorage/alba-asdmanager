@@ -58,7 +58,7 @@ class API(object):
             disk = config.data['disks'][disk_id]
             if disk['available'] is False:
                 for df in df_info:
-                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?{0}'.format(disk['mountpoint']), df)
+                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk_id), df)
                     if match is not None:
                         config.data['disks'][disk_id]['statistics'] = {'size': int(match.groups()[0]) * 1024,
                                                                        'used': int(match.groups()[1]) * 1024,
@@ -94,7 +94,7 @@ class API(object):
         disk_info = config.data['disks'][disk]
         if disk_info['available'] is False:
             for df in df_info:
-                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?{0}'.format(disk_info['mountpoint']), df)
+                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk), df)
                 if match is not None:
                     disk_info['statistics'] = {'size': int(match.groups()[0]) * 1024,
                                                'used': int(match.groups()[1]) * 1024,
