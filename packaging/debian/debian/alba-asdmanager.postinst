@@ -11,10 +11,11 @@ if [ ! -f server.crt ]; then
     rm -f server.key.org
 fi
 
-boxid=`openssl rand -base64 32 | tr -dc A-Z-a-z-0-9`
+boxid=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
+password=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
 
 cd /opt/alba-asdmanager/config
-sed -i "s/^    \"password\": \"\"\(.*\)$/    \"password\": \"`openssl rand -base64 16 | tr -dc A-Z-a-z-0-9`\"\\1/g" config.json
+sed -i "s/^    \"password\": \"\"\(.*\)$/    \"password\": \"$password\"\\1/g" config.json
 sed -i "s/^    \"box_id\": \"\"\(.*\)$/    \"box_id\": \"$boxid\"\\1/g" config.json
 
 if [ -f /etc/init/alba-asdmanager.conf ]; then
