@@ -11,9 +11,11 @@ if [ ! -f server.crt ]; then
     rm -f server.key.org
 fi
 
+boxid=`openssl rand -base64 32 | tr -dc A-Z-a-z-0-9`
+
 cd /opt/alba-asdmanager/config
-sed -i "s/^    \"password\": \"\"\(.*\)$/    \"password\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\"\\1/g" config.json
-sed -i "s/^    \"box_id\": \"\"\(.*\)$/    \"box_id\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\"\\1/g" config.json
+sed -i "s/^    \"password\": \"\"\(.*\)$/    \"password\": \"`openssl rand -base64 16 | tr -dc A-Z-a-z-0-9`\"\\1/g" config.json
+sed -i "s/^    \"box_id\": \"\"\(.*\)$/    \"box_id\": \"$boxid\"\\1/g" config.json
 
 if [ -f /etc/init/alba-asdmanager.conf ]; then
     stop alba-asdmanager
@@ -23,4 +25,6 @@ start alba-asdmanager
 
 chown -R alba:alba /opt/alba-asdmanager
 
+cd /etc/avahi/services
+sed -i "s/\[BOXID\]/$boxid/g" asdnode.service
 restart avahi-daemon
