@@ -7,7 +7,6 @@
   "disks": {
   },
   "ports": {
-    "service": 8500,
     "asd": 8600
   }
 }

@@ -10,6 +10,6 @@ if __name__ == '__main__':
     context = ('server.crt', 'server.key')
     config = Configuration()
     app.run(host='0.0.0.0',
-            port=int(config.data['ports']['service']),
+            port=8500,
             debug=True,
             ssl_context=context)

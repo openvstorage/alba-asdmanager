@@ -1,4 +1,5 @@
 source                          opt/alba-asdmanager
 config/config.json              opt/alba-asdmanager/config
 config/upstart                  opt/alba-asdmanager/config
+config/asdnode.service          /etc/avahi/services
 scripts/system/alba-asdmanager  usr/bin

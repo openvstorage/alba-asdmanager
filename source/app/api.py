@@ -63,6 +63,8 @@ class API(object):
                         config.data['disks'][disk_id]['statistics'] = {'size': int(match.groups()[0]) * 1024,
                                                                        'used': int(match.groups()[1]) * 1024,
                                                                        'available': int(match.groups()[2]) * 1024}
+                        config.data['disks'][disk_id]['mountpoint'] = '/mnt/alba-asd/{0}'.format(disk_id)
+                        config.data['disks'][disk_id]['device'] = '/dev/disk/by-id/{0}'.format(disk_id)
 
         # Use HATEOAS
         for disk in config.data['disks']:
@@ -97,6 +99,8 @@ class API(object):
                     disk_info['statistics'] = {'size': int(match.groups()[0]) * 1024,
                                                'used': int(match.groups()[1]) * 1024,
                                                'available': int(match.groups()[2]) * 1024}
+                    disk_info['mountpoint'] = '/mnt/alba-asd/{0}'.format(disk)
+                    disk_info['device'] = '/dev/disk/by-id/{0}'.format(disk)
 
         # Use HATEOAS
         data = disk_info
@@ -141,6 +145,7 @@ class API(object):
             port += 1
         asd_config = {'home': '/mnt/alba-asd/{0}'.format(disk),
                       'box_id': config.data['main']['box_id'],
+                      'asd_id': disk,
                       'log_level': 'debug',
                       'port': port}
         with open('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk), 'w') as conffile:
@@ -158,7 +163,6 @@ class API(object):
         with Configuration() as config:
             config.data['disks'][disk]['available'] = False
             config.data['disks'][disk]['port'] = port
-            config.data['disks'][disk]['mountpoint'] = '/mnt/alba-asd/{0}'.format(disk)
         return {'_link': '/disks/{0}'.format(disk)}
 
     @staticmethod

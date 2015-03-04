@@ -12,8 +12,8 @@ if [ ! -f server.crt ]; then
 fi
 
 cd /opt/alba-asdmanager/config
-sed -i "s/^    \"password\": \"\",$/    \"password\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\",/g" config.json
-sed -i "s/^    \"box_id\": \"\",$/    \"box_id\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\",/g" config.json
+sed -i "s/^    \"password\": \"\"\(.*\)$/    \"password\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\"\\1/g" config.json
+sed -i "s/^    \"box_id\": \"\"\(.*\)$/    \"box_id\": \"`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32};echo;`\"\\1/g" config.json
 
 if [ -f /etc/init/alba-asdmanager.conf ]; then
     stop alba-asdmanager
