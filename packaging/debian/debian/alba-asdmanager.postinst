@@ -22,3 +22,5 @@ cp /opt/alba-asdmanager/config/upstart/alba-asdmanager.conf /etc/init/
 start alba-asdmanager
 
 chown -R alba:alba /opt/alba-asdmanager
+
+restart avahi-daemon
