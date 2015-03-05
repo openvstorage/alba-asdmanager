@@ -8,6 +8,8 @@ API views
 import os
 import re
 import json
+import string
+import random
 from subprocess import check_output
 from source.app.exceptions import BadRequest
 from source.tools.fstab import FSTab
@@ -145,7 +147,9 @@ class API(object):
             port += 1
         asd_config = {'home': '/mnt/alba-asd/{0}'.format(disk),
                       'box_id': config.data['main']['box_id'],
-                      'asd_id': disk,
+                      'asd_id': '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters +
+                                                                             string.digits)
+                                                               for _ in range(5))),
                       'log_level': 'debug',
                       'port': port}
         with open('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk), 'w') as conffile:
@@ -183,7 +187,8 @@ class API(object):
         if os.path.exists('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk)):
             os.remove('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk))
 
-        # Unmount disk
+        # Cleanup & unmount disk
+        check_output('rm -rf /mnt/alba-asd/{0}/* || true'.format(disk), shell=True)
         check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
         check_output('rm -rf /mnt/alba-asd/{0} || true'.format(disk), shell=True)
