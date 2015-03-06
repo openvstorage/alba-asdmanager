@@ -41,7 +41,7 @@ class API(object):
         disks = []
         for disk in all_disks:
             disk = disk.strip()
-            match = re.search('.+?(((scsi-)|(ata-)).+?) -> ../../(.+)', disk)
+            match = re.search('.+?(((scsi-)|(ata-)).+?) -> ../../(sd.+)', disk)
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
                 if re.search('-part\d+', disk_id) is None:
