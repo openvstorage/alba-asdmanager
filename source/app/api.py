@@ -21,7 +21,8 @@ class API(object):
     @staticmethod
     @get('/')
     def index():
-        return {'_links': ['/disks'],
+        return {'box_id': Configuration().data['main']['box_id'],
+                '_links': ['/disks'],
                 '_actions': []}
 
     @staticmethod
@@ -32,8 +33,8 @@ class API(object):
         mounts = []
         for mount in all_mounts:
             mount = mount.strip()
-            match = re.search('/dev/(.+?) on /.*', mount)
-            if match is not None:
+            match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
+            if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
                 mounts.append(match.groups()[0])
 
         # Find all disks
@@ -58,6 +59,7 @@ class API(object):
         df_info = check_output('df -k', shell=True).strip().split('\n')
         for disk_id in config.data['disks']:
             disk = config.data['disks'][disk_id]
+            disk['name'] = disk_id
             if disk['available'] is False:
                 for df in df_info:
                     match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk_id), df)
@@ -94,6 +96,7 @@ class API(object):
         # Load information about the given disk
         df_info = check_output('df -k', shell=True).strip().split('\n')
         disk_info = config.data['disks'][disk]
+        disk_info['name'] = disk
         if disk_info['available'] is False:
             for df in df_info:
                 match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk), df)
@@ -145,11 +148,12 @@ class API(object):
                       if config.data['disks'][_disk]['available'] is False]
         while port in used_ports:
             port += 1
+        asd_id = '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters +
+                                                              string.digits)
+                                                for _ in range(5)))
         asd_config = {'home': '/mnt/alba-asd/{0}'.format(disk),
                       'box_id': config.data['main']['box_id'],
-                      'asd_id': '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters +
-                                                                             string.digits)
-                                                               for _ in range(5))),
+                      'asd_id': asd_id,
                       'log_level': 'debug',
                       'port': port}
         with open('/opt/alba-asdmanager/config/asd/{0}.json'.format(disk), 'w') as conffile:
@@ -167,6 +171,7 @@ class API(object):
         with Configuration() as config:
             config.data['disks'][disk]['available'] = False
             config.data['disks'][disk]['port'] = port
+            config.data['disks'][disk]['asd_id'] = asd_id
         return {'_link': '/disks/{0}'.format(disk)}
 
     @staticmethod
