@@ -8,12 +8,14 @@ API views
 import os
 import re
 import json
+import copy
 import string
 import random
 from subprocess import check_output
 from source.app.exceptions import BadRequest
 from source.tools.fstab import FSTab
 from source.tools.configuration import Configuration
+from source.tools.disks import Disks
 from source.app.decorators import get, post
 
 
@@ -28,57 +30,35 @@ class API(object):
     @staticmethod
     @get('/disks')
     def list_disks():
-        # Find mountpoints
-        all_mounts = check_output('mount', shell=True).split('\n')
-        mounts = []
-        for mount in all_mounts:
-            mount = mount.strip()
-            match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
-            if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
-                mounts.append(match.groups()[0])
+        # Load current disks
+        disks = Disks.list_disks()
 
-        # Find all disks
-        all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
-        disks = []
-        for disk in all_disks:
-            disk = disk.strip()
-            match = re.search('.+?(((scsi-)|(ata-)).+?) -> ../../(sd.+)', disk)
-            if match is not None:
-                disk_id, disk_name = match.groups()[0], match.groups()[-1]
-                if re.search('-part\d+', disk_id) is None:
-                    if not any(mount for mount in mounts if disk_name in mount):
-                        disks.append(disk_id)
-
-        # Update configuration
         with Configuration() as config:
-            for disk in disks:
-                if disk not in config.data['disks']:
-                    config.data['disks'][disk] = {'available': True}
+            # Update configuration
+            for disk_id in disks:
+                if disk_id not in config.data['disks']:
+                    config.data['disks'][disk_id] = {'available': disks[disk_id]['available']}
+                disks[disk_id].update(config.data['disks'][disk_id])
+            # Find disks that are gone
+            for disk_id in config.data['disks'].keys():
+                if disk_id not in disks:
+                    if config.data['disks'][disk_id]['available'] is True:
+                        del config.data['disks'][disk_id]
+                    else:
+                        disks[disk_id] = copy.deepcopy(config.data['disks'][disk_id])
+                        disks[disk_id]['state'] = {'state': 'error',
+                                                   'detail': 'missing'}
 
-        # For the existing disks, request metadata
-        df_info = check_output('df -k', shell=True).strip().split('\n')
-        for disk_id in config.data['disks']:
-            disk = config.data['disks'][disk_id]
-            disk['name'] = disk_id
-            if disk['available'] is False:
-                for df in df_info:
-                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk_id), df)
-                    if match is not None:
-                        config.data['disks'][disk_id]['statistics'] = {'size': int(match.groups()[0]) * 1024,
-                                                                       'used': int(match.groups()[1]) * 1024,
-                                                                       'available': int(match.groups()[2]) * 1024}
-                        config.data['disks'][disk_id]['mountpoint'] = '/mnt/alba-asd/{0}'.format(disk_id)
-                        config.data['disks'][disk_id]['device'] = '/dev/disk/by-id/{0}'.format(disk_id)
-
-        # Use HATEOAS
-        for disk in config.data['disks']:
-            config.data['disks'][disk]['_link'] = '/disks/{0}'.format(disk)
-            if config.data['disks'][disk]['available'] is False:
-                actions = ['/disks/{0}/delete'.format(disk)]
+        # Add some extra data + HATEOAS
+        for disk_id in disks:
+            disks[disk_id]['name'] = disk_id
+            disks[disk_id]['_link'] = '/disks/{0}'.format(disk_id)
+            if disks[disk_id]['available'] is False:
+                actions = ['/disks/{0}/delete'.format(disk_id)]
             else:
-                actions = ['/disks/{0}/add'.format(disk)]
-            config.data['disks'][disk]['_actions'] = actions
-        data = config.data['disks']
+                actions = ['/disks/{0}/add'.format(disk_id)]
+            disks[disk_id]['_actions'] = actions
+        data = disks
         data['_parent'] = '/'
         data['_actions'] = []
 
