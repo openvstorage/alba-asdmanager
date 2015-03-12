@@ -16,7 +16,7 @@ from source.app.exceptions import BadRequest
 from source.tools.fstab import FSTab
 from source.tools.configuration import Configuration
 from source.tools.disks import Disks
-from source.app.decorators import get, post
+from source.app.decorators import get, post, locked
 
 
 class API(object):
@@ -100,6 +100,7 @@ class API(object):
         return data
 
     @staticmethod
+    @locked()
     @post('/disks/<disk>/add')
     def add_disk(disk):
         config = Configuration()

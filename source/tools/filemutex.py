@@ -27,7 +27,7 @@ class FileMutex(object):
     its limited to the boundaries of a filesystem
     """
 
-    def __init__(self, name):
+    def __init__(self, name, wait=None):
         """
         Creates a file mutex object
         """
@@ -35,6 +35,7 @@ class FileMutex(object):
         self._has_lock = False
         self._start = 0
         self._handle = open(self.key(), 'w')
+        self._wait = wait
         try:
             os.chmod(
                 self.key(),
@@ -45,6 +46,18 @@ class FileMutex(object):
         except OSError:
             pass
 
+    def __call__(self, wait):
+        self._wait = wait
+        return self
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        _ = args, kwargs
+        self.release()
+
     def acquire(self, wait=None):
         """
         Aquire a lock on the mutex, optionally given a maximum wait timeout
@@ -52,6 +65,8 @@ class FileMutex(object):
         if self._has_lock:
             return True
         self._start = time.time()
+        if wait is None:
+            wait = self._wait
         if wait is None:
             fcntl.flock(self._handle, fcntl.LOCK_EX)
         else:
