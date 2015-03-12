@@ -6,7 +6,6 @@ API views
 """
 
 import os
-import re
 import json
 import copy
 import string
@@ -48,6 +47,11 @@ class API(object):
                         disks[disk_id] = copy.deepcopy(config.data['disks'][disk_id])
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'missing'}
+                elif config.data['disks'][disk_id]['available'] is False:
+                    service_state = check_output('status alba-asd-{0} || true'.format(disk_id), shell=True)
+                    if 'start/running' not in service_state:
+                        disks[disk_id]['state'] = {'state': 'error',
+                                                   'detail': 'servicefailure'}
 
         # Add some extra data + HATEOAS
         for disk_id in disks:
@@ -55,6 +59,8 @@ class API(object):
             disks[disk_id]['_link'] = '/disks/{0}'.format(disk_id)
             if disks[disk_id]['available'] is False:
                 actions = ['/disks/{0}/delete'.format(disk_id)]
+                if disks[disk_id]['state']['state'] == 'error':
+                    actions.append('/disks/{0}/restart'.format(disk_id))
             else:
                 actions = ['/disks/{0}/add'.format(disk_id)]
             disks[disk_id]['_actions'] = actions
@@ -67,32 +73,21 @@ class API(object):
     @staticmethod
     @get('/disks/<disk>')
     def index_disk(disk):
-        config = Configuration()
+        all_disks = json.loads(API.list_disks().response[0])
+        if all_disks['_success'] is False:
+            raise Exception(all_disks['_error'])
 
-        # Validate parameters
-        if disk not in config.data['disks']:
+        if disk not in all_disks:
             raise BadRequest('Disk unknown')
 
-        # Load information about the given disk
-        df_info = check_output('df -k', shell=True).strip().split('\n')
-        disk_info = config.data['disks'][disk]
-        disk_info['name'] = disk
-        if disk_info['available'] is False:
-            for df in df_info:
-                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk), df)
-                if match is not None:
-                    disk_info['statistics'] = {'size': int(match.groups()[0]) * 1024,
-                                               'used': int(match.groups()[1]) * 1024,
-                                               'available': int(match.groups()[2]) * 1024}
-                    disk_info['mountpoint'] = '/mnt/alba-asd/{0}'.format(disk)
-                    disk_info['device'] = '/dev/disk/by-id/{0}'.format(disk)
-
         # Use HATEOAS
-        data = disk_info
+        data = all_disks[disk]
         data['_link'] = '/disks/{0}'.format(disk)
         data['_links'] = ['/', '/disks']
-        if disk_info['available'] is False:
+        if data['available'] is False:
             actions = ['/disks/{0}/delete'.format(disk)]
+            if data['state']['state'] == 'error':
+                actions.append('/disks/{0}/restart'.format(disk))
         else:
             actions = ['/disks/{0}/add'.format(disk)]
         data['_actions'] = actions
@@ -184,4 +179,23 @@ class API(object):
         # Save configurations
         with Configuration() as config:
             config.data['disks'][disk] = {'available': True}
+        return {'_link': '/disks/{0}'.format(disk)}
+
+    @staticmethod
+    @post('/disks/<disk>/restart')
+    def restart_disk(disk):
+        config = Configuration()
+
+        # Validate parameters
+        if disk not in config.data['disks']:
+            raise BadRequest('Disk not available')
+        if config.data['disks'][disk]['available'] is True:
+            raise BadRequest('Disk not yet configured')
+
+        # Stop service, remount, start service
+        check_output('stop alba-asd-{0} || true'.format(disk), shell=True)
+        check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+        check_output('mount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+        check_output('start alba-asd-{0} || true'.format(disk), shell=True)
+
         return {'_link': '/disks/{0}'.format(disk)}
