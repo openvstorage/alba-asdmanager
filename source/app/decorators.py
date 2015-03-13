@@ -6,6 +6,7 @@ API decorators
 """
 
 import json
+import traceback
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
@@ -13,7 +14,7 @@ from source.tools.configuration import Configuration
 from source.tools.filemutex import FileMutex
 
 
-def post(route):
+def post(route, authenticate=True):
     """
     POST decorator
     """
@@ -21,11 +22,11 @@ def post(route):
         """
         Wrapper function
         """
-        return app.route(route, methods=['POST'])(_build_function(f))
+        return app.route(route, methods=['POST'])(_build_function(f, authenticate))
     return wrap
 
 
-def get(route):
+def get(route, authenticate=True):
     """
     GET decorator
     """
@@ -33,11 +34,11 @@ def get(route):
         """
         Wrapper function
         """
-        return app.route(route, methods=['GET'])(_build_function(f))
+        return app.route(route, methods=['GET'])(_build_function(f, authenticate))
     return wrap
 
 
-def _build_function(f):
+def _build_function(f, authenticate):
     """
     Wrapping generator
     """
@@ -45,7 +46,7 @@ def _build_function(f):
         """
         Wrapped function
         """
-        if not _authorized():
+        if authenticate is True and not _authorized():
             data, status = {'_success': False,
                             '_error': 'Invalid credentials'}, 401
         else:
@@ -60,9 +61,11 @@ def _build_function(f):
                 data['_success'] = True
                 data['_error'] = ''
             except APIException as ex:
+                print traceback.print_exc()
                 data, status = {'_success': False,
                                 '_error': str(ex)}, ex.status_code
             except Exception as ex:
+                print traceback.print_exc()
                 data, status = {'_success': False,
                                 '_error': str(ex)}, 500
         data['_version'] = 1

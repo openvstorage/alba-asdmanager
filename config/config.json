@@ -4,9 +4,8 @@
     "box_id": "",
     "username": "root"
   },
-  "disks": {
-  },
-  "ports": {
-    "asd": 8600
+  "network": {
+    "ips": [],
+    "port": 8600
   }
 }

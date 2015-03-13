@@ -16,13 +16,12 @@ class FSTab(object):
         lines = FSTab._read()
         found = False
         for line in lines:
-            if disk in line:
+            if line.startswith(disk):
                 found = True
                 break
         if found is False:
             lines.append(FSTab.line.format(disk, mountpoint))
         FSTab._write(lines)
-
 
     @staticmethod
     def remove(disk):
@@ -32,6 +31,16 @@ class FSTab(object):
             if disk not in line:
                 new_lines.append(line)
         FSTab._write(new_lines)
+
+    @staticmethod
+    def read():
+        lines = FSTab._read()
+        disks = {}
+        for line in lines:
+            device, mountpoint, _ = line.split('  ', 2)
+            device = device.split('/')[-1].replace('-part1', '')
+            disks[device] = mountpoint
+        return disks
 
     @staticmethod
     def _read():
