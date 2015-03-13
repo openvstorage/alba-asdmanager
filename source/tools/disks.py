@@ -5,14 +5,18 @@
 Disk related code
 """
 import re
+import json
 from subprocess import check_output
 from source.tools.fstab import FSTab
+from source.tools.configuration import Configuration
 
 
 class Disks(object):
     """
     Disk helper methods
     """
+
+    controllers = {}
 
     @staticmethod
     def list_disks():
@@ -77,6 +81,8 @@ class Disks(object):
 
     @staticmethod
     def prepare_disk(disk):
+        print 'Preparing disk {0}'.format(disk)
+        Disks.locate(disk, start=False)
         check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
@@ -86,10 +92,42 @@ class Disks(object):
         check_output('mount /mnt/alba-asd/{0}'.format(disk), shell=True)
         check_output('mkdir /mnt/alba-asd/{0}/data'.format(disk), shell=True)
         check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(disk), shell=True)
+        print 'Prepare disk {0} complete'.format(disk)
 
     @staticmethod
     def clean_disk(disk):
+        print 'Cleaning disk {0}'.format(disk)
         check_output('rm -rf /mnt/alba-asd/{0}/* || true'.format(disk), shell=True)
         check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
         check_output('rm -rf /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+        Disks.locate(disk, start=True)
+        print 'Clean disk {0} complete'.format(disk)
+
+    @staticmethod
+    def scan_controllers():
+        print 'Scanning controllers'
+        controllers = {}
+        has_storecli = check_output('which storcli64 || true', shell=True).strip() != ''
+        if has_storecli is True:
+            controller_info = json.loads(check_output('storcli64 /call/eall/sall show all J', shell=True))
+            for controller in controller_info['Controllers']:
+                if controller['Command Status']['Status'] == 'Failure':
+                    continue
+                data = controller['Response Data']
+                drive_locations = set(drive.split(' ')[1] for drive in data.keys())
+                for location in drive_locations:
+                    if data['Drive {0}'.format(location)][0]['State'] == 'JBOD':
+                        wwn = data['Drive {0} - Detailed Information'.format(location)]['Drive {0} Device attributes'.format(location)]['WWN']
+                        controllers[wwn] = ('storcli64', location)
+        Disks.controllers = controllers
+        print 'Scan complete'
+
+    @staticmethod
+    def locate(disk, start):
+        for wwn in Disks.controllers:
+            if disk.endswith(wwn):
+                controller_type, location = Disks.controllers[wwn]
+                if controller_type == 'storcli64':
+                    print 'Location {0} for {1}'.format('start' if start is True else 'stop', location)
+                    check_output('storcli64 {0} {1} locate'.format(location, 'start' if start is True else 'stop'), shell=True)

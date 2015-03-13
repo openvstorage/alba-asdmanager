@@ -84,24 +84,3 @@ def _authorized():
     config = Configuration()
     auth = request.authorization
     return auth and auth.username == config.data['main']['username'] and auth.password == config.data['main']['password']
-
-
-def locked():
-    """
-    locked decorator
-    """
-    def wrap(f):
-        """
-        Wrapper function
-        """
-        def new_function(*args, **kwargs):
-            """
-            Wrapped function
-            """
-            with FileMutex(f.__name__):
-                return f(*args, **kwargs)
-
-        new_function.__name__ = f.__name__
-        new_function.__module__ = f.__module__
-        return new_function
-    return wrap
