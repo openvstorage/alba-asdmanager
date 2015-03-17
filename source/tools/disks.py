@@ -8,7 +8,6 @@ import re
 import json
 from subprocess import check_output
 from source.tools.fstab import FSTab
-from source.tools.configuration import Configuration
 
 
 class Disks(object):
@@ -50,12 +49,14 @@ class Disks(object):
             for disk_id in disks:
                 if disks[disk_id]['device'] == '/dev/disk/by-id/{0}'.format(device):
                     disks[disk_id].update({'available': False,
-                                           'mountpoint': fstab_disks[device]})
+                                           'mountpoint': fstab_disks[device],
+                                           'asd_id': fstab_disks[device].split('/')[-1]})
                     del fstab_disks[device]
         for device in fstab_disks.keys():
             disks[device] = {'device': '/dev/disk/by-id/{0}'.format(device),
                              'available': False,
                              'mountpoint': fstab_disks[device],
+                             'asd_id': fstab_disks[device].split('/')[-1],
                              'state': {'state': 'error',
                                        'detail': 'missing'}}
 
@@ -72,7 +73,7 @@ class Disks(object):
         # Execute some checkups on the disks
         for disk_id in disks:
             if disks[disk_id]['available'] is False and disks[disk_id]['state']['state'] == 'ok':
-                output = check_output('ls /mnt/alba-asd/{0}/ 2>&1 || true'.format(disk_id), shell=True)
+                output = check_output('ls {0}/ 2>&1 || true'.format(disks[disk_id]['mountpoint']), shell=True)
                 if 'Input/output error' in output:
                     disks[disk_id]['state'] = {'state': 'error',
                                                'detail': 'ioerror'}
@@ -80,29 +81,29 @@ class Disks(object):
         return disks
 
     @staticmethod
-    def prepare_disk(disk):
-        print 'Preparing disk {0}'.format(disk)
+    def prepare_disk(disk, asd_id):
+        print 'Preparing disk {0}/{1}'.format(disk, asd_id)
         Disks.locate(disk, start=False)
-        check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
         check_output('mkfs.ext4 -q /dev/disk/by-id/{0}-part1 -L {0}'.format(disk), shell=True)
-        check_output('mkdir -p /mnt/alba-asd/{0}'.format(disk), shell=True)
-        FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(disk))
-        check_output('mount /mnt/alba-asd/{0}'.format(disk), shell=True)
-        check_output('mkdir /mnt/alba-asd/{0}/data'.format(disk), shell=True)
-        check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(disk), shell=True)
-        print 'Prepare disk {0} complete'.format(disk)
+        check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
+        FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
+        check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
+        check_output('mkdir /mnt/alba-asd/{0}/data'.format(asd_id), shell=True)
+        check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(asd_id), shell=True)
+        print 'Prepare disk {0}/{1} complete'.format(disk, asd_id)
 
     @staticmethod
-    def clean_disk(disk):
-        print 'Cleaning disk {0}'.format(disk)
-        check_output('rm -rf /mnt/alba-asd/{0}/* || true'.format(disk), shell=True)
-        check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+    def clean_disk(disk, asd_id):
+        print 'Cleaning disk {0}/{1}'.format(disk, asd_id)
+        check_output('rm -rf /mnt/alba-asd/{0}/* || true'.format(asd_id), shell=True)
+        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
-        check_output('rm -rf /mnt/alba-asd/{0} || true'.format(disk), shell=True)
+        check_output('rm -rf /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         Disks.locate(disk, start=True)
-        print 'Clean disk {0} complete'.format(disk)
+        print 'Clean disk {0}/{1} complete'.format(disk, asd_id)
 
     @staticmethod
     def scan_controllers():

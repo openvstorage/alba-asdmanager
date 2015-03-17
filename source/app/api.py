@@ -58,10 +58,11 @@ class API(object):
         disks = Disks.list_disks()
         for disk_id in disks:
             if disks[disk_id]['available'] is False:
+                asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
-                    if os.path.exists('/mnt/alba-asd/{0}/asd.json'.format(disk_id)):
+                    if os.path.exists('/mnt/alba-asd/{0}/asd.json'.format(asd_id)):
                         try:
-                            with open('/mnt/alba-asd/{0}/asd.json'.format(disk_id), 'r') as conffile:
+                            with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'r') as conffile:
                                 disks[disk_id].update(json.load(conffile))
                         except ValueError:
                             disks[disk_id]['state'] = {'state': 'error',
@@ -70,7 +71,7 @@ class API(object):
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
                     if disks[disk_id]['state']['state'] != 'error':
-                        service_state = check_output('status alba-asd-{0} || true'.format(disk_id), shell=True)
+                        service_state = check_output('status alba-asd-{0} || true'.format(asd_id), shell=True)
                         if 'start/running' not in service_state:
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
@@ -109,7 +110,8 @@ class API(object):
                 raise BadRequest('Disk already configured')
 
             # Partitioning and mounting
-            Disks.prepare_disk(disk)
+            asd_id = '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5)))
+            Disks.prepare_disk(disk, asd_id)
 
             # Prepare & start service
             port = int(config.data['network']['port'])
@@ -118,24 +120,23 @@ class API(object):
                           if all_disks[_disk]['available'] is False and 'port' in all_disks[_disk]]
             while port in used_ports:
                 port += 1
-            asd_id = '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5)))
-            asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(disk),
+            asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(asd_id),
                           'box_id': config.data['main']['box_id'],
                           'asd_id': asd_id,
                           'log_level': 'debug',
                           'port': port}
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
-            with open('/mnt/alba-asd/{0}/asd.json'.format(disk), 'w') as conffile:
+            with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'w') as conffile:
                 conffile.write(json.dumps(asd_config))
-            check_output('chmod 666 /mnt/alba-asd/{0}/asd.json'.format(disk), shell=True)
-            check_output('chown alba:alba /mnt/alba-asd/{0}/asd.json'.format(disk), shell=True)
+            check_output('chmod 666 /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
+            check_output('chown alba:alba /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
             with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
-            contents = contents.replace('<ASD>', disk)
-            with open('/etc/init/alba-asd-{0}.conf'.format(disk), 'w') as upstart:
+            contents = contents.replace('<ASD>', asd_id)
+            with open('/etc/init/alba-asd-{0}.conf'.format(asd_id), 'w') as upstart:
                 upstart.write(contents)
-            check_output('start alba-asd-{0}'.format(disk), shell=True)
+            check_output('start alba-asd-{0}'.format(asd_id), shell=True)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -150,12 +151,13 @@ class API(object):
                 raise BadRequest('Disk not yet configured')
 
             # Stop and remove service
-            check_output('stop alba-asd-{0} || true'.format(disk), shell=True)
-            if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(disk)):
-                os.remove('/etc/init/alba-asd-{0}.conf'.format(disk))
+            asd_id = all_disks[disk]['asd_id']
+            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
+            if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(asd_id)):
+                os.remove('/etc/init/alba-asd-{0}.conf'.format(asd_id))
 
             # Cleanup & unmount disk
-            Disks.clean_disk(disk)
+            Disks.clean_disk(disk, asd_id)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -170,9 +172,10 @@ class API(object):
                 raise BadRequest('Disk not yet configured')
 
             # Stop service, remount, start service
-            check_output('stop alba-asd-{0} || true'.format(disk), shell=True)
-            check_output('umount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
-            check_output('mount /mnt/alba-asd/{0} || true'.format(disk), shell=True)
-            check_output('start alba-asd-{0} || true'.format(disk), shell=True)
+            asd_id = all_disks[disk]['asd_id']
+            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
+            check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
+            check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
+            check_output('start alba-asd-{0} || true'.format(asd_id), shell=True)
 
             return {'_link': '/disks/{0}'.format(disk)}
