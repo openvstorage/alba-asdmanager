@@ -76,6 +76,7 @@ class API(object):
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
+            disks[disk_id]['box_id'] = Configuration().data['main']['box_id']
             API._disk_hateoas(disks[disk_id], disk_id)
         return disks
 
@@ -138,7 +139,11 @@ class API(object):
                 upstart.write(contents)
             check_output('start alba-asd-{0}'.format(asd_id), shell=True)
 
-            return {'_link': '/disks/{0}'.format(disk)}
+            all_disks = API._list_disks()
+            data = all_disks[disk]
+            API._disk_hateoas(data, disk)
+            data['_link'] = '/disks/{0}'.format(disk)
+            return data
 
     @staticmethod
     @post('/disks/<disk>/delete')
