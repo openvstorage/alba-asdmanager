@@ -64,7 +64,7 @@ class Disks(object):
         df_info = check_output('df -k', shell=True).strip().split('\n')
         for disk_id in disks:
             for df in df_info:
-                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disk_id), df)
+                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/.+', df)
                 if match is not None:
                     disks[disk_id].update({'statistics': {'size': int(match.groups()[0]) * 1024,
                                                           'used': int(match.groups()[1]) * 1024,

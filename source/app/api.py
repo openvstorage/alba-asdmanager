@@ -29,6 +29,7 @@ class API(object):
     @staticmethod
     @get('/net', authenticate=False)
     def net():
+        print 'Loading network information'
         output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
         my_ips = output.split('\n')
         return {'ips': [found_ip.strip() for found_ip in my_ips if found_ip.strip() != '127.0.0.1' and found_ip.strip() != ''],
@@ -38,6 +39,7 @@ class API(object):
     @staticmethod
     @post('/net')
     def set_net():
+        print 'Setting network information'
         with Configuration() as config:
             config.data['network']['ips'] = json.loads(request.form['ips'])
         return {'_link': '/net'}
@@ -55,6 +57,7 @@ class API(object):
 
     @staticmethod
     def _list_disks():
+        print 'Fetching disks'
         disks = Disks.list_disks()
         for disk_id in disks:
             if disks[disk_id]['available'] is False:
@@ -78,11 +81,13 @@ class API(object):
             disks[disk_id]['name'] = disk_id
             disks[disk_id]['box_id'] = Configuration().data['main']['box_id']
             API._disk_hateoas(disks[disk_id], disk_id)
+        print 'Fetching disks completed'
         return disks
 
     @staticmethod
     @get('/disks')
     def list_disks():
+        print 'Listing disks'
         data = API._list_disks()
         data['_parent'] = '/'
         data['_actions'] = []
@@ -91,6 +96,7 @@ class API(object):
     @staticmethod
     @get('/disks/<disk>')
     def index_disk(disk):
+        print 'Listing disk {0}'.format(disk)
         all_disks = API._list_disks()
         if disk not in all_disks:
             raise BadRequest('Disk unknown')
@@ -102,7 +108,9 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/add')
     def add_disk(disk):
+        print 'Add disk {0}'.format(disk)
         with FileMutex('add_disk'), FileMutex('disk_'.format(disk)):
+            print 'Got lock for add disk {0}'.format(disk)
             config = Configuration()
             all_disks = API._list_disks()
             if disk not in all_disks:
@@ -111,10 +119,12 @@ class API(object):
                 raise BadRequest('Disk already configured')
 
             # Partitioning and mounting
-            asd_id = '{0}-{1}'.format(disk, ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5)))
+            print 'Preparing disk {0}'.format(disk)
+            asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
             Disks.prepare_disk(disk, asd_id)
 
             # Prepare & start service
+            print 'Setting up service for disk {0}'.format(disk)
             port = int(config.data['network']['port'])
             ips = config.data['network']['ips']
             used_ports = [all_disks[_disk]['port'] for _disk in all_disks
@@ -139,6 +149,7 @@ class API(object):
                 upstart.write(contents)
             check_output('start alba-asd-{0}'.format(asd_id), shell=True)
 
+            print 'Returning info about added disk {0}'.format(disk)
             all_disks = API._list_disks()
             data = all_disks[disk]
             API._disk_hateoas(data, disk)
@@ -148,7 +159,9 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/delete')
     def delete_disk(disk):
+        print 'Deleting disk {0}'.format(disk)
         with FileMutex('disk_'.format(disk)):
+            print 'Got lock for deleting disk {0}'.format(disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
                 raise BadRequest('Disk not available')
@@ -156,12 +169,14 @@ class API(object):
                 raise BadRequest('Disk not yet configured')
 
             # Stop and remove service
+            print 'Removing services for disk {0}'.format(disk)
             asd_id = all_disks[disk]['asd_id']
             check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
             if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(asd_id)):
                 os.remove('/etc/init/alba-asd-{0}.conf'.format(asd_id))
 
             # Cleanup & unmount disk
+            print 'Cleaning disk {0}'.format(disk)
             Disks.clean_disk(disk, asd_id)
 
             return {'_link': '/disks/{0}'.format(disk)}
@@ -169,7 +184,9 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/restart')
     def restart_disk(disk):
+        print 'Restarting disk {0}'.format(disk)
         with FileMutex('disk_'.format(disk)):
+            print 'Got lock for restarting disk {0}'.format(disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
                 raise BadRequest('Disk not available')
