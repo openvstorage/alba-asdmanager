@@ -87,7 +87,7 @@ class Disks(object):
         check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
-        check_output('mkfs.ext4 -q /dev/disk/by-id/{0}-part1 -L {0}'.format(disk), shell=True)
+        check_output('mkfs.xfs -q /dev/disk/by-id/{0}-part1'.format(disk), shell=True)
         check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
         FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
         check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
