@@ -29,7 +29,7 @@ class DebianPackager(object):
     """
 
     repo_path_code = '/tmp/repo_alba-asdmanager_code'
-    package_path = '/tmp/packages/alba-asdmanager'
+    package_path = '/tmp/packages/openvstorage-sdm'
 
     def __init__(self):
         """
@@ -53,22 +53,22 @@ class DebianPackager(object):
         shutil.copytree('{0}/packaging/{1}'.format(DebianPackager.repo_path_code, 'debian'), folder)
 
         # Rename tgz
-        # /<pp>/alba-asdmanager_1.2.3.tar.gz -> /<pp>/debian/alba-asdmanager_1.2.3.orig.tar.gz
-        shutil.copyfile('{0}/alba-asdmanager_{1}.tar.gz'.format(DebianPackager.package_path, version_string),
-                        '{0}/debian/alba-asdmanager_{1}.orig.tar.gz'.format(DebianPackager.package_path, version_string))
-        # /<pp>/debian/alba-asdmanager-1.2.3/...
-        DebianPackager._run('tar -xzf alba-asdmanager_{0}.orig.tar.gz'.format(version_string),
+        # /<pp>/openvstorage-sdm_1.2.3.tar.gz -> /<pp>/debian/openvstorage-sdm_1.2.3.orig.tar.gz
+        shutil.copyfile('{0}/openvstorage-sdm_{1}.tar.gz'.format(DebianPackager.package_path, version_string),
+                        '{0}/debian/openvstorage-sdm_{1}.orig.tar.gz'.format(DebianPackager.package_path, version_string))
+        # /<pp>/debian/openvstorage-sdm-1.2.3/...
+        DebianPackager._run('tar -xzf openvstorage-sdm_{0}.orig.tar.gz'.format(version_string),
                             '{0}/debian/'.format(DebianPackager.package_path))
 
         # Move the debian package metadata into the extracted source
-        # /<pp>/debian/debian -> /<pp>/debian/alba-asdmanager-1.2.3/
-        DebianPackager._run('mv {0}/debian/debian {0}/debian/alba-asdmanager-{1}/'.format(DebianPackager.package_path, version_string),
+        # /<pp>/debian/debian -> /<pp>/debian/openvstorage-sdm-1.2.3/
+        DebianPackager._run('mv {0}/debian/debian {0}/debian/openvstorage-sdm-{1}/'.format(DebianPackager.package_path, version_string),
                             DebianPackager.package_path)
 
         # Build changelog entry
-        with open('{0}/debian/alba-asdmanager-{1}/debian/changelog'.format(DebianPackager.package_path, version_string), 'w') as changelog_file:
+        with open('{0}/debian/openvstorage-sdm-{1}/debian/changelog'.format(DebianPackager.package_path, version_string), 'w') as changelog_file:
             changelog_file.write('' +
-"""alba-asdmanager ({0}-1) {1}; urgency=low
+"""openvstorage-sdm ({0}-1) {1}; urgency=low
 
   * For changes, see individual changelogs
 
@@ -76,13 +76,13 @@ class DebianPackager(object):
 """.format(version_string, distribution, revision_date.strftime('%a, %d %b %Y %H:%M:%S +0000')))
 
         # Some more tweaks
-        DebianPackager._run('chmod 770 {0}/debian/alba-asdmanager-{1}/debian/rules'.format(DebianPackager.package_path, version_string),
+        DebianPackager._run('chmod 770 {0}/debian/openvstorage-sdm-{1}/debian/rules'.format(DebianPackager.package_path, version_string),
                             DebianPackager.package_path)
         DebianPackager._run("sed -i -e 's/__NEW_VERSION__/{0}/' *.*".format(version_string),
-                            '{0}/debian/alba-asdmanager-{1}/debian'.format(DebianPackager.package_path, version_string))
+                            '{0}/debian/openvstorage-sdm-{1}/debian'.format(DebianPackager.package_path, version_string))
 
         # Build the package
-        DebianPackager._run('dpkg-buildpackage', '{0}/debian/alba-asdmanager-{1}'.format(DebianPackager.package_path, version_string))
+        DebianPackager._run('dpkg-buildpackage', '{0}/debian/openvstorage-sdm-{1}'.format(DebianPackager.package_path, version_string))
 
     @staticmethod
     def upload(source_metadata):
@@ -91,11 +91,11 @@ class DebianPackager(object):
         """
         distribution, version, suffix, build, version_string, revision_date = source_metadata
         new_package = version_string not in DebianPackager._run(
-            'ssh ovs-apt@packages.cloudfounders.com "grep \'alba-asdmanager_{0}-1_amd64\' /data/www/apt/*/Packages" || true'.format(version_string),
+            'ssh ovs-apt@packages.cloudfounders.com "grep \'openvstorage-sdm_{0}-1_amd64\' /data/www/apt/*/Packages" || true'.format(version_string),
             DebianPackager.package_path
         )
-        print 'Uploading {0} package: {1}'.format('new' if new_package else 'existing', 'alba-asdmanager_{0}-1_amd64'.format(version_string))
-        DebianPackager._run('dput -c {0}/debian/dput.cfg ovs-apt {0}/debian/alba-asdmanager_{1}-1_amd64.changes'.format(DebianPackager.package_path, version_string),
+        print 'Uploading {0} package: {1}'.format('new' if new_package else 'existing', 'openvstorage-sdm_{0}-1_amd64'.format(version_string))
+        DebianPackager._run('dput -c {0}/debian/dput.cfg ovs-apt {0}/debian/openvstorage-sdm_{1}-1_amd64.changes'.format(DebianPackager.package_path, version_string),
                             DebianPackager.package_path)
         reload_repo = 'ssh ovs-apt@packages.cloudfounders.com "mini-dinstall -b{0}"'.format('' if new_package else ' --no-db')
         DebianPackager._run(reload_repo, DebianPackager.package_path)

@@ -38,7 +38,7 @@ class SourceCollector(object):
     repo = 'openvstorage/alba-asdmanager'
     repo_path_metadata = '/tmp/repo_alba-asdmanager_metadata'
     repo_path_code = '/tmp/repo_alba-asdmanager_code'
-    package_path = '/tmp/packages/alba-asdmanager'
+    package_path = '/tmp/packages/openvstorage-sdm'
 
     def __init__(self):
         """
@@ -270,12 +270,12 @@ class SourceCollector(object):
         # Building archive
         print '  Building archive'
         SourceCollector._run(
-            "tar -czf {0}/alba-asdmanager_{1}.tar.gz --transform 's,^,alba-asdmanager-{1}/,' config source scripts *.txt".format(
+            "tar -czf {0}/openvstorage-sdm_{1}.tar.gz --transform 's,^,openvstorage-sdm-{1}/,' config source scripts *.txt".format(
                 SourceCollector.package_path, version_string
             ), SourceCollector.repo_path_code
         )
         SourceCollector._run('rm -f CHANGELOG.txt', SourceCollector.repo_path_code)
-        print '    Archive: {0}/alba-asdmanager_{1}.tar.gz'.format(SourceCollector.package_path, version_string)
+        print '    Archive: {0}/openvstorage-sdm_{1}.tar.gz'.format(SourceCollector.package_path, version_string)
 
         print 'Done'
 

@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-alba-asdmanager:
+openvstorage-sdm:
 	dh_testdir
 	dh_testroot
 	dh_installdirs  -p$@
@@ -18,8 +18,8 @@ alba-asdmanager:
 	dh_builddeb  -p$@
 
 clean:
-	if [ -f debian/alba-asdmanager ]; then rm debian/alba-asdmanager; fi
+	if [ -f debian/openvstorage-sdm ]; then rm debian/openvstorage-sdm; fi
 
-binary: alba-asdmanager
+binary: openvstorage-sdm
 
 .PHONY: clean build
