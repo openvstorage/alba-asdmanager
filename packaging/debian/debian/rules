@@ -20,6 +20,6 @@ openvstorage-sdm:
 clean:
 	if [ -f debian/openvstorage-sdm ]; then rm debian/openvstorage-sdm; fi
 
-binary: alba-asdmanager
+binary: openvstorage-sdm
 
 .PHONY: clean build
