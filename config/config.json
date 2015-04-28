@@ -1,0 +1,11 @@
+{
+  "main": {
+    "password": "",
+    "box_id": "",
+    "username": "root"
+  },
+  "network": {
+    "ips": [],
+    "port": 8600
+  }
+}
