@@ -7,6 +7,7 @@ API decorators
 
 import json
 import traceback
+import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
@@ -64,6 +65,10 @@ def _build_function(f, authenticate):
                 print traceback.print_exc()
                 data, status = {'_success': False,
                                 '_error': str(ex)}, ex.status_code
+            except subprocess.CalledProcessError as ex:
+                print traceback.print_exc()
+                data, status = {'_success': False,
+                                '_error': ex.output}, 500
             except Exception as ex:
                 print traceback.print_exc()
                 data, status = {'_success': False,
