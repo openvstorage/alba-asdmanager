@@ -21,14 +21,20 @@ class Disks(object):
     def list_disks():
         disks = {}
 
-        # Find mountpoints
-        all_mounts = check_output('mount', shell=True).split('\n')
-        mounts = []
+        # Find used disks
+        # 1. Mounted disks
+        all_mounts = check_output('mount', shell=True).splitlines()
+        used_disks = []
         for mount in all_mounts:
             mount = mount.strip()
             match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
             if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
-                mounts.append(match.groups()[0])
+                used_disks.append(match.groups()[0])
+        # 2. Disks used in a software raid
+        mdstat = check_output('cat /proc/mdstat', shell=True)
+        for md_match in re.findall('([a-z]+\d+ : (in)?active raid\d+(( [a-z]+\d?\[\d+\])+))', mdstat):
+            for disk_match in re.findall('( ([a-z]+\d?)\[\d+\])', md_match[2]):
+                used_disks.append(disk_match[1].strip())
 
         # Find all disks
         all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
@@ -38,7 +44,7 @@ class Disks(object):
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
                 if re.search('-part\d+', disk_id) is None:
-                    if not any(mount for mount in mounts if disk_name in mount):
+                    if not any(used_disk for used_disk in used_disks if disk_name in used_disk):
                         disks[disk_id] = {'device': '/dev/disk/by-id/{0}'.format(disk_id),
                                           'available': True,
                                           'state': {'state': 'ok'}}
@@ -87,7 +93,7 @@ class Disks(object):
         check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
-        check_output('mkfs.ext4 -q /dev/disk/by-id/{0}-part1 -L {0}'.format(disk), shell=True)
+        check_output('mkfs.xfs -qf /dev/disk/by-id/{0}-part1'.format(disk), shell=True)
         check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
         FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
         check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
