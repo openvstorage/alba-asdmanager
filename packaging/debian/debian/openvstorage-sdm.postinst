@@ -28,7 +28,7 @@ if [ ! -f /opt/alba-asdmanager/config/config.json ]; then
     }
 }
 EOF
-    cp -f /opt/alba-asdmanager/config/ /etc/avahi/services/asdnode.service
+    cp -f /opt/alba-asdmanager/config/asdnode.service /etc/avahi/services/asdnode.service
     sed -i "s/\[BOXID\]/$boxid/g" /etc/avahi/services/asdnode.service
     status avahi-daemon | grep running &> /dev/null
     if [ $? -eq 0 ]; then

@@ -25,7 +25,7 @@ class Configuration(object):
         _ = args, kwargs
         try:
             with open(Configuration.filename, 'w') as config_file:
-                config_file.write(json.dumps(self.data, indent=2))
+                config_file.write(json.dumps(self.data, indent=4))
         finally:
             self.mutex.release()
 
