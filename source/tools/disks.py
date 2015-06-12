@@ -107,7 +107,11 @@ class Disks(object):
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
         check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('rm -rf /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-        check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
+        try:
+            check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
+        except:
+            # Wiping the parition is a nice-to-have and might fail when a disk is e.g. unavailable
+            pass
         Disks.locate(disk, start=True)
         print 'Clean disk {0}/{1} complete'.format(disk, asd_id)
 
