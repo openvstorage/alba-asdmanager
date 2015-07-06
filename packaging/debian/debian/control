@@ -1,0 +1,13 @@
+Source: openvstorage-sdm
+Maintainer: Kenneth Henderick <kenneth.henderick@cloudfounders.com>
+Standards-Version: 3.9.4.0
+Section: python
+Priority: optional
+Build-Depends: python (>= 2.7.2)
+
+Package: openvstorage-sdm
+Architecture: amd64
+Pre-Depends: python (>= 2.7.2), python-pip (>= 1.4.1-2), avahi-utils
+Depends: lsscsi (>= 0.27-2), ipython, alba, openssl, python-openssl, parted, xfsprogs
+Description: Open vStorage Backend ASD Manager
+ Management suite for Open vStorage Backend ASDs

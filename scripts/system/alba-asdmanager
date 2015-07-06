@@ -1,0 +1,7 @@
+#!/bin/sh
+cd /opt/alba-asdmanager
+if [ "$1" = "monitor" ] ; then
+  if [ "$2" = "services" ] ; then
+    watch -n 1 'echo "\nALBA ASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nALBA ASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+  fi
+fi
