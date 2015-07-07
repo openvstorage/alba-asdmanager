@@ -2,7 +2,7 @@
 # All rights reserved
 
 """
-Flask main module
+API module
 """
 
 from source.tools.disks import Disks
