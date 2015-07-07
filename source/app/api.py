@@ -19,11 +19,13 @@ from source.app.decorators import get, post
 
 
 class API(object):
+    APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
+
     @staticmethod
     @get('/')
     def index():
         return {'box_id': Configuration().data['main']['box_id'],
-                '_links': ['/disks', '/net'],
+                '_links': ['/disks', '/net', '/update'],
                 '_actions': []}
 
     @staticmethod
@@ -201,3 +203,37 @@ class API(object):
             check_output('start alba-asd-{0} || true'.format(asd_id), shell=True)
 
             return {'_link': '/disks/{0}'.format(disk)}
+
+    @staticmethod
+    @get('/update')
+    def update():
+        return {'_link': '/update/available',
+                '_action': '/update/execute'}
+
+    @staticmethod
+    @get('/update/available')
+    def get_available_version():
+        check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+        installed = None
+        candidate = None
+        for line in check_output('apt-cache policy openvstorage-sdm {0}'.format(API.APT_CONFIG_STRING), shell=True).splitlines():
+            line = line.strip()
+            if line.startswith('Installed:'):
+                installed = line.lstrip('Installed:').strip()
+            elif line.startswith('Candidate:'):
+                candidate = line.lstrip('Candidate:').strip()
+
+            if installed is not None and candidate is not None:
+                break
+
+        version = ''
+        if installed != '(none)' and candidate != installed:
+            version = candidate
+
+        return {'version': version}
+
+    @staticmethod
+    @post('/update/execute')
+    def execute_update():
+        check_output('apt-get install openvstorage-sdm', shell=True)
+        return 'updated'

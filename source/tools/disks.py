@@ -6,7 +6,7 @@ Disk related code
 """
 import re
 import json
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
 
@@ -109,7 +109,7 @@ class Disks(object):
         check_output('rm -rf /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         try:
             check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
-        except:
+        except CalledProcessError:
             # Wiping the parition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
         Disks.locate(disk, start=True)
