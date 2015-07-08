@@ -38,13 +38,13 @@ EOF
     fi
 fi
 
-chown -R alba:alba /opt/alba-asdmanager
-
 id -a alba &> /dev/null
 if [[ $? -eq 1 ]]
 then
     useradd -b /home -d /home/alba -m alba
 fi
+
+chown -R alba:alba /opt/alba-asdmanager
 
 if [ ! -f /etc/init/alba-asdmanager.conf ]; then
     cp -f /opt/alba-asdmanager/config/upstart/alba-asdmanager.conf /etc/init/
