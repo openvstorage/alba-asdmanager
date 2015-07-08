@@ -19,6 +19,8 @@ from source.app.decorators import get, post
 
 
 class API(object):
+    PACKAGE_NAME = 'openvstorage-sdm'
+    SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
 
     @staticmethod
@@ -76,7 +78,7 @@ class API(object):
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
                     if disks[disk_id]['state']['state'] != 'error':
-                        service_state = check_output('status alba-asd-{0} || true'.format(asd_id), shell=True)
+                        service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
                         if 'start/running' not in service_state:
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
@@ -146,10 +148,12 @@ class API(object):
             check_output('chown alba:alba /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
             with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
             contents = contents.replace('<ASD>', asd_id)
-            with open('/etc/init/alba-asd-{0}.conf'.format(asd_id), 'w') as upstart:
+            contents = contents.replace('<SERVICE_NAME>', service_name)
+            with open('/etc/init/{0}.conf'.format(service_name), 'w') as upstart:
                 upstart.write(contents)
-            check_output('start alba-asd-{0}'.format(asd_id), shell=True)
+            check_output('start {0}'.format(service_name), shell=True)
 
             print 'Returning info about added disk {0}'.format(disk)
             all_disks = API._list_disks()
@@ -173,9 +177,10 @@ class API(object):
             # Stop and remove service
             print 'Removing services for disk {0}'.format(disk)
             asd_id = all_disks[disk]['asd_id']
-            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
-            if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(asd_id)):
-                os.remove('/etc/init/alba-asd-{0}.conf'.format(asd_id))
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            check_output('stop {0} || true'.format(service_name), shell=True)
+            if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
+                os.remove('/etc/init/{0}.conf'.format(service_name))
 
             # Cleanup & unmount disk
             print 'Cleaning disk {0}'.format(disk)
@@ -197,26 +202,38 @@ class API(object):
 
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
-            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            check_output('stop {0} || true'.format(service_name), shell=True)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            check_output('start alba-asd-{0} || true'.format(asd_id), shell=True)
+            check_output('start {0} || true'.format(service_name), shell=True)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
     @staticmethod
     @get('/update')
     def update():
-        return {'_link': '/update/available',
+        return {'_link': '/update/information',
                 '_action': '/update/execute'}
 
     @staticmethod
-    @get('/update/available')
-    def get_available_version():
+    def _get_sdm_services():
+        services = {}
+        for file_name in os.listdir('/etc/init/'):
+            if file_name.startswith(API.SERVICE_PREFIX) and file_name.endswith('.conf'):
+                file_name = file_name.rstrip('.conf')
+                file_path = '/opt/alba-asdmanager/run/{0}.version'.format(file_name)
+                if os.path.isfile(file_path):
+                    with open(file_path) as fp:
+                        services[file_name] = fp.read().strip()
+        return services
+
+    @staticmethod
+    def _get_package_information(package_name):
         check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
         installed = None
         candidate = None
-        for line in check_output('apt-cache policy openvstorage-sdm {0}'.format(API.APT_CONFIG_STRING), shell=True).splitlines():
+        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING), shell=True).splitlines():
             line = line.strip()
             if line.startswith('Installed:'):
                 installed = line.lstrip('Installed:').strip()
@@ -225,15 +242,35 @@ class API(object):
 
             if installed is not None and candidate is not None:
                 break
+        print 'Installed version: {0}'.format(installed)
+        print 'Candidate version: {0}'.format(candidate)
+        return installed, candidate
 
-        version = ''
-        if installed != '(none)' and candidate != installed:
-            version = candidate
+    @staticmethod
+    @get('/update/information')
+    def get_update_information():
+        sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+        sdm_installed = sdm_package_info[0]
+        sdm_candidate = sdm_package_info[1]
+        if sdm_installed != sdm_candidate:
+            return {'version': sdm_candidate,
+                    'installed': sdm_installed}
 
-        return {'version': version}
+        alba_package_info = API._get_package_information(package_name='alba')
+        services = [key for key, value in API._get_sdm_services().iteritems() if value != alba_package_info[1]]
+        return {'version': sdm_candidate if services else '',
+                'installed': sdm_installed}
 
     @staticmethod
     @post('/update/execute')
     def execute_update():
-        check_output('apt-get install openvstorage-sdm', shell=True)
-        return 'updated'
+        sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+        alba_package_info = API._get_package_information(package_name='alba')
+        if sdm_package_info[0] != sdm_package_info[1]:
+            print 'Updating package {0}'.format(API.PACKAGE_NAME)
+            check_output('apt-get install -y --force-yes {0}'.format(API.PACKAGE_NAME), shell=True)
+        for service, running_version in API._get_sdm_services().iteritems():
+            if running_version != alba_package_info[1]:
+                print 'Restarting service {0}'.format(service)
+                check_output('restart {0}'.format(service), shell=True)
+        return {'updated': True}
