@@ -214,7 +214,8 @@ class API(object):
     @get('/update')
     def update():
         return {'_link': '/update/information',
-                '_action': '/update/execute'}
+                '_actions': ['/update/execute',
+                             '/update/restart_services']}
 
     @staticmethod
     def _get_sdm_services():
@@ -230,7 +231,6 @@ class API(object):
 
     @staticmethod
     def _get_package_information(package_name):
-        check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
         installed = None
         candidate = None
         for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING), shell=True).splitlines():
@@ -249,6 +249,7 @@ class API(object):
     @staticmethod
     @get('/update/information')
     def get_update_information():
+        check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
         sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
         sdm_installed = sdm_package_info[0]
         sdm_candidate = sdm_package_info[1]
@@ -262,15 +263,27 @@ class API(object):
                 'installed': sdm_installed}
 
     @staticmethod
-    @post('/update/execute')
-    def execute_update():
+    @post('/update/execute/<status>')
+    def execute_update(status):
+        check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
         sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
-        alba_package_info = API._get_package_information(package_name='alba')
         if sdm_package_info[0] != sdm_package_info[1]:
-            print 'Updating package {0}'.format(API.PACKAGE_NAME)
-            check_output('apt-get install -y --force-yes {0}'.format(API.PACKAGE_NAME), shell=True)
+            if status == 'started':
+                print 'Updating package {0}'.format(API.PACKAGE_NAME)
+                check_output('echo "apt-get install -y --force-yes {0}" > /tmp/update'.format(API.PACKAGE_NAME), shell=True)
+                check_output('at -f /tmp/update now', shell=True)
+                check_output('rm /tmp/update', shell=True)
+            return {'status': 'running'}
+        else:
+            return {'status': 'done' if 'running' in check_output('status alba-asdmanager', shell=True).strip() else 'running'}
+
+    @staticmethod
+    @post('/update/restart_services')
+    def restart_services():
+        check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+        alba_package_info = API._get_package_information(package_name='alba')
         for service, running_version in API._get_sdm_services().iteritems():
             if running_version != alba_package_info[1]:
                 print 'Restarting service {0}'.format(service)
                 check_output('restart {0}'.format(service), shell=True)
-        return {'updated': True}
+        return {'restarted': True}
