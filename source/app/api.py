@@ -7,15 +7,18 @@ API views
 
 import os
 import json
-import string
 import random
+import string
+import time
 from flask import request
-from subprocess import check_output
+from source.app.decorators import get
+from source.app.decorators import post
 from source.app.exceptions import BadRequest
 from source.tools.configuration import Configuration
 from source.tools.disks import Disks
 from source.tools.filemutex import FileMutex
-from source.app.decorators import get, post
+from subprocess import check_output
+from subprocess import CalledProcessError
 
 
 class API(object):
@@ -242,16 +245,32 @@ class API(object):
 
             if installed is not None and candidate is not None:
                 break
-        print 'Installed version: {0}'.format(installed)
-        print 'Candidate version: {0}'.format(candidate)
+        print 'Installed version for package {0}: {1}'.format(package_name, installed)
+        print 'Candidate version for package {0}: {1}'.format(package_name, candidate)
         return installed, candidate
+
+    @staticmethod
+    def _update_packages():
+        counter = 0
+        max_counter = 3
+        while True and counter < max_counter:
+            counter += 1
+            try:
+                check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+                break
+            except CalledProcessError as cpe:
+                time.sleep(3)
+                if counter == max_counter:
+                    raise cpe
+            except Exception as ex:
+                raise ex
 
     @staticmethod
     @get('/update/information')
     def get_update_information():
         with FileMutex('package_update'):
             print 'Locking in place for apt-get update'
-            check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+            API._update_packages()
             sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
             sdm_installed = sdm_package_info[0]
             sdm_candidate = sdm_package_info[1]
@@ -268,8 +287,12 @@ class API(object):
     @post('/update/execute/<status>')
     def execute_update(status):
         with FileMutex('package_update'):
-            check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
-            sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+            try:
+                API._update_packages()
+                sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+            except CalledProcessError:
+                return {'status': 'started'}
+
             if sdm_package_info[0] != sdm_package_info[1]:
                 if status == 'started':
                     print 'Updating package {0}'.format(API.PACKAGE_NAME)
@@ -284,7 +307,7 @@ class API(object):
     @post('/update/restart_services')
     def restart_services():
         with FileMutex('package_update'):
-            check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+            API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
