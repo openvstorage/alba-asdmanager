@@ -1,8 +1,8 @@
-# Copyright 2015 CloudFounders NV
+# Copyright 2015 Open vStorage NV
 # All rights reserved
 
 """
-Flask main module
+API module
 """
 
 from source.tools.disks import Disks
