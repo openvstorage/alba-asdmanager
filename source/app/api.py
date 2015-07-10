@@ -29,7 +29,7 @@ class API(object):
     @staticmethod
     @get('/')
     def index():
-        return {'box_id': Configuration().data['main']['box_id'],
+        return {'node_id': Configuration().data['main']['node_id'],
                 '_links': ['/disks', '/net', '/update'],
                 '_actions': []}
 
@@ -86,7 +86,7 @@ class API(object):
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
-            disks[disk_id]['box_id'] = Configuration().data['main']['box_id']
+            disks[disk_id]['node_id'] = Configuration().data['main']['node_id']
             API._disk_hateoas(disks[disk_id], disk_id)
         print 'Fetching disks completed'
         return disks
@@ -139,7 +139,7 @@ class API(object):
             while port in used_ports:
                 port += 1
             asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(asd_id),
-                          'box_id': config.data['main']['box_id'],
+                          'node_id': config.data['main']['node_id'],
                           'asd_id': asd_id,
                           'log_level': 'debug',
                           'port': port}

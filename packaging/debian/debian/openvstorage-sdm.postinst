@@ -12,13 +12,13 @@ if [ ! -f server.crt ]; then
 fi
 
 if [ ! -f /opt/alba-asdmanager/config/config.json ]; then
-    boxid=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
+    nodeid=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
     password=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
     cat <<EOF > /opt/alba-asdmanager/config/config.json
 {
     "main": {
         "password": "$password",
-        "box_id": "$boxid",
+        "node_id": "$nodeid",
         "username": "root",
         "version": 0
     },
@@ -29,7 +29,7 @@ if [ ! -f /opt/alba-asdmanager/config/config.json ]; then
 }
 EOF
     cp -f /opt/alba-asdmanager/config/asdnode.service /etc/avahi/services/asdnode.service
-    sed -i "s/\[BOXID\]/$boxid/g" /etc/avahi/services/asdnode.service
+    sed -i "s/\[NODEID\]/$nodeid/g" /etc/avahi/services/asdnode.service
     status avahi-daemon | grep running &> /dev/null
     if [ $? -eq 0 ]; then
         restart avahi-daemon
