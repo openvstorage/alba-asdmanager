@@ -1,5 +1,16 @@
-# Copyright 2015 CloudFounders NV
-# All rights reserved
+# Copyright 2015 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 API views
@@ -7,23 +18,30 @@ API views
 
 import os
 import json
-import string
 import random
+import string
+import time
 from flask import request
-from subprocess import check_output
+from source.app.decorators import get
+from source.app.decorators import post
 from source.app.exceptions import BadRequest
 from source.tools.configuration import Configuration
 from source.tools.disks import Disks
 from source.tools.filemutex import FileMutex
-from source.app.decorators import get, post
+from subprocess import check_output
+from subprocess import CalledProcessError
 
 
 class API(object):
+    PACKAGE_NAME = 'openvstorage-sdm'
+    SERVICE_PREFIX = 'alba-asd-'
+    APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
+
     @staticmethod
     @get('/')
     def index():
-        return {'box_id': Configuration().data['main']['box_id'],
-                '_links': ['/disks', '/net'],
+        return {'node_id': Configuration().data['main']['node_id'],
+                '_links': ['/disks', '/net', '/update'],
                 '_actions': []}
 
     @staticmethod
@@ -74,12 +92,12 @@ class API(object):
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
                     if disks[disk_id]['state']['state'] != 'error':
-                        service_state = check_output('status alba-asd-{0} || true'.format(asd_id), shell=True)
+                        service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
                         if 'start/running' not in service_state:
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
-            disks[disk_id]['box_id'] = Configuration().data['main']['box_id']
+            disks[disk_id]['node_id'] = Configuration().data['main']['node_id']
             API._disk_hateoas(disks[disk_id], disk_id)
         print 'Fetching disks completed'
         return disks
@@ -132,7 +150,7 @@ class API(object):
             while port in used_ports:
                 port += 1
             asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(asd_id),
-                          'box_id': config.data['main']['box_id'],
+                          'node_id': config.data['main']['node_id'],
                           'asd_id': asd_id,
                           'log_level': 'debug',
                           'port': port}
@@ -144,10 +162,12 @@ class API(object):
             check_output('chown alba:alba /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
             with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
             contents = contents.replace('<ASD>', asd_id)
-            with open('/etc/init/alba-asd-{0}.conf'.format(asd_id), 'w') as upstart:
+            contents = contents.replace('<SERVICE_NAME>', service_name)
+            with open('/etc/init/{0}.conf'.format(service_name), 'w') as upstart:
                 upstart.write(contents)
-            check_output('start alba-asd-{0}'.format(asd_id), shell=True)
+            check_output('start {0}'.format(service_name), shell=True)
 
             print 'Returning info about added disk {0}'.format(disk)
             all_disks = API._list_disks()
@@ -171,9 +191,10 @@ class API(object):
             # Stop and remove service
             print 'Removing services for disk {0}'.format(disk)
             asd_id = all_disks[disk]['asd_id']
-            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
-            if os.path.exists('/etc/init/alba-asd-{0}.conf'.format(asd_id)):
-                os.remove('/etc/init/alba-asd-{0}.conf'.format(asd_id))
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            check_output('stop {0} || true'.format(service_name), shell=True)
+            if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
+                os.remove('/etc/init/{0}.conf'.format(service_name))
 
             # Cleanup & unmount disk
             print 'Cleaning disk {0}'.format(disk)
@@ -195,9 +216,112 @@ class API(object):
 
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
-            check_output('stop alba-asd-{0} || true'.format(asd_id), shell=True)
+            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            check_output('stop {0} || true'.format(service_name), shell=True)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            check_output('start alba-asd-{0} || true'.format(asd_id), shell=True)
+            check_output('start {0} || true'.format(service_name), shell=True)
 
             return {'_link': '/disks/{0}'.format(disk)}
+
+    @staticmethod
+    @get('/update')
+    def update():
+        return {'_link': '/update/information',
+                '_actions': ['/update/execute',
+                             '/update/restart_services']}
+
+    @staticmethod
+    def _get_sdm_services():
+        services = {}
+        for file_name in os.listdir('/etc/init/'):
+            if file_name.startswith(API.SERVICE_PREFIX) and file_name.endswith('.conf'):
+                file_name = file_name.rstrip('.conf')
+                file_path = '/opt/alba-asdmanager/run/{0}.version'.format(file_name)
+                if os.path.isfile(file_path):
+                    with open(file_path) as fp:
+                        services[file_name] = fp.read().strip()
+        return services
+
+    @staticmethod
+    def _get_package_information(package_name):
+        installed = None
+        candidate = None
+        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING), shell=True).splitlines():
+            line = line.strip()
+            if line.startswith('Installed:'):
+                installed = line.lstrip('Installed:').strip()
+            elif line.startswith('Candidate:'):
+                candidate = line.lstrip('Candidate:').strip()
+
+            if installed is not None and candidate is not None:
+                break
+        print 'Installed version for package {0}: {1}'.format(package_name, installed)
+        print 'Candidate version for package {0}: {1}'.format(package_name, candidate)
+        return installed, candidate
+
+    @staticmethod
+    def _update_packages():
+        counter = 0
+        max_counter = 3
+        while True and counter < max_counter:
+            counter += 1
+            try:
+                check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+                break
+            except CalledProcessError as cpe:
+                time.sleep(3)
+                if counter == max_counter:
+                    raise cpe
+            except Exception as ex:
+                raise ex
+
+    @staticmethod
+    @get('/update/information')
+    def get_update_information():
+        with FileMutex('package_update'):
+            print 'Locking in place for apt-get update'
+            API._update_packages()
+            sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+            sdm_installed = sdm_package_info[0]
+            sdm_candidate = sdm_package_info[1]
+            if sdm_installed != sdm_candidate:
+                return {'version': sdm_candidate,
+                        'installed': sdm_installed}
+
+            alba_package_info = API._get_package_information(package_name='alba')
+            services = [key for key, value in API._get_sdm_services().iteritems() if value != alba_package_info[1]]
+            return {'version': sdm_candidate if services else '',
+                    'installed': sdm_installed}
+
+    @staticmethod
+    @post('/update/execute/<status>')
+    def execute_update(status):
+        with FileMutex('package_update'):
+            try:
+                API._update_packages()
+                sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
+            except CalledProcessError:
+                return {'status': 'started'}
+
+            if sdm_package_info[0] != sdm_package_info[1]:
+                if status == 'started':
+                    print 'Updating package {0}'.format(API.PACKAGE_NAME)
+                    check_output('echo "apt-get install -y --force-yes {0}" > /tmp/update'.format(API.PACKAGE_NAME), shell=True)
+                    check_output('at -f /tmp/update now', shell=True)
+                    check_output('rm /tmp/update', shell=True)
+                return {'status': 'running'}
+            else:
+                return {'status': 'done' if 'running' in check_output('status alba-asdmanager', shell=True).strip() else 'running'}
+
+    @staticmethod
+    @post('/update/restart_services')
+    def restart_services():
+        with FileMutex('package_update'):
+            API._update_packages()
+            alba_package_info = API._get_package_information(package_name='alba')
+            for service, running_version in API._get_sdm_services().iteritems():
+                if running_version != alba_package_info[1]:
+                    print 'Restarting service {0}'.format(service)
+                    check_output('restart {0}'.format(service), shell=True)
+            return {'restarted': True}

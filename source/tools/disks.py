@@ -1,12 +1,23 @@
-# Copyright 2015 CloudFounders NV
-# All rights reserved
+# Copyright 2015 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Disk related code
 """
 import re
 import json
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
 
@@ -21,14 +32,20 @@ class Disks(object):
     def list_disks():
         disks = {}
 
-        # Find mountpoints
-        all_mounts = check_output('mount', shell=True).split('\n')
-        mounts = []
+        # Find used disks
+        # 1. Mounted disks
+        all_mounts = check_output('mount', shell=True).splitlines()
+        used_disks = []
         for mount in all_mounts:
             mount = mount.strip()
             match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
             if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
-                mounts.append(match.groups()[0])
+                used_disks.append(match.groups()[0])
+        # 2. Disks used in a software raid
+        mdstat = check_output('cat /proc/mdstat', shell=True)
+        for md_match in re.findall('([a-z]+\d+ : (in)?active raid\d+(( [a-z]+\d?\[\d+\])+))', mdstat):
+            for disk_match in re.findall('( ([a-z]+\d?)\[\d+\])', md_match[2]):
+                used_disks.append(disk_match[1].strip())
 
         # Find all disks
         all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
@@ -38,7 +55,7 @@ class Disks(object):
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
                 if re.search('-part\d+', disk_id) is None:
-                    if not any(mount for mount in mounts if disk_name in mount):
+                    if not any(used_disk for used_disk in used_disks if disk_name in used_disk):
                         disks[disk_id] = {'device': '/dev/disk/by-id/{0}'.format(disk_id),
                                           'available': True,
                                           'state': {'state': 'ok'}}
@@ -61,14 +78,15 @@ class Disks(object):
                                        'detail': 'missing'}}
 
         # Load statistical information about the disk
-        df_info = check_output('df -k', shell=True).strip().split('\n')
+        df_info = check_output('df -k /mnt/alba-asd/* || true', shell=True).strip().split('\n')
         for disk_id in disks:
-            for df in df_info:
-                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/.+', df)
-                if match is not None:
-                    disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
-                                                     'used': int(match.groups()[1]) * 1024,
-                                                     'available': int(match.groups()[2]) * 1024}})
+            if 'asd_id' in disks[disk_id]:
+                for df in df_info:
+                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disks[disk_id]['asd_id']), df)
+                    if match is not None:
+                        disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
+                                                         'used': int(match.groups()[1]) * 1024,
+                                                         'available': int(match.groups()[2]) * 1024}})
 
         # Execute some checkups on the disks
         for disk_id in disks:
@@ -87,7 +105,7 @@ class Disks(object):
         check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
-        check_output('mkfs.ext4 -q /dev/disk/by-id/{0}-part1 -L {0}'.format(disk), shell=True)
+        check_output('mkfs.xfs -qf /dev/disk/by-id/{0}-part1'.format(disk), shell=True)
         check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
         FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
         check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
@@ -98,10 +116,14 @@ class Disks(object):
     @staticmethod
     def clean_disk(disk, asd_id):
         print 'Cleaning disk {0}/{1}'.format(disk, asd_id)
-        check_output('rm -rf /mnt/alba-asd/{0}/* || true'.format(asd_id), shell=True)
-        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
+        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
         check_output('rm -rf /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
+        try:
+            check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
+        except CalledProcessError:
+            # Wiping the parition is a nice-to-have and might fail when a disk is e.g. unavailable
+            pass
         Disks.locate(disk, start=True)
         print 'Clean disk {0}/{1} complete'.format(disk, asd_id)
 
