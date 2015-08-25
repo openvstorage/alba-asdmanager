@@ -152,7 +152,7 @@ class API(object):
             asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(asd_id),
                           'node_id': config.data['main']['node_id'],
                           'asd_id': asd_id,
-                          'log_level': 'debug',
+                          'log_level': 'info',
                           'port': port}
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
