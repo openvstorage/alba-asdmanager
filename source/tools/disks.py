@@ -51,7 +51,7 @@ class Disks(object):
         all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
         for disk in all_disks:
             disk = disk.strip()
-            match = re.search('.+?(((scsi-)|(ata-)).+?) -> ../../(sd.+)', disk)
+            match = re.search('.+?(((scsi-)|(ata-)|(virtio-)).+?) -> ../../([sv]d.+)', disk)
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
                 if re.search('-part\d+', disk_id) is None:
