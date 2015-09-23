@@ -41,7 +41,7 @@ fi
 id -a alba &> /dev/null
 if [[ $? -eq 1 ]]
 then
-    useradd -b /home -d /home/alba -m alba
+    useradd -d /opt/alba-asdmanager --system -m alba
 fi
 
 chown -R alba:alba /opt/alba-asdmanager
