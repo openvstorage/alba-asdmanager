@@ -30,11 +30,11 @@ if [ ! -f /opt/alba-asdmanager/config/config.json ]; then
 EOF
     cp -f /opt/alba-asdmanager/config/asdnode.service /etc/avahi/services/asdnode.service
     sed -i "s/\[NODEID\]/$nodeid/g" /etc/avahi/services/asdnode.service
-    status avahi-daemon | grep running &> /dev/null
+    service avahi-daemon status | grep running &> /dev/null
     if [ $? -eq 0 ]; then
-        restart avahi-daemon
+        service avahi-daemon restart
     else
-        start avahi-daemon
+        service avahi-daemon start
     fi
 fi
 
@@ -47,14 +47,14 @@ fi
 chown -R alba:alba /opt/alba-asdmanager
 
 if [ ! -f /etc/init/alba-asdmanager.conf ]; then
-    cp -f /opt/alba-asdmanager/config/upstart/alba-asdmanager.conf /etc/init/
-    start alba-asdmanager
+    cp -f /opt/alba-asdmanager/config/systemd/alba-asdmanager.service /usr/lib/systemd/system/
+    service alba-asdmanager start
 else
-    status alba-asdmanager | grep running &> /dev/null
+    service alba-asdmanager status | grep running &> /dev/null
     if [ $? -eq 0 ]; then
-        restart alba-asdmanager
+        service alba-asdmanager restart
     else
-        start alba-asdmanager
+        service alba-asdmanager start
     fi
 fi
 
