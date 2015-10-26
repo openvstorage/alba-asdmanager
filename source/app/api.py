@@ -154,6 +154,11 @@ class API(object):
                           'asd_id': asd_id,
                           'log_level': 'info',
                           'port': port}
+            
+            if config.data['main'].has_key('__sync_dont_use'):
+                asd_config['__sync_dont_use'] = config.data['main']['__sync_dont_use']
+            
+            
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
             with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'w') as conffile:
