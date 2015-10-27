@@ -155,9 +155,9 @@ class API(object):
                           'log_level': 'info',
                           'port': port}
             
-            if config.data['main'].has_key('__sync_dont_use'):
-                asd_config['__sync_dont_use'] = config.data['main']['__sync_dont_use']
-            
+            if config.data.get('extra_parameters') is not None:
+                for extrakey in config.data['extra_parameters']:
+                    asd_config[extrakey] = config.data['extra_parameters'][extrakey]
             
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
