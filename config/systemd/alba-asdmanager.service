@@ -1,0 +1,13 @@
+[Unit]
+Description="alba asdmanager"
+After=network.target local-fs.target
+
+[Service]
+Group=root
+User=root
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=60
+Environment=PYTHONPATH=:/opt/alba-asdmanager
+WorkingDirectory=/opt/alba-asdmanager/source
+ExecStart=/usr/bin/python asdmanager.py
