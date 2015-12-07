@@ -36,19 +36,8 @@ class API(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
-    INSTALL_SCRIPT = """#!/usr/bin/python2
-import sys
-sys.path.append('/opt/alba-asdmanager')
-from source.tools.filemutex import FileMutex
-from subprocess import check_output
+    INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
 
-print('Update script for package {0}')
-with FileMutex('package_update'):
-    print('Locking in place for apt-get install')
-    print(check_output('apt-get install -y --force-yes {0}', shell=True))
-print('Finished update')
-
-"""
     @staticmethod
     @get('/')
     def index():
@@ -318,17 +307,13 @@ print('Finished update')
             try:
                 API._update_packages()
                 sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
-            except CalledProcessError as cpe:
+            except CalledProcessError:
                 return {'status': 'started'}
 
             if sdm_package_info[0] != sdm_package_info[1]:
                 if status == 'started':
                     print 'Updating package {0}'.format(API.PACKAGE_NAME)
-                    script_contents = API.INSTALL_SCRIPT.format(API.PACKAGE_NAME)
-                    script_location = '/opt/alba-asdmanager/update-{0}.py'.format(API.PACKAGE_NAME)
-                    with open(script_location, 'w') as script:
-                        script.write(script_contents)
-                    check_output('echo "python {0} >> /var/log/ovs-upgrade-sdm.log 2>&1" > /tmp/update'.format(script_location), shell=True)
+                    check_output('echo "python {0} >> /var/log/ovs-upgrade-sdm.log 2>&1" > /tmp/update'.format(API.INSTALL_SCRIPT), shell=True)
                     check_output('at -f /tmp/update now', shell=True)
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
