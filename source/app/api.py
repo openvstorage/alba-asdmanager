@@ -36,6 +36,7 @@ class API(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
+    INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
 
     @staticmethod
     @get('/')
@@ -312,7 +313,7 @@ class API(object):
             if sdm_package_info[0] != sdm_package_info[1]:
                 if status == 'started':
                     print 'Updating package {0}'.format(API.PACKAGE_NAME)
-                    check_output('echo "apt-get install -y --force-yes {0}" > /tmp/update'.format(API.PACKAGE_NAME), shell=True)
+                    check_output('echo "python {0} >> /var/log/ovs-upgrade-sdm.log 2>&1" > /tmp/update'.format(API.INSTALL_SCRIPT), shell=True)
                     check_output('at -f /tmp/update now', shell=True)
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
