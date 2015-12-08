@@ -326,8 +326,31 @@ class API(object):
         with FileMutex('package_update'):
             API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
+            restarted = True
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
-                    print 'Restarting service {0}'.format(service)
-                    check_output('restart {0}'.format(service), shell=True)
-            return {'restarted': True}
+                    status = check_output('status {0}'.format(service), shell=True).strip()
+                    if 'stop/waiting' in status:
+                        print 'Starting service {0}'.format(service)
+                        try:
+                            print check_output('start {0}'.format(service), shell=True)
+                        except CalledProcessError:
+                            print "Failed to start service {0} {1}".format(service, cpe)
+                            try:
+                                print check_output('status {0}'.format(service), shell=True)
+                            except CalledProcessError as cpe:
+                                print 'EXCEPTION: {0}'.format(cpe)
+                            restarted = False
+                    else:
+                        print 'Restarting service {0}'.format(service)
+                        try:
+                            print check_output('restart {0}'.format(service), shell=True)
+                        except CalledProcessError:
+                            print "Failed to restart service {0} {1}".format(service, cpe)
+                            try:
+                                print check_output('status {0}'.format(service), shell=True)
+                            except CalledProcessError as cpe:
+                                print 'EXCEPTION: {0}'.format(cpe)
+                            restarted = False
+
+            return {'restarted': restarted}
