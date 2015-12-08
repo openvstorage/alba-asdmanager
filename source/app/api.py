@@ -326,8 +326,20 @@ class API(object):
         with FileMutex('package_update'):
             API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
+            result = {}
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
-                    print 'Restarting service {0}'.format(service)
-                    check_output('restart {0}'.format(service), shell=True)
-            return {'restarted': True}
+                    status = check_output('status {0}'.format(service), shell=True).strip()
+                    if 'stop/waiting' in status:
+                        print "Found stopped service {0}. Will not start it.".format(service)
+                        result[service] = 'stopped'
+                    else:
+                        print 'Restarting service {0}'.format(service)
+                        try:
+                            print check_output('restart {0}'.format(service), shell=True)
+                            result[service] = 'restarted'
+                        except CalledProcessError as cpe:
+                            print "Failed to restart service {0} {1}".format(service, cpe)
+                            result[service] = 'failed'
+
+            return {'result': result}
