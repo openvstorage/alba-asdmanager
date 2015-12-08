@@ -326,31 +326,20 @@ class API(object):
         with FileMutex('package_update'):
             API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
-            restarted = True
+            result = {}
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
                     status = check_output('status {0}'.format(service), shell=True).strip()
                     if 'stop/waiting' in status:
-                        print 'Starting service {0}'.format(service)
-                        try:
-                            print check_output('start {0}'.format(service), shell=True)
-                        except CalledProcessError as cpe:
-                            print "Failed to start service {0} {1}".format(service, cpe)
-                            try:
-                                print check_output('status {0}'.format(service), shell=True)
-                            except CalledProcessError as cpe:
-                                print 'EXCEPTION: {0}'.format(cpe)
-                            restarted = False
+                        print "Found stopped service {0}. Will not start it.".format(service)
+                        result[service] = 'stopped'
                     else:
                         print 'Restarting service {0}'.format(service)
                         try:
                             print check_output('restart {0}'.format(service), shell=True)
+                            result[service] = 'restarted'
                         except CalledProcessError as cpe:
                             print "Failed to restart service {0} {1}".format(service, cpe)
-                            try:
-                                print check_output('status {0}'.format(service), shell=True)
-                            except CalledProcessError as cpe:
-                                print 'EXCEPTION: {0}'.format(cpe)
-                            restarted = False
+                            result[service] = 'failed'
 
-            return {'restarted': restarted}
+            return {'result': result}
