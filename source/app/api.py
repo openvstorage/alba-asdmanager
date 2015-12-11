@@ -18,9 +18,10 @@ API views
 
 import os
 import json
+import time
 import random
 import string
-import time
+import datetime
 from flask import request
 from source.app.decorators import get
 from source.app.decorators import post
@@ -33,6 +34,7 @@ from subprocess import CalledProcessError
 
 
 class API(object):
+    """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
@@ -41,6 +43,7 @@ class API(object):
     @staticmethod
     @get('/')
     def index():
+        """ Return available API calls """
         return {'node_id': Configuration().data['main']['node_id'],
                 '_links': ['/disks', '/net', '/update'],
                 '_actions': []}
@@ -48,7 +51,8 @@ class API(object):
     @staticmethod
     @get('/net', authenticate=False)
     def net():
-        print 'Loading network information'
+        """ Retrieve IP information """
+        print '{0} - Loading network information'.format(datetime.datetime.now())
         output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
         my_ips = output.split('\n')
         return {'ips': [found_ip.strip() for found_ip in my_ips if found_ip.strip() != '127.0.0.1' and found_ip.strip() != ''],
@@ -58,7 +62,8 @@ class API(object):
     @staticmethod
     @post('/net')
     def set_net():
-        print 'Setting network information'
+        """ Set IP information """
+        print '{0} - Setting network information'.format(datetime.datetime.now())
         with Configuration() as config:
             config.data['network']['ips'] = json.loads(request.form['ips'])
         return {'_link': '/net'}
@@ -76,7 +81,7 @@ class API(object):
 
     @staticmethod
     def _list_disks():
-        print 'Fetching disks'
+        print '{0} - Fetching disks'.format(datetime.datetime.now())
         disks = Disks.list_disks()
         for disk_id in disks:
             if disks[disk_id]['available'] is False:
@@ -100,13 +105,14 @@ class API(object):
             disks[disk_id]['name'] = disk_id
             disks[disk_id]['node_id'] = Configuration().data['main']['node_id']
             API._disk_hateoas(disks[disk_id], disk_id)
-        print 'Fetching disks completed'
+        print '{0} - Fetching disks completed'.format(datetime.datetime.now())
         return disks
 
     @staticmethod
     @get('/disks')
     def list_disks():
-        print 'Listing disks'
+        """ List all disk information """
+        print '{0} - Listing disks'.format(datetime.datetime.now())
         data = API._list_disks()
         data['_parent'] = '/'
         data['_actions'] = []
@@ -115,7 +121,11 @@ class API(object):
     @staticmethod
     @get('/disks/<disk>')
     def index_disk(disk):
-        print 'Listing disk {0}'.format(disk)
+        """
+        Retrieve information about a single disk
+        :param disk: Guid of the disk
+        """
+        print '{0} - Listing disk {1}'.format(datetime.datetime.now(), disk)
         all_disks = API._list_disks()
         if disk not in all_disks:
             raise BadRequest('Disk unknown')
@@ -127,9 +137,13 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/add')
     def add_disk(disk):
-        print 'Add disk {0}'.format(disk)
+        """
+        Add a disk
+        :param disk: Guid of the disk
+        """
+        print '{0} - Add disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('add_disk'), FileMutex('disk_'.format(disk)):
-            print 'Got lock for add disk {0}'.format(disk)
+            print '{0} - Got lock for add disk {1}'.format(datetime.datetime.now(), disk)
             config = Configuration()
             all_disks = API._list_disks()
             if disk not in all_disks:
@@ -138,12 +152,12 @@ class API(object):
                 raise BadRequest('Disk already configured')
 
             # Partitioning and mounting
-            print 'Preparing disk {0}'.format(disk)
+            print '{0} - Preparing disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
             Disks.prepare_disk(disk, asd_id)
 
             # Prepare & start service
-            print 'Setting up service for disk {0}'.format(disk)
+            print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
             port = int(config.data['network']['port'])
             ips = config.data['network']['ips']
             used_ports = [all_disks[_disk]['port'] for _disk in all_disks
@@ -155,11 +169,11 @@ class API(object):
                           'asd_id': asd_id,
                           'log_level': 'info',
                           'port': port}
-            
+
             if config.data.get('extra_parameters') is not None:
                 for extrakey in config.data['extra_parameters']:
                     asd_config[extrakey] = config.data['extra_parameters'][extrakey]
-            
+
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
             with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'w') as conffile:
@@ -175,7 +189,7 @@ class API(object):
                 upstart.write(contents)
             check_output('start {0}'.format(service_name), shell=True)
 
-            print 'Returning info about added disk {0}'.format(disk)
+            print '{0} - Returning info about added disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             data = all_disks[disk]
             API._disk_hateoas(data, disk)
@@ -185,9 +199,13 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/delete')
     def delete_disk(disk):
-        print 'Deleting disk {0}'.format(disk)
+        """
+        Delete a disk
+        :param disk: Guid of the disk
+        """
+        print '{0} - Deleting disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('disk_'.format(disk)):
-            print 'Got lock for deleting disk {0}'.format(disk)
+            print '{0} - Got lock for deleting disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
                 raise BadRequest('Disk not available')
@@ -195,7 +213,7 @@ class API(object):
                 raise BadRequest('Disk not yet configured')
 
             # Stop and remove service
-            print 'Removing services for disk {0}'.format(disk)
+            print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = all_disks[disk]['asd_id']
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
             check_output('stop {0} || true'.format(service_name), shell=True)
@@ -203,7 +221,7 @@ class API(object):
                 os.remove('/etc/init/{0}.conf'.format(service_name))
 
             # Cleanup & unmount disk
-            print 'Cleaning disk {0}'.format(disk)
+            print '{0} - Cleaning disk {1}'.format(datetime.datetime.now(), disk)
             Disks.clean_disk(disk, asd_id)
 
             return {'_link': '/disks/{0}'.format(disk)}
@@ -211,9 +229,13 @@ class API(object):
     @staticmethod
     @post('/disks/<disk>/restart')
     def restart_disk(disk):
-        print 'Restarting disk {0}'.format(disk)
+        """
+        Restart a disk
+        :param disk: Guid of the disk
+        """
+        print '{0} - Restarting disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('disk_'.format(disk)):
-            print 'Got lock for restarting disk {0}'.format(disk)
+            print '{0} - Got lock for restarting disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
                 raise BadRequest('Disk not available')
@@ -233,6 +255,7 @@ class API(object):
     @staticmethod
     @get('/update')
     def update():
+        """ Retrieve available update APIs """
         return {'_link': '/update/information',
                 '_actions': ['/update/execute',
                              '/update/restart_services']}
@@ -262,8 +285,8 @@ class API(object):
 
             if installed is not None and candidate is not None:
                 break
-        print 'Installed version for package {0}: {1}'.format(package_name, installed)
-        print 'Candidate version for package {0}: {1}'.format(package_name, candidate)
+        print '{0} - Installed version for package {1}: {2}'.format(datetime.datetime.now(), package_name, installed)
+        print '{0} - Candidate version for package {1}: {2}'.format(datetime.datetime.now(), package_name, candidate)
         return installed, candidate
 
     @staticmethod
@@ -285,8 +308,9 @@ class API(object):
     @staticmethod
     @get('/update/information')
     def get_update_information():
+        """ Retrieve update information """
         with FileMutex('package_update'):
-            print 'Locking in place for apt-get update'
+            print '{0} - Locking in place for apt-get update'.format(datetime.datetime.now())
             API._update_packages()
             sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
             sdm_installed = sdm_package_info[0]
@@ -303,6 +327,10 @@ class API(object):
     @staticmethod
     @post('/update/execute/<status>')
     def execute_update(status):
+        """
+        Execute an update
+        :param status: Current status of the update
+        """
         with FileMutex('package_update'):
             try:
                 API._update_packages()
@@ -312,7 +340,7 @@ class API(object):
 
             if sdm_package_info[0] != sdm_package_info[1]:
                 if status == 'started':
-                    print 'Updating package {0}'.format(API.PACKAGE_NAME)
+                    print '{0} - Updating package {1}'.format(datetime.datetime.now(), API.PACKAGE_NAME)
                     check_output('echo "python {0} >> /var/log/ovs-upgrade-sdm.log 2>&1" > /tmp/update'.format(API.INSTALL_SCRIPT), shell=True)
                     check_output('at -f /tmp/update now', shell=True)
                     check_output('rm /tmp/update', shell=True)
@@ -323,6 +351,7 @@ class API(object):
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
+        """ Restart services """
         with FileMutex('package_update'):
             API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
@@ -331,15 +360,15 @@ class API(object):
                 if running_version != alba_package_info[1]:
                     status = check_output('status {0}'.format(service), shell=True).strip()
                     if 'stop/waiting' in status:
-                        print "Found stopped service {0}. Will not start it.".format(service)
+                        print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(), service)
                         result[service] = 'stopped'
                     else:
-                        print 'Restarting service {0}'.format(service)
+                        print '{0} - Restarting service {1}'.format(datetime.datetime.now(), service)
                         try:
-                            print check_output('restart {0}'.format(service), shell=True)
+                            print '{0} - {1}'.format(datetime.datetime.now(), check_output('restart {0}'.format(service), shell=True))
                             result[service] = 'restarted'
                         except CalledProcessError as cpe:
-                            print "Failed to restart service {0} {1}".format(service, cpe)
+                            print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service, cpe)
                             result[service] = 'failed'
 
             return {'result': result}

@@ -17,6 +17,8 @@ API decorators
 """
 
 import json
+import time
+import datetime
 import traceback
 import subprocess
 from flask import request, Response
@@ -57,6 +59,7 @@ def _build_function(f, authenticate):
         """
         Wrapped function
         """
+        start = time.time()
         if authenticate is True and not _authorized():
             data, status = {'_success': False,
                             '_error': 'Invalid credentials'}, 401
@@ -72,19 +75,19 @@ def _build_function(f, authenticate):
                 data['_success'] = True
                 data['_error'] = ''
             except APIException as ex:
-                print traceback.print_exc()
+                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
                                 '_error': str(ex)}, ex.status_code
             except subprocess.CalledProcessError as ex:
-                print traceback.print_exc()
+                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
                                 '_error': ex.output}, 500
             except Exception as ex:
-                print traceback.print_exc()
+                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
                                 '_error': str(ex)}, 500
         data['_version'] = 1
-
+        data['_duration'] = time.time() - start
         return Response(json.dumps(data), content_type='application/json', status=status)
 
     new_function.__name__ = f.__name__
