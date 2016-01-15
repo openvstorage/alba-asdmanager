@@ -13,49 +13,238 @@
 # limitations under the License.
 
 """
-Configuration related code
+Generic module for managing configuration in Etcd
 """
 
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
-from source.tools.filemutex import FileMutex
+import json
+import etcd
+import random
+import string
 
 
-class Configuration(object):
+class EtcdConfiguration(object):
     """
-    Configuration class for the ASD manager
+    Configuration class using Etcd.
+
+    Uses a special key format to specify the path within etcd, and specify a path inside the json data
+    object that might be stored inside the etcd key.
+    key  = <etcd path>[|<json path>]
+    etcd path = slash-delimited path
+    json path = dot-delimited path
+
+    Examples:
+        > EtcdConfiguration.set('/foo', 1)
+        > print EtcdConfiguration.get('/foo')
+        < 1
+        > EtcdConfiguration.set('/foo', {'bar': 1})
+        > print EtcdConfiguration.get('/foo')
+        < {u'bar': 1}
+        > print EtcdConfiguration.get('/foo|bar')
+        < 1
+        > EtcdConfiguration.set('/bar|a.b', 'test')
+        > print EtcdConfiguration.get('/bar')
+        < {u'a': {u'b': u'test'}}
     """
+
     def __init__(self):
-        self.mutex = FileMutex('config')
-
-    def __enter__(self):
-        self.mutex.acquire()
-        return self
-
-    def __exit__(self, *args, **kwargs):
-        _ = args, kwargs
-        self.mutex.release()
-
-    def migrate(self, node_id):
         """
-        Bump version
-        :param node_id: ID of the ALBA node
+        Dummy init method
+        """
+        _ = self
+
+    @staticmethod
+    def get(key, raw=False):
+        """
+        Get value from etcd
+        :param key: Key to get
+        :param raw: Raw data if True else json format
+        :return: Value for key
+        """
+        key_entries = key.split('|')
+        data = EtcdConfiguration._get(key_entries[0], raw)
+        if len(key_entries) == 1:
+            return data
+        temp_data = data
+        for entry in key_entries[1].split('.'):
+            temp_data = temp_data[entry]
+        return temp_data
+
+    @staticmethod
+    def set(key, value, raw=False):
+        """
+        Set value in etcd
+        :param key: Key to store
+        :param value: Value to store
+        :param raw: Raw data if True else json format
         :return: None
         """
+        key_entries = key.split('|')
+        if len(key_entries) == 1:
+            EtcdConfiguration._set(key_entries[0], value, raw)
+            return
         try:
-            self.__enter__()
-            version = 0
-            if EtcdConfiguration.exists('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id)):
-                version = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id))
+            data = EtcdConfiguration._get(key_entries[0], raw)
+        except etcd.EtcdKeyNotFound:
+            data = {}
+        temp_config = data
+        entries = key_entries[1].split('.')
+        for entry in entries[:-1]:
+            if entry in temp_config:
+                temp_config = temp_config[entry]
+            else:
+                temp_config[entry] = {}
+                temp_config = temp_config[entry]
+        temp_config[entries[-1]] = value
+        EtcdConfiguration._set(key_entries[0], data, raw)
 
-            if version < 1:
-                # No migrations in the initial version
-                print 'Migrating configuration to version 1'
-                version = 1
-            if version < 2:
-                # print 'Migrating configuration to version 2'
-                # @TODO: in the future, here is where upgrades to the configuration file should be located
-                # version = 2
-                pass
-            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id), version)
-        finally:
-            self.__exit__()
+    @staticmethod
+    def delete(key, remove_root=False, raw=False):
+        """
+        Delete key - value from etcd
+        :param key: Key to delete
+        :param remove_root: Remove root
+        :param raw: Raw data if True else json format
+        :return: None
+        """
+        key_entries = key.split('|')
+        if len(key_entries) == 1:
+            EtcdConfiguration._delete(key_entries[0], recursive=True)
+            return
+        data = EtcdConfiguration._get(key_entries[0], raw)
+        temp_config = data
+        entries = key_entries[1].split('.')
+        if len(entries) > 1:
+            for entry in entries[:-1]:
+                if entry in temp_config:
+                    temp_config = temp_config[entry]
+                else:
+                    temp_config[entry] = {}
+                    temp_config = temp_config[entry]
+            del temp_config[entries[-1]]
+        if len(entries) == 1 and remove_root is True:
+            del data[entries[0]]
+        EtcdConfiguration._set(key_entries[0], data, raw)
+
+    @staticmethod
+    def exists(key):
+        """
+        Check if key exists in etcd
+        :param key: Key to check
+        :return: True if exists
+        """
+        try:
+            _ = EtcdConfiguration.get(key)
+            return True
+        except (KeyError, etcd.EtcdKeyNotFound):
+            return False
+
+    @staticmethod
+    def dir_exists(key):
+        """
+        Check if directory exists in etcd
+        :param key: Directory to check
+        :return: True if exists
+        """
+        return EtcdConfiguration._dir_exists(key)
+
+    @staticmethod
+    def list(key):
+        """
+        List all keys in tree
+        :param key: Key to list
+        :return: Generator object
+        """
+        return EtcdConfiguration._list(key)
+
+    @staticmethod
+    def initialize_host(host_id):
+        """
+        Initialize keys when setting up a host
+        :param host_id: ID of the host
+        :return: None
+        """
+        base_config = {'/storagedriver': {'rsp': '/var/rsp',
+                                          'vmware_mode': 'ganesha'},
+                       '/ports': {'storagedriver': [[26200, 26299]],
+                                  'mds': [[26300, 26399]],
+                                  'arakoon': [26400]},
+                       '/setupcompleted': False,
+                       '/type': 'UNCONFIGURED'}
+        for key, value in base_config.iteritems():
+            EtcdConfiguration._set('/ovs/framework/hosts/{0}/{1}'.format(host_id, key), value, raw=False)
+
+    @staticmethod
+    def initialize(external_etcd=None):
+        """
+        Initialize general keys for all hosts in cluster
+        :param external_etcd: ETCD runs on another host outside the cluster
+        :return: None
+        """
+        cluster_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
+        base_config = {'/cluster_id': cluster_id,
+                       '/external_etcd': external_etcd,
+                       '/registered': False,
+                       '/memcache': {'endpoints': []},
+                       '/messagequeue': {'endpoints': [],
+                                         'protocol': 'amqp',
+                                         'user': 'ovs',
+                                         'port': 5672,
+                                         'password': '0penv5tor4ge',
+                                         'queues': {'storagedriver': 'volumerouter'}},
+                       '/plugins/installed': {'backends': [],
+                                              'generic': []},
+                       '/versions': {'ovs': 4},
+                       '/stores': {'persistent': 'pyrakoon',
+                                   'volatile': 'memcache'},
+                       '/paths': {'cfgdir': '/opt/OpenvStorage/config',
+                                  'basedir': '/opt/OpenvStorage',
+                                  'ovsdb': '/opt/OpenvStorage/db'},
+                       '/support': {'enablesupport': False,
+                                    'enabled': True,
+                                    'interval': 60},
+                       '/storagedriver': {'mds_safety': 2,
+                                          'mds_tlogs': 100,
+                                          'mds_maxload': 75},
+                       '/webapps': {'html_endpoint': '/',
+                                    'oauth2': {'mode': 'local'}}}
+        for key, value in base_config.iteritems():
+            EtcdConfiguration._set('/ovs/framework/{0}'.format(key), value, raw=False)
+
+    @staticmethod
+    def _dir_exists(key):
+        try:
+            client = EtcdConfiguration._get_client()
+            return client.get(key).dir
+        except (KeyError, etcd.EtcdKeyNotFound):
+            return False
+
+    @staticmethod
+    def _list(key):
+        client = EtcdConfiguration._get_client()
+        for child in client.get(key).children:
+            yield child.key.replace('{0}/'.format(key), '')
+
+    @staticmethod
+    def _delete(key, recursive):
+        client = EtcdConfiguration._get_client()
+        client.delete(key, recursive=recursive)
+
+    @staticmethod
+    def _get(key, raw):
+        client = EtcdConfiguration._get_client()
+        data = client.read(key).value
+        if raw is True:
+            return data
+        return json.loads(data)
+
+    @staticmethod
+    def _set(key, value, raw):
+        client = EtcdConfiguration._get_client()
+        data = value
+        if raw is False:
+            data = json.dumps(value)
+        client.write(key, data)
+
+    @staticmethod
+    def _get_client():
+        return etcd.Client(port=2379, use_proxies=True)

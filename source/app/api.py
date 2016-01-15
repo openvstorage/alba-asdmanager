@@ -26,7 +26,6 @@ from flask import request
 from source.app.decorators import get
 from source.app.decorators import post
 from source.app.exceptions import BadRequest
-from source.tools.configuration import Configuration
 from source.tools.disks import Disks
 from source.tools.filemutex import FileMutex
 from subprocess import check_output

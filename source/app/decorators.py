@@ -24,7 +24,7 @@ import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
-from source.tools.configuration import Configuration
+from source.tools.configuration2 import Configuration
 
 
 def post(route, authenticate=True):
