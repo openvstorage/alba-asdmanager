@@ -157,58 +157,25 @@ class EtcdConfiguration(object):
         return EtcdConfiguration._list(key)
 
     @staticmethod
-    def initialize_host(host_id):
-        """
-        Initialize keys when setting up a host
-        :param host_id: ID of the host
-        :return: None
-        """
-        base_config = {'/storagedriver': {'rsp': '/var/rsp',
-                                          'vmware_mode': 'ganesha'},
-                       '/ports': {'storagedriver': [[26200, 26299]],
-                                  'mds': [[26300, 26399]],
-                                  'arakoon': [26400]},
-                       '/setupcompleted': False,
-                       '/type': 'UNCONFIGURED'}
-        for key, value in base_config.iteritems():
-            EtcdConfiguration._set('/ovs/framework/hosts/{0}/{1}'.format(host_id, key), value, raw=False)
-
-    @staticmethod
-    def initialize(external_etcd=None):
+    def initialize(api_ip, asd_ips):
         """
         Initialize general keys for all hosts in cluster
-        :param external_etcd: ETCD runs on another host outside the cluster
-        :return: None
+        :param asd_ips: The ip addresses on which the asds should listen
+        :param api_ip: The ip address on which the API should be contacted
+        :return: Node id
         """
-        cluster_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
-        base_config = {'/cluster_id': cluster_id,
-                       '/external_etcd': external_etcd,
-                       '/registered': False,
-                       '/memcache': {'endpoints': []},
-                       '/messagequeue': {'endpoints': [],
-                                         'protocol': 'amqp',
-                                         'user': 'ovs',
-                                         'port': 5672,
-                                         'password': '0penv5tor4ge',
-                                         'queues': {'storagedriver': 'volumerouter'}},
-                       '/plugins/installed': {'backends': [],
-                                              'generic': []},
-                       '/versions': {'ovs': 4},
-                       '/stores': {'persistent': 'pyrakoon',
-                                   'volatile': 'memcache'},
-                       '/paths': {'cfgdir': '/opt/OpenvStorage/config',
-                                  'basedir': '/opt/OpenvStorage',
-                                  'ovsdb': '/opt/OpenvStorage/db'},
-                       '/support': {'enablesupport': False,
-                                    'enabled': True,
-                                    'interval': 60},
-                       '/storagedriver': {'mds_safety': 2,
-                                          'mds_tlogs': 100,
-                                          'mds_maxload': 75},
-                       '/webapps': {'html_endpoint': '/',
-                                    'oauth2': {'mode': 'local'}}}
+        node_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        base_config = {'/config/main': {'node_id': node_id,
+                                        'password': password,
+                                        'username': 'root',
+                                        'ip': api_ip,
+                                        'version': 0},
+                       '/config/network': {'ips': asd_ips,
+                                           'port': 8600}}
         for key, value in base_config.iteritems():
-            EtcdConfiguration._set('/ovs/framework/{0}'.format(key), value, raw=False)
+            EtcdConfiguration._set('/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key), value, raw=False)
+        return node_id
 
     @staticmethod
     def _dir_exists(key):

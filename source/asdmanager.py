@@ -35,14 +35,14 @@ def setup():
         print "Existing upstart config file detected: {0}".format(UPSTART_SERVICE)
         print "Setup cancelled"
         sys.exit(1)
-
     if os.path.exists(SYSTEMD_SERVICE):
-        print "Existing upstart system file detected: {0}".format(SYSTEMD_SERVICE)
+        print "Existing systemd unit file detected: {0}".format(SYSTEMD_SERVICE)
         print "Setup cancelled"
         sys.exit(1)
 
-    node_id = check_output('openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32', shell=True)
-    password = check_output('openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32', shell=True)
+    api_ip = ''
+    asd_ips = []
+    node_id = EtcdConfiguration.initialize(api_ip, asd_ips)
 
     SOURCE = '/opt/alba-asdmanager/config/upstart/alba-asdmanager.conf'
     TARGET = '/etc/init/alba-asdmanager.conf'
@@ -50,24 +50,6 @@ def setup():
 
     update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(node_id, TARGET)
     check_output(update_asd_id_cmd, shell=True)
-
-    asdmanager_main = {
-       "node_id": node_id,
-       "password": password,
-       "username": "root",
-       "version": 0
-    }
-
-    asdmanager_network = {
-        "ips": [],
-        "port": 8600
-    }
-
-    EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main', asdmanager_main)
-    EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/network', asdmanager_network)
-
-    print EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main')
-    print EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/network')
 
     check_output('start alba-asdmanager', shell=True)
 
