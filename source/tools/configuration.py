@@ -16,16 +16,15 @@
 Configuration related code
 """
 
-import json
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from source.tools.filemutex import FileMutex
 
 
 class Configuration(object):
-    filename = '/opt/alba-asdmanager/config/config.json'
-
+    """
+    Configuration class for the ASD manager
+    """
     def __init__(self):
-        with open(Configuration.filename, 'r') as config_file:
-            self.data = json.loads(config_file.read())
         self.mutex = FileMutex('config')
 
     def __enter__(self):
@@ -34,16 +33,20 @@ class Configuration(object):
 
     def __exit__(self, *args, **kwargs):
         _ = args, kwargs
-        try:
-            with open(Configuration.filename, 'w') as config_file:
-                config_file.write(json.dumps(self.data, indent=4))
-        finally:
-            self.mutex.release()
+        self.mutex.release()
 
-    def migrate(self):
+    def migrate(self, node_id):
+        """
+        Bump version
+        :param node_id: ID of the ALBA node
+        :return: None
+        """
         try:
             self.__enter__()
-            version = self.data['main']['version']
+            version = 0
+            if EtcdConfiguration.exists('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id)):
+                version = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id))
+
             if version < 1:
                 # No migrations in the initial version
                 print 'Migrating configuration to version 1'
@@ -53,6 +56,6 @@ class Configuration(object):
                 # @TODO: in the future, here is where upgrades to the configuration file should be located
                 # version = 2
                 pass
-            self.data['main']['version'] = version
+            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main|version'.format(node_id), version)
         finally:
             self.__exit__()
