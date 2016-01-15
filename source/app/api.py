@@ -41,7 +41,7 @@ class API(object):
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}/config'
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
-    NODE_ID = 'xxxxxxxxxx'
+    NODE_ID = os.environ['asd_node_id']
 
     @staticmethod
     @get('/')
