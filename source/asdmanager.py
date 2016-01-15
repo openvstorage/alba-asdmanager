@@ -41,7 +41,7 @@ def setup():
 
     if os.path.exists(target_file):
         print ''  # Spacing
-        print Interactive.boxed_message(['Existing upstart config file detected: {0}'.format(target_file)])
+        print Interactive.boxed_message(['Existing {0} config file detected: {1}'.format('upstart' if 'Ubuntu' in dist_info else 'systemd', target_file)])
         sys.exit(1)
 
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
@@ -53,10 +53,11 @@ def setup():
     asd_ips = []
     add_ips = True
     while add_ips:
-        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs')
+        current_ips = '  Current IPs: {0}'.format(asd_ips)
+        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''))
         if new_asd_ip == 'All':
             ipaddresses.remove('All')
-            asd_ips = ipaddresses
+            asd_ips = []
             add_ips = False
         else:
             asd_ips.append(new_asd_ip)
@@ -86,12 +87,7 @@ def setup():
     print Interactive.boxed_message(['ALBA ASD-manager setup completed'])
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3 or len(sys.argv[2]) != 32 or sys.argv[1] != '--node-id':
-        print 'Invalid arguments specified. Valid command should be ./asdmanager.py --node-id <32 chars node ID>'
-        sys.exit(1)
-
     from source.app import app
-    node_id = sys.argv[2]
     context = ('server.crt', 'server.key')
     app.run(host='0.0.0.0',
             port=8500,
