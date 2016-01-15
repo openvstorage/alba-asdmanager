@@ -157,11 +157,13 @@ class EtcdConfiguration(object):
         return EtcdConfiguration._list(key)
 
     @staticmethod
-    def initialize(api_ip, asd_ips):
+    def initialize(api_ip, api_port, asd_ips, asd_starter_port):
         """
         Initialize general keys for all hosts in cluster
-        :param asd_ips: The ip addresses on which the asds should listen
-        :param api_ip: The ip address on which the API should be contacted
+        :param api_ip: The IP address on which the API should be contacted
+        :param api_port: The port on which the API should be contacted
+        :param asd_ips: The IP addresses on which the asds should listen
+        :param asd_starter_port: The 1st port in range on which the asds should listen
         :return: Node id
         """
         node_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
@@ -170,9 +172,10 @@ class EtcdConfiguration(object):
                                         'password': password,
                                         'username': 'root',
                                         'ip': api_ip,
+                                        'port': api_port,
                                         'version': 0},
                        '/config/network': {'ips': asd_ips,
-                                           'port': 8600}}
+                                           'port': asd_starter_port}}
         for key, value in base_config.iteritems():
             EtcdConfiguration._set('/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key), value, raw=False)
         return node_id

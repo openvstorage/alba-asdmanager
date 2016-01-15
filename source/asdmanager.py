@@ -1,4 +1,5 @@
 #!/usr/bin/python2
+
 # Copyright 2014 iNuron NV
 #
 # Licensed under the Open vStorage Modified Apache License (the "License");
@@ -13,72 +14,86 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import os
-import shutil
 import sys
-from subprocess import check_output
-
-from source.app import app
+import shutil
+from source.tools.interactive import Interactive
 from source.tools.configuration import EtcdConfiguration
-
-UPSTART_SERVICE = '/etc/init/alba-asdmanager.conf'
-SYSTEMD_SERVICE = '/usr/lib/systemd/system/alba-asdmanager.service'
+from subprocess import check_output
 
 
 def setup():
     """
     Interactive setup part for initial asd manager configuration with etcd
     """
+    print Interactive.boxed_message(['ALBA ASD-manager setup'])
 
-    if os.path.exists(UPSTART_SERVICE):
-        print "Existing upstart config file detected: {0}".format(UPSTART_SERVICE)
-        print "Setup cancelled"
-        sys.exit(1)
-    if os.path.exists(SYSTEMD_SERVICE):
-        print "Existing systemd unit file detected: {0}".format(SYSTEMD_SERVICE)
-        print "Setup cancelled"
+    print '- Verifying distribution'
+    dist_info = check_output('cat /etc/os-release', shell=True)
+    if 'Ubuntu' in dist_info:
+        source_file = '/opt/alba-asdmanager/config/upstart/alba-asdmanager.conf'
+        target_file = '/etc/init/alba-asdmanager.conf'
+    elif 'CentOS Linux' in dist_info:
+        source_file = '/opt/alba-asdmanager/config/systemd/alba-asdmanager.service'
+        target_file = '/usr/lib/systemd/system/alba-asdmanager.service'
+    else:
+        raise RuntimeError('Unsupported OS detected')
+
+    if os.path.exists(target_file):
+        print ''  # Spacing
+        print Interactive.boxed_message(['Existing upstart config file detected: {0}'.format(target_file)])
         sys.exit(1)
 
-    api_ip = ''
+    ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
+    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
+
+    api_ip = Interactive.ask_choice(ipaddresses, 'Select the public IP address to be used for the API')
+    api_port = Interactive.ask_integer("Select the port to be used for the API", 1024, 65535, 8500)
+    ipaddresses.append('All')
     asd_ips = []
-    node_id = EtcdConfiguration.initialize(api_ip, asd_ips)
+    add_ips = True
+    while add_ips:
+        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs')
+        if new_asd_ip == 'All':
+            ipaddresses.remove('All')
+            asd_ips = ipaddresses
+            add_ips = False
+        else:
+            asd_ips.append(new_asd_ip)
+            ipaddresses.remove(new_asd_ip)
+            add_ips = Interactive.ask_yesno("Do you want to add another IP?")
+    asd_start_port = Interactive.ask_integer("Select the port to be used for the ASDs", 1024, 65535, 8600)
 
-    SOURCE = '/opt/alba-asdmanager/config/upstart/alba-asdmanager.conf'
-    TARGET = '/etc/init/alba-asdmanager.conf'
-    shutil.copy2(SOURCE, TARGET)
+    if api_port in range(asd_start_port, asd_start_port + 100):
+        print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
+        sys.exit(1)
 
-    update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(node_id, TARGET)
+    print '- Initializing etcd'
+    alba_node_id = EtcdConfiguration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+
+    shutil.copy2(source_file, target_file)
+
+    update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(alba_node_id, target_file)
     check_output(update_asd_id_cmd, shell=True)
 
-    check_output('start alba-asdmanager', shell=True)
+    print '- Starting ASD manager service'
+    try:
+        check_output('start alba-asdmanager', shell=True)
+    except Exception as ex:
+        print Interactive.boxed_message(['Starting alba-asdmanager failed with error:', str(ex)])
+        sys.exit(1)
 
+    print Interactive.boxed_message(['ALBA ASD-manager setup completed'])
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
-        option = sys.argv[1]
-        node_id = sys.argv[2]
-        if option == '--node-id':
-            if len(node_id) == 32:
-                context = ('server.crt', 'server.key')
-                app.run(host='0.0.0.0',
-                        port=8500,
-                        ssl_context=context,
-                        threaded=True)
-        else:
-            print "Invalid asd node id specified, expected: '--node-id' with 32 byte id.  Got:\noption: {0}, id: {1}"\
-                .format(option, node_id)
-            sys.exit(1)
+    if len(sys.argv) != 3 or len(sys.argv[2]) != 32 or sys.argv[1] != '--node-id':
+        print 'Invalid arguments specified. Valid command should be ./asdmanager.py --node-id <32 chars node ID>'
+        sys.exit(1)
 
-    if len(sys.argv) == 2:
-        option = sys.argv[1]
-        if option == 'setup':
-            setup()
-        elif option == '--node-id':
-            print "Invalid asd node id specified, expected: '--node-id' with 32 byte id."
-            sys.exit(1)
-        else:
-            print "Invalid option: {0} specified, expected:\nsetup\nor:\n--node-id <valid asd node id>\n".format(sys.argv[1])
-            sys.exit(1)
-
-
+    from source.app import app
+    node_id = sys.argv[2]
+    context = ('server.crt', 'server.key')
+    app.run(host='0.0.0.0',
+            port=8500,
+            ssl_context=context,
+            threaded=True)
