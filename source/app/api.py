@@ -28,6 +28,7 @@ from source.app.decorators import post
 from source.app.exceptions import BadRequest
 from source.tools.disks import Disks
 from source.tools.filemutex import FileMutex
+from source.tools.configuration import EtcdConfiguration
 from subprocess import check_output
 from subprocess import CalledProcessError
 
@@ -38,6 +39,8 @@ class API(object):
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
+    ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}/config'
+    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
 
     @staticmethod
     @get('/')
@@ -143,7 +146,6 @@ class API(object):
         print '{0} - Add disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('add_disk'), FileMutex('disk_'.format(disk)):
             print '{0} - Got lock for add disk {1}'.format(datetime.datetime.now(), disk)
-            config = Configuration()
             all_disks = API._list_disks()
             if disk not in all_disks:
                 raise BadRequest('Disk not available')
@@ -157,28 +159,26 @@ class API(object):
 
             # Prepare & start service
             print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
-            port = int(config.data['network']['port'])
-            ips = config.data['network']['ips']
+            port = EtcdConfiguration.get('{0}/main|port'.format(API.CONFIG_ROOT.format(node_id)))
+            ips = EtcdConfiguration.get('{0}/main|ips'.format(API.CONFIG_ROOT.format(node_id)))
             used_ports = [all_disks[_disk]['port'] for _disk in all_disks
                           if all_disks[_disk]['available'] is False and 'port' in all_disks[_disk]]
             while port in used_ports:
                 port += 1
-            asd_config = {'home': '/mnt/alba-asd/{0}/data'.format(asd_id),
-                          'node_id': config.data['main']['node_id'],
+            asd_config = {'home': '/mnt/alba-asd/{0}'.format(asd_id),
+                          'node_id': node_id,
                           'asd_id': asd_id,
                           'log_level': 'info',
                           'port': port}
 
-            if config.data.get('extra_parameters') is not None:
-                for extrakey in config.data['extra_parameters']:
-                    asd_config[extrakey] = config.data['extra_parameters'][extrakey]
+            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT.format(node_id))):
+                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT.format(node_id)))
+                for extrakey in data:
+                    asd_config[extrakey] = data[extrakey]
 
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
-            with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'w') as conffile:
-                conffile.write(json.dumps(asd_config))
-            check_output('chmod 666 /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
-            check_output('chown alba:alba /mnt/alba-asd/{0}/asd.json'.format(asd_id), shell=True)
+            EtcdConfiguration.set(API.ASD_CONFIG_ROOT.format(asd_id), json.dumps(asd_config), raw=True)
             with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
