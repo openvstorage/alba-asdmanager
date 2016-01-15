@@ -41,12 +41,13 @@ class API(object):
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}/config'
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
+    NODE_ID = 'xxxxxxxxxx'
 
     @staticmethod
     @get('/')
     def index():
         """ Return available API calls """
-        return {'node_id': Configuration().data['main']['node_id'],
+        return {'node_id': API.NODE_ID,
                 '_links': ['/disks', '/net', '/update'],
                 '_actions': []}
 
@@ -66,8 +67,7 @@ class API(object):
     def set_net():
         """ Set IP information """
         print '{0} - Setting network information'.format(datetime.datetime.now())
-        with Configuration() as config:
-            config.data['network']['ips'] = json.loads(request.form['ips'])
+        EtcdConfiguration.set('{0}/main|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)), json.loads(request.form['ips']))
         return {'_link': '/net'}
 
     @staticmethod
@@ -105,7 +105,7 @@ class API(object):
                             disks[disk_id]['state'] = {'state': 'error',
                                                        'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
-            disks[disk_id]['node_id'] = Configuration().data['main']['node_id']
+            disks[disk_id]['node_id'] = API.NODE_ID
             API._disk_hateoas(disks[disk_id], disk_id)
         print '{0} - Fetching disks completed'.format(datetime.datetime.now())
         return disks
@@ -159,20 +159,20 @@ class API(object):
 
             # Prepare & start service
             print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
-            port = EtcdConfiguration.get('{0}/main|port'.format(API.CONFIG_ROOT.format(node_id)))
-            ips = EtcdConfiguration.get('{0}/main|ips'.format(API.CONFIG_ROOT.format(node_id)))
+            port = EtcdConfiguration.get('{0}/main|port'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
+            ips = EtcdConfiguration.get('{0}/main|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
             used_ports = [all_disks[_disk]['port'] for _disk in all_disks
                           if all_disks[_disk]['available'] is False and 'port' in all_disks[_disk]]
             while port in used_ports:
                 port += 1
             asd_config = {'home': '/mnt/alba-asd/{0}'.format(asd_id),
-                          'node_id': node_id,
+                          'node_id': API.NODE_ID,
                           'asd_id': asd_id,
                           'log_level': 'info',
                           'port': port}
 
-            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT.format(node_id))):
-                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT.format(node_id)))
+            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT.format(API.NODE_ID))):
+                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
                 for extrakey in data:
                     asd_config[extrakey] = data[extrakey]
 

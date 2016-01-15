@@ -24,7 +24,7 @@ import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
-from source.tools.configuration2 import Configuration
+from source.tools.configuration import EtcdConfiguration
 
 
 def post(route, authenticate=True):
@@ -99,6 +99,7 @@ def _authorized():
     """
     Indicates whether a call is authenticated
     """
-    config = Configuration()
+    username = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|username'.format(node_id))
+    password = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|password'.format(node_id))
     auth = request.authorization
-    return auth and auth.username == config.data['main']['username'] and auth.password == config.data['main']['password']
+    return auth and auth.username == username and auth.password == password
