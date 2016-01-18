@@ -31,7 +31,7 @@ def setup():
     print '- Verifying distribution'
     with open('/proc/1/comm', 'r') as proc_comm:
         init_info = proc_comm.read()
-    if init_info == 'upstart':
+    if init_info == 'init':
         source_file = '/opt/alba-asdmanager/config/upstart/alba-asdmanager.conf'
         target_file = '/etc/init/alba-asdmanager.conf'
     elif init_info == 'systemd':
