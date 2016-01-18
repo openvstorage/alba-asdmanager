@@ -41,8 +41,8 @@ class API(object):
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
-    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
     NODE_ID = os.environ['ASD_NODE_ID']
+    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
     @staticmethod
     @get('/')
@@ -68,7 +68,7 @@ class API(object):
     def set_net():
         """ Set IP information """
         print '{0} - Setting network information'.format(datetime.datetime.now())
-        EtcdConfiguration.set('{0}/network|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)), json.loads(request.form['ips']))
+        EtcdConfiguration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
         return {'_link': '/net'}
 
     @staticmethod
@@ -90,8 +90,8 @@ class API(object):
             if disks[disk_id]['available'] is False:
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
-                    disks[disk_id].update(EtcdConfiguration.get('{0}/main'.format(API.CONFIG_ROOT.format(API.NODE_ID))))
-                    disks[disk_id].update(EtcdConfiguration.get('{0}/network'.format(API.CONFIG_ROOT.format(API.NODE_ID))))
+                    disks[disk_id].update(EtcdConfiguration.get('{0}/main'.format(API.CONFIG_ROOT)))
+                    disks[disk_id].update(EtcdConfiguration.get('{0}/network'.format(API.CONFIG_ROOT)))
                     service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
                     if 'start/running' not in service_state:
                         disks[disk_id]['state'] = {'state': 'error',
@@ -151,8 +151,8 @@ class API(object):
 
             # Prepare & start service
             print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
-            port = EtcdConfiguration.get('{0}/main|port'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
-            ips = EtcdConfiguration.get('{0}/main|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
+            port = EtcdConfiguration.get('{0}/network|port'.format(API.CONFIG_ROOT))
+            ips = EtcdConfiguration.get('{0}/network|ips'.format(API.CONFIG_ROOT))
             used_ports = [all_disks[_disk]['port'] for _disk in all_disks
                           if all_disks[_disk]['available'] is False and 'port' in all_disks[_disk]]
             while port in used_ports:
@@ -163,8 +163,8 @@ class API(object):
                           'log_level': 'info',
                           'port': port}
 
-            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT.format(API.NODE_ID))):
-                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT.format(API.NODE_ID)))
+            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT)):
+                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT))
                 for extrakey in data:
                     asd_config[extrakey] = data[extrakey]
 
@@ -210,7 +210,7 @@ class API(object):
             check_output('stop {0} || true'.format(service_name), shell=True)
             if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
                 os.remove('/etc/init/{0}.conf'.format(service_name))
-            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
+            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT, raw=True)
 
             # Cleanup & unmount disk
             print '{0} - Cleaning disk {1}'.format(datetime.datetime.now(), disk)
