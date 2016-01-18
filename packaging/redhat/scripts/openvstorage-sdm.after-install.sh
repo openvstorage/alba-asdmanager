@@ -1,7 +1,5 @@
 #!/bin/bash
 
-source_dir=/opt/alba-asdmanager/source
-
 cd /opt/alba-asdmanager/source
 if [ ! -f server.crt ]; then
     echo `openssl rand -base64 32` >> passphrase
