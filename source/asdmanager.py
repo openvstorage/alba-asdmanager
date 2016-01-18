@@ -53,8 +53,8 @@ def setup():
     asd_ips = []
     add_ips = True
     while add_ips:
-        current_ips = '  Current IPs: {0}'.format(asd_ips)
-        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''))
+        current_ips = 'Current selected IPs: {0}'.format(asd_ips)
+        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs - {0}'.format(current_ips if len(asd_ips) > 0 else ''))
         if new_asd_ip == 'All':
             ipaddresses.remove('All')
             asd_ips = []
@@ -75,7 +75,9 @@ def setup():
     shutil.copy2(source_file, target_file)
 
     update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(alba_node_id, target_file)
+    update_port_nr_cmd = """sed -i "s/<PORT_NUMBER>/{0}/g" {1}""".format(api_port, target_file)
     check_output(update_asd_id_cmd, shell=True)
+    check_output(update_port_nr_cmd, shell=True)
 
     print '- Starting ASD manager service'
     try:
@@ -87,9 +89,17 @@ def setup():
     print Interactive.boxed_message(['ALBA ASD-manager setup completed'])
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        raise RuntimeError('Only the port number must be provided for the ASD manager')
+    try:
+        port = int(sys.argv[1])
+    except:
+        raise RuntimeError('Argument provided must be an integer (Port number for the ASD manager')
+    if not 1024 < port <= 65535:
+        raise RuntimeError('Port provided must be within range 1024 - 65535')
+
     from source.app import app
-    context = ('server.crt', 'server.key')
     app.run(host='0.0.0.0',
-            port=8500,
-            ssl_context=context,
+            port=sys.argv[2],
+            ssl_context=('server.crt', 'server.key'),
             threaded=True)
