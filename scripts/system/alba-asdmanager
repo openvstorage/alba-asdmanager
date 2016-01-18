@@ -19,7 +19,13 @@ function show_help {
 
 if [ "$1" = "monitor" ] ; then
     if [ "$2" = "services" ] ; then
-        watch -n 1 'echo "\nALBA ASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nALBA ASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+        service_manager=`cat /proc/1/comm`
+        if test "$service_manager" = "systemd"
+        then
+            watch -n 1 'echo "\nALBA ASD Manager running processes:\n";systemctl -l| grep alba | grep "loaded active" | sort;echo "\nALBA ASD Manager non-running processes:\n";systemctl -l | grep alba | grep -v "loaded active" | sort'
+        else
+            watch -n 1 'echo "\nALBA ASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nALBA ASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+        fi
     else
         show_help
     fi
