@@ -53,8 +53,10 @@ def setup():
     asd_ips = []
     add_ips = True
     while add_ips:
-        current_ips = 'Current selected IPs: {0}'.format(asd_ips)
-        new_asd_ip = Interactive.ask_choice(ipaddresses, 'Select an IP address or all IP addresses to be used for the ASDs - {0}'.format(current_ips if len(asd_ips) > 0 else ''))
+        current_ips = ' - Current selected IPs: {0}'.format(asd_ips)
+        new_asd_ip = Interactive.ask_choice(ipaddresses,
+                                            'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''),
+                                            default_value='All')
         if new_asd_ip == 'All':
             ipaddresses.remove('All')
             asd_ips = []
@@ -70,7 +72,13 @@ def setup():
         sys.exit(1)
 
     print '- Initializing etcd'
-    alba_node_id = EtcdConfiguration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+    try:
+        alba_node_id = EtcdConfiguration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+    except:
+        print ''  # Spacing
+        print Interactive.boxed_message(['Could not connect to Etcd.',
+                                         'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
+        sys.exit(1)
 
     shutil.copy2(source_file, target_file)
 
