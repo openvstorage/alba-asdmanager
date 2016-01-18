@@ -11,10 +11,10 @@ function show_help {
     echo "    - asd-manager help                  Show this help section"
     echo ""
     echo "  * Setup options:"
-    echo "    - asd-manager setup                 Launch Open vStorage setup and autodetect required node role (master/extra)"
+    echo "    - asd-manager setup                 Launch ASD Manager setup"
     echo ""
     echo "  * Monitor options:"
-    echo "    - asd-manager monitor services      Watch Open vStorage services"
+    echo "    - asd-manager monitor services      Watch ASD Manager services"
 }
 
 if [ "$1" = "monitor" ] ; then
