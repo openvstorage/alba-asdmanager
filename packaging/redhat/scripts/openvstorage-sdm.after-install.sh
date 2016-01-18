@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source_dir=/opt/alba-asdmanager/source
+
 cd /opt/alba-asdmanager/source
 if [ ! -f server.crt ]; then
     echo `openssl rand -base64 32` >> passphrase
@@ -11,33 +13,6 @@ if [ ! -f server.crt ]; then
     rm -f server.key.org
 fi
 
-if [ ! -f /opt/alba-asdmanager/config/config.json ]; then
-    nodeid=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
-    password=`openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 32`
-    cat <<EOF > /opt/alba-asdmanager/config/config.json
-{
-    "main": {
-        "password": "$password",
-        "node_id": "$nodeid",
-        "username": "root",
-        "version": 0
-    },
-    "network": {
-        "ips": [],
-        "port": 8600
-    }
-}
-EOF
-    cp -f /opt/alba-asdmanager/config/asdnode.service /etc/avahi/services/asdnode.service
-    sed -i "s/\[NODEID\]/$nodeid/g" /etc/avahi/services/asdnode.service
-    service avahi-daemon status | grep running &> /dev/null
-    if [ $? -eq 0 ]; then
-        service avahi-daemon restart
-    else
-        service avahi-daemon start
-    fi
-fi
-
 id -a alba &> /dev/null
 if [[ $? -eq 1 ]]
 then
@@ -46,15 +21,12 @@ fi
 
 chown -R alba:alba /opt/alba-asdmanager
 
-if [ ! -f /etc/init/alba-asdmanager.conf ]; then
-    cp -f /opt/alba-asdmanager/config/systemd/alba-asdmanager.service /usr/lib/systemd/system/
-    service alba-asdmanager start
-else
-    service alba-asdmanager status | grep running &> /dev/null
+if [ -f /usr/lib/systemd/system/alba-asdmanager.service ]; then
+    systemctl daemon-reload
+    systemctl status alba-asdmanager | grep running &> /dev/null
     if [ $? -eq 0 ]; then
-        service alba-asdmanager restart
+        systemctl restart alba-asdmanager
     else
-        service alba-asdmanager start
+        systemctl start alba-asdmanager
     fi
 fi
-
