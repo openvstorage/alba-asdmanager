@@ -95,7 +95,7 @@ class FileMutex(object):
         """
         Lock key
         """
-        return '/var/lock/alba-asdmanager_flock_%s' % self.name
+        return '/var/lock/asd-manager_flock_%s' % self.name
 
     def __del__(self):
         """

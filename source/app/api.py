@@ -38,7 +38,7 @@ class API(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
-    INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
+    INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     NODE_ID = os.environ['ASD_NODE_ID']
@@ -170,7 +170,7 @@ class API(object):
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
             EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
-            with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
+            with open('/opt/asd-manager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
             contents = contents.replace('<ASD>', asd_id)
@@ -257,7 +257,7 @@ class API(object):
         for file_name in os.listdir('/etc/init/'):
             if file_name.startswith(API.SERVICE_PREFIX) and file_name.endswith('.conf'):
                 file_name = file_name.rstrip('.conf')
-                file_path = '/opt/alba-asdmanager/run/{0}.version'.format(file_name)
+                file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
                         services[file_name] = fp.read().strip()
@@ -337,7 +337,7 @@ class API(object):
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
             else:
-                return {'status': 'done' if 'running' in check_output('status alba-asdmanager', shell=True).strip() else 'running'}
+                return {'status': 'done' if 'running' in check_output('status asd-manager', shell=True).strip() else 'running'}
 
     @staticmethod
     @post('/update/restart_services')

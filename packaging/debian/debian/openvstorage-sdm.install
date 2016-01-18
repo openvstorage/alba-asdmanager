@@ -1,4 +1,4 @@
-source                          opt/alba-asdmanager
-config/upstart                  opt/alba-asdmanager/config
-config/systemd                  opt/alba-asdmanager/config
-scripts/system/alba-asdmanager  usr/bin
+source                      opt/asd-manager
+config/upstart              opt/asd-manager/config
+config/systemd              opt/asd-manager/config
+scripts/system/asd-manager  usr/bin
