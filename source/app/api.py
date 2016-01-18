@@ -68,7 +68,7 @@ class API(object):
     def set_net():
         """ Set IP information """
         print '{0} - Setting network information'.format(datetime.datetime.now())
-        EtcdConfiguration.set('{0}/main|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)), json.loads(request.form['ips']))
+        EtcdConfiguration.set('{0}/network|ips'.format(API.CONFIG_ROOT.format(API.NODE_ID)), json.loads(request.form['ips']))
         return {'_link': '/net'}
 
     @staticmethod
