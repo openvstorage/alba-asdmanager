@@ -19,12 +19,11 @@ fi
 
 chown -R alba:alba /opt/alba-asdmanager
 
-if [ -f /etc/init/alba-asdmanager.conf ]; then
-    status alba-asdmanager | grep running &> /dev/null
+if [ -f /etc/init/alba-asdmanager.conf ] || [ -f /lib/systemd/system/alba-asdmanager.service ] ; then
+    service alba-asdmanager status | grep running &> /dev/null
     if [ $? -eq 0 ]; then
-        restart alba-asdmanager
+        service alba-asdmanager restart
     else
-        start alba-asdmanager
+        service alba-asdmanager start
     fi
 fi
-
