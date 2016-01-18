@@ -181,6 +181,15 @@ class EtcdConfiguration(object):
         return node_id
 
     @staticmethod
+    def uninitialize(node_id):
+        """
+        Remove initially stored values from etcd
+        :param node_id: Un-initialize this node
+        """
+        if EtcdConfiguration.dir_exists('/ovs/alba/asdnodes/{0}'.format(node_id)):
+            EtcdConfiguration.delete('/ovs/alba/asdnodes/{0}'.format(node_id))
+
+    @staticmethod
     def _dir_exists(key):
         try:
             client = EtcdConfiguration._get_client()
