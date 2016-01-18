@@ -109,7 +109,6 @@ class Disks(object):
         check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
         FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
         check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
-        check_output('mkdir /mnt/alba-asd/{0}/data'.format(asd_id), shell=True)
         check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(asd_id), shell=True)
         print 'Prepare disk {0}/{1} complete'.format(disk, asd_id)
 

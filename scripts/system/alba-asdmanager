@@ -1,7 +1,30 @@
-#!/bin/sh
+#!/usr/bin/env bash
 cd /opt/alba-asdmanager
+export PYTHONPATH="${PYTHONPATH}:/opt/alba-asdmanager"
+export DISPLAY=:0
+
+function show_help {
+    echo "ALBA ASD-manager CLI launcher"
+    echo "-----------------------------"
+    echo "Usage:"
+    echo "  * Miscellaneous options:"
+    echo "    - alba-asdmanager help                  Show this help section"
+    echo ""
+    echo "  * Setup options:"
+    echo "    - alba-asdmanager setup                 Launch Open vStorage setup and autodetect required node role (master/extra)"
+    echo ""
+    echo "  * Monitor options:"
+    echo "    - alba-asdmanager monitor services      Watch Open vStorage services"
+}
+
 if [ "$1" = "monitor" ] ; then
-  if [ "$2" = "services" ] ; then
-    watch -n 1 'echo "\nALBA ASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nALBA ASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
-  fi
+    if [ "$2" = "services" ] ; then
+        watch -n 1 'echo "\nALBA ASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nALBA ASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+    else
+        show_help
+    fi
+elif [ "$1" = "setup" ] ; then
+    python -c "from source.asdmanager import setup; setup()"
+else
+    show_help
 fi
