@@ -39,7 +39,8 @@ class API(object):
     SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
-    ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}/config'
+    ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
+    ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
     NODE_ID = os.environ['ASD_NODE_ID']
 
@@ -169,7 +170,7 @@ class API(object):
 
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
-            EtcdConfiguration.set(API.ASD_CONFIG_ROOT.format(asd_id), json.dumps(asd_config), raw=True)
+            EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
             with open('/opt/alba-asdmanager/config/upstart/alba-asd.conf', 'r') as template:
                 contents = template.read()
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
@@ -209,6 +210,7 @@ class API(object):
             check_output('stop {0} || true'.format(service_name), shell=True)
             if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
                 os.remove('/etc/init/{0}.conf'.format(service_name))
+            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
             # Cleanup & unmount disk
             print '{0} - Cleaning disk {1}'.format(datetime.datetime.now(), disk)
