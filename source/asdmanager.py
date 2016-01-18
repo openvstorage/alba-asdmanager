@@ -29,15 +29,16 @@ def setup():
     print Interactive.boxed_message(['ALBA ASD-manager setup'])
 
     print '- Verifying distribution'
-    dist_info = check_output('cat /etc/os-release', shell=True)
-    if 'Ubuntu' in dist_info:
+    with open('/proc/1/comm', 'r') as proc_comm:
+        init_info = proc_comm.read()
+    if init_info == 'init':
         source_file = '/opt/alba-asdmanager/config/upstart/alba-asdmanager.conf'
         target_file = '/etc/init/alba-asdmanager.conf'
-    elif 'CentOS Linux' in dist_info:
+    elif init_info == 'systemd':
         source_file = '/opt/alba-asdmanager/config/systemd/alba-asdmanager.service'
-        target_file = '/usr/lib/systemd/system/alba-asdmanager.service'
+        target_file = '/lib/systemd/system/alba-asdmanager.service'
     else:
-        raise RuntimeError('Unsupported OS detected')
+        raise RuntimeError('Unsupported OS detected {0}'.format(init_info))
 
     if os.path.exists(target_file):
         print ''  # Spacing
