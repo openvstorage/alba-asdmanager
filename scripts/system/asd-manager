@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+cd /opt/asd-manager
+export PYTHONPATH="${PYTHONPATH}:/opt/asd-manager"
+export DISPLAY=:0
+
+function show_help {
+    echo "ASD Manager CLI launcher"
+    echo "-----------------------------"
+    echo "Usage:"
+    echo "  * Miscellaneous options:"
+    echo "    - asd-manager help                  Show this help section"
+    echo ""
+    echo "  * Setup options:"
+    echo "    - asd-manager setup                 Launch Open vStorage setup and autodetect required node role (master/extra)"
+    echo ""
+    echo "  * Monitor options:"
+    echo "    - asd-manager monitor services      Watch Open vStorage services"
+}
+
+if [ "$1" = "monitor" ] ; then
+    if [ "$2" = "services" ] ; then
+        service_manager=`cat /proc/1/comm`
+        if test "$service_manager" = "systemd"
+        then
+            watch -n 1 'echo "\nASD Manager running processes:\n";systemctl -l| grep alba | grep "loaded active" | sort;echo "\nASD Manager non-running processes:\n";systemctl -l | grep alba | grep -v "loaded active" | sort'
+        else
+            watch -n 1 'echo "\nASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+        fi
+    else
+        show_help
+    fi
+elif [ "$1" = "setup" ] ; then
+    python -c "from source.asdmanager import setup; setup()"
+else
+    show_help
+fi

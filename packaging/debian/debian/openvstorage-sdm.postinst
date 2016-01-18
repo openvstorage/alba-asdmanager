@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /opt/alba-asdmanager/source
+cd /opt/asd-manager/source
 if [ ! -f server.crt ]; then
     echo `openssl rand -base64 32` >> passphrase
     openssl genrsa -des3 -out server.key -passout file:passphrase
@@ -14,16 +14,16 @@ fi
 id -a alba &> /dev/null
 if [[ $? -eq 1 ]]
 then
-    useradd -d /opt/alba-asdmanager --system -m alba
+    useradd -d /opt/asd-manager --system -m alba
 fi
 
-chown -R alba:alba /opt/alba-asdmanager
+chown -R alba:alba /opt/asd-manager
 
-if [ -f /etc/init/alba-asdmanager.conf ] || [ -f /lib/systemd/system/alba-asdmanager.service ] ; then
-    service alba-asdmanager status | grep running &> /dev/null
+if [ -f /etc/init/asd-manager.conf ] || [ -f /lib/systemd/system/asd-manager.service ] ; then
+    service asd-manager status | grep running &> /dev/null
     if [ $? -eq 0 ]; then
-        service alba-asdmanager restart
+        service asd-manager restart
     else
-        service alba-asdmanager start
+        service asd-manager start
     fi
 fi

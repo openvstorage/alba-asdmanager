@@ -16,11 +16,11 @@
 
 """
 Script to install openvstorage-sdm - uses FileMutex('package_update') to
- synchronize with alba-asdmanager api
+ synchronize with asd-manager api
 """
 
 import sys, datetime, time
-sys.path.append('/opt/alba-asdmanager')
+sys.path.append('/opt/asd-manager')
 
 from source.tools.filemutex import FileMutex
 from subprocess import check_output

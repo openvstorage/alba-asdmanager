@@ -8,7 +8,7 @@ User=alba
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
-Environment=PYTHONPATH=:/opt/alba-asdmanager
-WorkingDirectory=/opt/alba-asdmanager/source
+Environment=PYTHONPATH=:/opt/asd-manager
+WorkingDirectory=/opt/asd-manager/source
 ExecStart=/usr/bin/alba asd-start --config etcd://127.0.0.1:2379/ovs/alba/asds/<ASD>/config
-ExecStartPre=/bin/sh -c "if [ ! -d /opt/alba-asdmanager/run ]; then mkdir /opt/alba-asdmanager/run; chown alba:alba /opt/alba-asdmanager/run; fi; echo `alba version --terse` > /opt/alba-asdmanager/run/<SERVICE_NAME>.version"
+ExecStartPre=/bin/sh -c "if [ ! -d /opt/asd-manager/run ]; then mkdir /opt/asd-manager/run; chown alba:alba /opt/asd-manager/run; fi; echo `alba version --terse` > /opt/asd-manager/run/<SERVICE_NAME>.version"
