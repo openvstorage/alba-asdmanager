@@ -90,8 +90,7 @@ class API(object):
             if disks[disk_id]['available'] is False:
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
-                    disks[disk_id].update(EtcdConfiguration.get('{0}/main'.format(API.CONFIG_ROOT)))
-                    disks[disk_id].update(EtcdConfiguration.get('{0}/network'.format(API.CONFIG_ROOT)))
+                    disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
                     service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
                     if 'start/running' not in service_state:
                         disks[disk_id]['state'] = {'state': 'error',
@@ -210,7 +209,7 @@ class API(object):
             check_output('stop {0} || true'.format(service_name), shell=True)
             if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
                 os.remove('/etc/init/{0}.conf'.format(service_name))
-            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT, raw=True)
+            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
             # Cleanup & unmount disk
             print '{0} - Cleaning disk {1}'.format(datetime.datetime.now(), disk)
