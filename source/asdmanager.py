@@ -91,6 +91,7 @@ def setup():
     try:
         check_output('start alba-asdmanager', shell=True)
     except Exception as ex:
+        EtcdConfiguration.uninitialize(alba_node_id)
         print Interactive.boxed_message(['Starting alba-asdmanager failed with error:', str(ex)])
         sys.exit(1)
 
