@@ -41,7 +41,7 @@ class API(object):
     INSTALL_SCRIPT = "/opt/alba-asdmanager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}/config'
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'
-    NODE_ID = os.environ['asd_node_id']
+    NODE_ID = os.environ['ASD_NODE_ID']
 
     @staticmethod
     @get('/')
@@ -89,21 +89,12 @@ class API(object):
             if disks[disk_id]['available'] is False:
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
-                    if os.path.exists('/mnt/alba-asd/{0}/asd.json'.format(asd_id)):
-                        try:
-                            with open('/mnt/alba-asd/{0}/asd.json'.format(asd_id), 'r') as conffile:
-                                disks[disk_id].update(json.load(conffile))
-                        except ValueError:
-                            disks[disk_id]['state'] = {'state': 'error',
-                                                       'detail': 'corruption'}
-                    else:
+                    disks[disk_id].update(EtcdConfiguration.get('{0}/main'.format(API.CONFIG_ROOT.format(API.NODE_ID))))
+                    disks[disk_id].update(EtcdConfiguration.get('{0}/network'.format(API.CONFIG_ROOT.format(API.NODE_ID))))
+                    service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
+                    if 'start/running' not in service_state:
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
-                    if disks[disk_id]['state']['state'] != 'error':
-                        service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
-                        if 'start/running' not in service_state:
-                            disks[disk_id]['state'] = {'state': 'error',
-                                                       'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
             disks[disk_id]['node_id'] = API.NODE_ID
             API._disk_hateoas(disks[disk_id], disk_id)

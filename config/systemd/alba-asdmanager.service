@@ -9,5 +9,6 @@ Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
 Environment=PYTHONPATH=:/opt/alba-asdmanager
+Environment=ASD_NODE_ID=<ASD_NODE_ID>
 WorkingDirectory=/opt/alba-asdmanager/source
 ExecStart=/usr/bin/python asdmanager.py

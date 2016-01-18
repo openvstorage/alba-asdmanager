@@ -27,7 +27,8 @@ from source.app import app
 from source.app.exceptions import APIException
 from source.tools.configuration import EtcdConfiguration
 
-NODE_ID = os.environ['asd_node_id']
+NODE_ID = os.environ['ASD_NODE_ID']
+
 
 def post(route, authenticate=True):
     """
