@@ -42,7 +42,7 @@ def setup():
 
     if os.path.exists(target_file):
         print ''  # Spacing
-        print Interactive.boxed_message(['Existing {0} config file detected: {1}'.format('upstart' if 'Ubuntu' in dist_info else 'systemd', target_file)])
+        print Interactive.boxed_message(['Existing {0} config file detected: {1}'.format('upstart' if 'Ubuntu' in init_info else 'systemd', target_file)])
         sys.exit(1)
 
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
@@ -82,7 +82,9 @@ def setup():
         sys.exit(1)
 
     shutil.copy2(source_file, target_file)
-
+    if init_info == 'systemd':
+        check_output('systemctl daemon-reload', shell=True)
+        
     update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(alba_node_id, target_file)
     update_port_nr_cmd = """sed -i "s/<PORT_NUMBER>/{0}/g" {1}""".format(api_port, target_file)
     check_output(update_asd_id_cmd, shell=True)
