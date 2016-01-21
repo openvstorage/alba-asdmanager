@@ -35,7 +35,7 @@ class LocalClient(object):
         storagerouter = None
         if isinstance(endpoint, basestring):
             ip = endpoint
-            if not re.findall(SSHClient.IP_REGEX, ip):
+            if not re.findall(LocalClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
             raise ValueError('The endpoint parameter should be either an ip address or a StorageRouter')

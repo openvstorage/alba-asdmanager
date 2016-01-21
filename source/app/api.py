@@ -354,7 +354,7 @@ class API(object):
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
                     status = ServiceManager.get_service_status(service, local_client)
-                    if status is False
+                    if status is False:
                         print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(), service)
                         result[service] = 'stopped'
                     else:
