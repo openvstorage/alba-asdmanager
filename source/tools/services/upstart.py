@@ -50,7 +50,7 @@ class Upstart(object):
 
     @staticmethod
     def prepare_template(base_name, target_name, client):
-        template_name = '/opt/OpenvStorage/config/templates/upstart/{0}.conf'
+        template_name = '/opt/asd-manager/config/upstart/{0}.conf'
         if client.file_exists(template_name.format(base_name)):
             client.run('cp -f {0} {1}'.format(
                 template_name.format(base_name),
@@ -62,8 +62,8 @@ class Upstart(object):
         if params is None:
             params = {}
 
-        name = Upstart._get_name(name, client, '/opt/OpenvStorage/config/templates/upstart/')
-        template_conf = '/opt/OpenvStorage/config/templates/upstart/{0}.conf'
+        name = Upstart._get_name(name, client, '/opt/asd-manager/config/upstart/')
+        template_conf = '/opt/asd-manager/config/upstart/{0}.conf'
 
         if not client.file_exists(template_conf.format(name)):
             # Given template doesn't exist so we are probably using system

@@ -48,7 +48,7 @@ class Systemd(object):
 
     @staticmethod
     def prepare_template(base_name, target_name, client):
-        template_name = '/opt/OpenvStorage/config/templates/systemd/{0}.service'
+        template_name = '/opt/asd-manager/config/systemd/{0}.service'
         if client.file_exists(template_name.format(base_name)):
             client.run('cp -f {0} {1}'.format(
                 template_name.format(base_name),
@@ -60,8 +60,8 @@ class Systemd(object):
         if params is None:
             params = {}
 
-        name = Systemd._get_name(name, client, '/opt/OpenvStorage/config/templates/systemd/')
-        template_service = '/opt/OpenvStorage/config/templates/systemd/{0}.service'
+        name = Systemd._get_name(name, client, '/opt/asd-manager/config/systemd/')
+        template_service = '/opt/asd-manager/config/systemd/{0}.service'
 
         if not client.file_exists(template_service.format(name)):
             # Given template doesn't exist so we are probably using system
