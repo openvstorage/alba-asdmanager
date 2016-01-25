@@ -32,31 +32,20 @@ class LocalClient(object):
         """
         Initializes an SSHClient
         """
-        storagerouter = None
         if isinstance(endpoint, basestring):
             ip = endpoint
             if not re.findall(LocalClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
-            raise ValueError('The endpoint parameter should be either an ip address or a StorageRouter')
+            raise ValueError('The endpoint parameter should be an ip address')
 
-        self.ip = ip
         local_ips = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-        self.local_ips = [lip.strip() for lip in local_ips]
-        self.is_local = self.ip in self.local_ips
-        if self.is_local is False:
+        if ip not in [lip.strip() for lip in local_ips]:
             raise ValueError('This is not an SSHClient.')
 
         current_user = check_output('whoami', shell=True).strip()
-        if username is None:
-            self.username = current_user
-        else:
-            self.username = username
-            if username != current_user:
-                self.is_local = False  # If specified user differs from current executing user, we always use the paramiko SSHClient
-        self.password = password
-        self.client = None
-
+        if username != current_user:
+            raise ValueError('Cannt use this client with another user name')
 
     @staticmethod
     def shell_safe(path_to_check):
