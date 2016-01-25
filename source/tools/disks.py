@@ -17,7 +17,6 @@ Disk related code
 """
 import re
 import json
-import time
 from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
