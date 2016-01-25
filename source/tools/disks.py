@@ -30,6 +30,10 @@ class Disks(object):
 
     @staticmethod
     def list_disks():
+        """
+        List the disks
+        :return: Information about the disks
+        """
         disks = {}
 
         # Find used disks
@@ -100,21 +104,35 @@ class Disks(object):
 
     @staticmethod
     def prepare_disk(disk, asd_id):
-        print 'Preparing disk {0}/{1}'.format(disk, asd_id)
+        """
+        Prepare a disk for use with ALBA
+        :param disk: Disk ID
+        :param asd_id: ASD ID
+        :return: None
+        """
+        print 'Preparing disk {0} with ASD ID {1}'.format(disk, asd_id)
+        asd_mount = '/mnt/alba-asd/{0}'.format(asd_id)
+        disk_by_id = '/dev/disk/by-id/{0}'.format(disk)
         Disks.locate(disk, start=False)
-        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-        check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
-        check_output('parted /dev/disk/by-id/{0} -s mkpart {0} 2MB 100%'.format(disk), shell=True)
-        check_output('partprobe', shell=True)
-        check_output('mkfs.xfs -qf /dev/disk/by-id/{0}-part1'.format(disk), shell=True)
-        check_output('mkdir -p /mnt/alba-asd/{0}'.format(asd_id), shell=True)
-        FSTab.add('/dev/disk/by-id/{0}-part1'.format(disk), '/mnt/alba-asd/{0}'.format(asd_id))
-        check_output('mount /mnt/alba-asd/{0}'.format(asd_id), shell=True)
-        check_output('chown -R alba:alba /mnt/alba-asd/{0}'.format(asd_id), shell=True)
-        print 'Prepare disk {0}/{1} complete'.format(disk, asd_id)
+        check_output('umount {0} || true'.format(asd_mount), shell=True)
+        check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
+        check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk), shell=True)
+        check_output('partprobe {0}'.format(disk_by_id), shell=True)
+        check_output('mkfs.xfs -qf {0}-part1'.format(disk_by_id), shell=True)
+        check_output('mkdir -p {0}'.format(asd_mount), shell=True)
+        FSTab.add('{0}-part1'.format(disk_by_id), asd_mount)
+        check_output('mount {0}'.format(asd_mount), shell=True)
+        check_output('chown -R alba:alba {0}'.format(asd_mount), shell=True)
+        print 'Prepare disk {0} with ASD ID {1} complete'.format(disk, asd_id)
 
     @staticmethod
     def clean_disk(disk, asd_id):
+        """
+        Remove the disk as ALBA device
+        :param disk: Disk ID
+        :param asd_id: ASD ID
+        :return: None
+        """
         print 'Cleaning disk {0}/{1}'.format(disk, asd_id)
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
         check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
@@ -122,13 +140,17 @@ class Disks(object):
         try:
             check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         except CalledProcessError:
-            # Wiping the parition is a nice-to-have and might fail when a disk is e.g. unavailable
+            # Wiping the partition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
         Disks.locate(disk, start=True)
         print 'Clean disk {0}/{1} complete'.format(disk, asd_id)
 
     @staticmethod
     def scan_controllers():
+        """
+        Scan the disk controller(s)
+        :return: None
+        """
         print 'Scanning controllers'
         controllers = {}
         has_storecli = check_output('which storcli64 || true', shell=True).strip() != ''
@@ -148,6 +170,12 @@ class Disks(object):
 
     @staticmethod
     def locate(disk, start):
+        """
+        Locate the disk on the controller
+        :param disk: Disk ID
+        :param start: True to start locating, False otherwise
+        :return: None
+        """
         for wwn in Disks.controllers:
             if disk.endswith(wwn):
                 controller_type, location = Disks.controllers[wwn]
