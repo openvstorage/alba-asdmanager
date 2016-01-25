@@ -29,9 +29,14 @@ from source.app.exceptions import BadRequest
 from source.tools.disks import Disks
 from source.tools.filemutex import FileMutex
 from source.tools.configuration import EtcdConfiguration
+from source.tools.localclient import LocalClient
+from source.tools.services.service import ServiceManager
 from subprocess import check_output
 from subprocess import CalledProcessError
 
+local_client = LocalClient()
+
+#@TODO: make package management agnostic (apt vs rpm)
 
 class API(object):
     """ ALBA API """
@@ -91,8 +96,9 @@ class API(object):
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
                     disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
-                    service_state = check_output('status {0}{1} || true'.format(API.SERVICE_PREFIX, asd_id), shell=True)
-                    if 'start/running' not in service_state:
+                    service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+                    service_state = ServiceManager.get_service_status(service_name, local_client)
+                    if service_state is False:
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
@@ -170,14 +176,13 @@ class API(object):
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
             EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
-            with open('/opt/asd-manager/config/upstart/alba-asd.conf', 'r') as template:
-                contents = template.read()
+
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
-            contents = contents.replace('<ASD>', asd_id)
-            contents = contents.replace('<SERVICE_NAME>', service_name)
-            with open('/etc/init/{0}.conf'.format(service_name), 'w') as upstart:
-                upstart.write(contents)
-            check_output('start {0}'.format(service_name), shell=True)
+            params = {'ASD': asd_id,
+                      'SERVICE_NAME': service_name}
+            ServiceManager.add_service('alba-asd', local_client, params, service_name)
+            ServiceManager.start_service(service_name, local_client)
+
 
             print '{0} - Returning info about added disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
@@ -206,9 +211,8 @@ class API(object):
             print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = all_disks[disk]['asd_id']
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
-            check_output('stop {0} || true'.format(service_name), shell=True)
-            if os.path.exists('/etc/init/{0}.conf'.format(service_name)):
-                os.remove('/etc/init/{0}.conf'.format(service_name))
+            ServiceManager.stop_service(service_name, local_client)
+            ServiceManager.remove_service(service_name, local_client)
             EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
             # Cleanup & unmount disk
@@ -236,10 +240,10 @@ class API(object):
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
             service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
-            check_output('stop {0} || true'.format(service_name), shell=True)
+            ServiceManager.stop_service(service_name, local_client)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            check_output('start {0} || true'.format(service_name), shell=True)
+            ServiceManager.start_service(service_name, local_client)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -254,9 +258,8 @@ class API(object):
     @staticmethod
     def _get_sdm_services():
         services = {}
-        for file_name in os.listdir('/etc/init/'):
-            if file_name.startswith(API.SERVICE_PREFIX) and file_name.endswith('.conf'):
-                file_name = file_name.rstrip('.conf')
+        for file_name in ServiceManager.list_service_files():
+            if file_name.startswith(API.SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
@@ -337,7 +340,8 @@ class API(object):
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
             else:
-                return {'status': 'done' if 'running' in check_output('status asd-manager', shell=True).strip() else 'running'}
+                status = ServiceManager.get_service_status('asd-manager', local_client)
+                return {'status': 'done' if status is True else 'running'}
 
     @staticmethod
     @post('/update/restart_services')
@@ -349,14 +353,15 @@ class API(object):
             result = {}
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
-                    status = check_output('status {0}'.format(service), shell=True).strip()
-                    if 'stop/waiting' in status:
+                    status = ServiceManager.get_service_status(service, local_client)
+                    if status is False:
                         print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(), service)
                         result[service] = 'stopped'
                     else:
                         print '{0} - Restarting service {1}'.format(datetime.datetime.now(), service)
                         try:
-                            print '{0} - {1}'.format(datetime.datetime.now(), check_output('restart {0}'.format(service), shell=True))
+                            status = ServiceManager.restart_service(service, local_client)
+                            print '{0} - {1}'.format(datetime.datetime.now(), status)
                             result[service] = 'restarted'
                         except CalledProcessError as cpe:
                             print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service, cpe)
