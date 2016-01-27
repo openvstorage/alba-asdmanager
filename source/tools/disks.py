@@ -124,10 +124,10 @@ class Disks(object):
         partition_name = '{0}-part1'.format(disk_by_id)
         while not os.path.exists(partition_name):
             print('Partition {0} not ready yet'.format(partition_name))
-            time.sleep(1)
+            time.sleep(0.2)
             counter += 1
             if counter > 10:
-                raise RuntimeError('Partition {0} not ready in 10 seconds'.format(partition_name))
+                raise RuntimeError('Partition {0} not ready in 2 seconds'.format(partition_name))
         check_output('mkfs.xfs -qf {0}-part1'.format(disk_by_id), shell=True)
         check_output('mkdir -p {0}'.format(asd_mount), shell=True)
         FSTab.add('{0}-part1'.format(disk_by_id), asd_mount)
