@@ -17,6 +17,8 @@ Disk related code
 """
 import re
 import json
+import time
+import os
 from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
@@ -118,6 +120,14 @@ class Disks(object):
         check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk), shell=True)
         check_output('partprobe {0}'.format(disk_by_id), shell=True)
+        counter = 0
+        partition_name = '{0}-part1'.format(disk_by_id)
+        while not os.path.exists(partition_name):
+            print('Partition {0} not ready yet'.format(partition_name))
+            time.sleep(0.2)
+            counter += 1
+            if counter > 10:
+                raise RuntimeError('Partition {0} not ready in 2 seconds'.format(partition_name))
         check_output('mkfs.xfs -qf {0}-part1'.format(disk_by_id), shell=True)
         check_output('mkdir -p {0}'.format(asd_mount), shell=True)
         FSTab.add('{0}-part1'.format(disk_by_id), asd_mount)
