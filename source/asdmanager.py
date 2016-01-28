@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import sys
 import shutil
+from ConfigParser import RawConfigParser
 from source.tools.interactive import Interactive
 from source.tools.configuration import EtcdConfiguration
 from subprocess import check_output
@@ -48,25 +50,46 @@ def setup():
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
     ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
 
-    api_ip = Interactive.ask_choice(ipaddresses, 'Select the public IP address to be used for the API')
-    api_port = Interactive.ask_integer("Select the port to be used for the API", 1024, 65535, 8500)
-    ipaddresses.append('All')
-    asd_ips = []
-    add_ips = True
-    while add_ips:
-        current_ips = ' - Current selected IPs: {0}'.format(asd_ips)
-        new_asd_ip = Interactive.ask_choice(ipaddresses,
-                                            'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''),
-                                            default_value='All')
-        if new_asd_ip == 'All':
-            ipaddresses.remove('All')
-            asd_ips = []
-            add_ips = False
+    preconfig = '/tmp/openvstorage_preconfig.cfg'
+    if os.path.exists(preconfig):
+        config = RawConfigParser()
+        config.read(preconfig)
+        api_ip = config.get('asdmanager', 'api_ips')
+        api_port = config.get('asdmanager', 'api_port')
+        asd_start_port = config.get('asdmanager', 'asd_start_port')
+
+        if type(api_ip) == list:
+            asd_ips = json.loads(api_ip)
         else:
-            asd_ips.append(new_asd_ip)
-            ipaddresses.remove(new_asd_ip)
-            add_ips = Interactive.ask_yesno("Do you want to add another IP?")
-    asd_start_port = Interactive.ask_integer("Select the port to be used for the ASDs", 1024, 65535, 8600)
+            asd_ips = list()
+            asd_ips.append(api_ip)
+
+        assert type(api_port == int), "api_port should be an integer"
+        assert type(asd_start_port == int), "asd_start_port should be an integer"
+
+        api_port = int(api_port)
+        asd_start_port = int(asd_start_port)
+
+    else:
+        api_ip = Interactive.ask_choice(ipaddresses, 'Select the public IP address to be used for the API')
+        api_port = Interactive.ask_integer("Select the port to be used for the API", 1024, 65535, 8500)
+        ipaddresses.append('All')
+        asd_ips = []
+        add_ips = True
+        while add_ips:
+            current_ips = ' - Current selected IPs: {0}'.format(asd_ips)
+            new_asd_ip = Interactive.ask_choice(ipaddresses,
+                                                'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''),
+                                                default_value='All')
+            if new_asd_ip == 'All':
+                ipaddresses.remove('All')
+                asd_ips = []
+                add_ips = False
+            else:
+                asd_ips.append(new_asd_ip)
+                ipaddresses.remove(new_asd_ip)
+                add_ips = Interactive.ask_yesno("Do you want to add another IP?")
+        asd_start_port = Interactive.ask_integer("Select the port to be used for the ASDs", 1024, 65535, 8600)
 
     if api_port in range(asd_start_port, asd_start_port + 100):
         print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
