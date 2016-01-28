@@ -1,5 +1,8 @@
 #!/bin/bash
 
+pip install --upgrade pip
+pip install ipaddr
+
 cd /opt/asd-manager/source
 if [ ! -f server.crt ]; then
     echo `openssl rand -base64 32` >> passphrase

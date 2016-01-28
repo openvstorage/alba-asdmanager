@@ -19,6 +19,7 @@ import os
 import sys
 import shutil
 from ConfigParser import RawConfigParser
+from ipaddr import IPAddress
 from source.tools.interactive import Interactive
 from source.tools.configuration import EtcdConfiguration
 from subprocess import check_output
@@ -55,14 +56,19 @@ def setup():
         config = RawConfigParser()
         config.read(preconfig)
         api_ip = config.get('asdmanager', 'api_ip')
+        assert IPAddress(api_ip), "Invalid ip specified"
         api_port = int(config.get('asdmanager', 'api_port'))
-        asd_ips = config.get('asdmanager', 'asd_ips')
+        input_asd_ips = config.get('asdmanager', 'asd_ips')
+        asd_ips = []
+        for asd_ip in input_asd_ips.strip('[]').split(','):
+            assert IPAddress(asd_ip), "Invalid ip specified"
+            asd_ips.append(asd_ip)
         asd_start_port = int(config.get('asdmanager', 'asd_start_port'))
 
         assert 1024 <= api_port <= 65535, "api_port should be >= 1024 and <= 65535"
         assert 1024 <= asd_start_port <= 65535, "asd_start_port should be >= 1024 and <= 65535"
         assert api_port not in range(asd_start_port, asd_start_port + 100), "api_port should not be in asd_port range:"\
-                                                                            "{0} - {} + 100".format(asd_start_port)
+                                                                            "{0} - {0} + 100".format(asd_start_port)
     else:
         api_ip = Interactive.ask_choice(ipaddresses, 'Select the public IP address to be used for the API')
         api_port = Interactive.ask_integer("Select the port to be used for the API", 1024, 65535, 8500)
