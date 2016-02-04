@@ -183,7 +183,6 @@ class API(object):
             ServiceManager.add_service('alba-asd', local_client, params, service_name)
             ServiceManager.start_service(service_name, local_client)
 
-
             print '{0} - Returning info about added disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             data = all_disks[disk]
