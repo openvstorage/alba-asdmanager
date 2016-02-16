@@ -42,6 +42,7 @@ class API(object):
     """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
     SERVICE_PREFIX = 'alba-asd-'
+    MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
@@ -257,7 +258,7 @@ class API(object):
     @staticmethod
     def _get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files():
+        for file_name in ServiceManager.list_service_files(local_client):
             if file_name.startswith(API.SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
@@ -367,3 +368,55 @@ class API(object):
                             result[service] = 'failed'
 
             return {'result': result}
+
+    @staticmethod
+    @get('/maintenance')
+    def get_maintenance_services():
+        """
+        Retrieve all configured maintenance service running on this node for each backend
+        :return: dict
+        """
+        services = {}
+        for file_name in ServiceManager.list_service_files(local_client):
+            print file_name
+            if file_name.startswith(API.MAINTENANCE_PREFIX):
+                print ServiceManager._get_service_filename(file_name, local_client)
+                with open(ServiceManager._get_service_filename(file_name, local_client)) as fp:
+                    services[file_name] = fp.read().strip()
+        print services
+        return {'services': services}
+
+    @staticmethod
+    @post('/maintenance/<name>/add')
+    def add_maintenance_service(name):
+        """
+        Add a maintenance service with a specific name
+        :param name:
+        :return: None
+        """
+        if ServiceManager.has_service(name, local_client):
+            if not ServiceManager.is_enabled(name, local_client):
+                ServiceManager.enable_service(name, local_client)
+        else:
+            config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(request.form['alba_backend_guid'])
+            alba_config = 'etcd://127.0.0.1:2379{0}'.format(config_location)
+            params = {'ALBA_CONFIG': alba_config}
+            EtcdConfiguration.set(config_location, json.dumps({
+                'log_level': 'info',
+                'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(request.form['abm_name'])
+            }), raw=True)
+
+            ServiceManager.add_service(name='alba-maintenance', client=local_client, params=params, target_name=name)
+        ServiceManager.start_service(name, local_client)
+
+    @staticmethod
+    @post('/maintenance/<name>/remove')
+    def remove_maintenance_service(name):
+        """
+        Remove a maintenance service with a specific name
+        :param name:
+        :return: None
+        """
+        if ServiceManager.has_service(name, local_client):
+            ServiceManager.stop_service(name, local_client)
+        ServiceManager.remove_service(name, local_client)
