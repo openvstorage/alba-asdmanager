@@ -38,10 +38,11 @@ local_client = LocalClient()
 
 #@TODO: make package management agnostic (apt vs rpm)
 
+
 class API(object):
     """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
-    SERVICE_PREFIX = 'alba-asd-'
+    ASD_SERVICE_PREFIX = 'alba-asd-'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
@@ -258,8 +259,9 @@ class API(object):
     @staticmethod
     def _get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files():
-            if file_name.startswith(API.SERVICE_PREFIX):
+        client = LocalClient('127.0.0.1', username='root')
+        for file_name in ServiceManager.list_service_files(client):
+            if file_name.startswith(API.ASD_SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
