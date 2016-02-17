@@ -24,7 +24,9 @@ sys.path.append('/opt/asd-manager')
 
 
 if __name__ == '__main__':
+    import os
     import json
+    import glob
     from source.tools.filemutex import FileMutex
     from source.tools.localclient import LocalClient
     from source.tools.services.service import ServiceManager
@@ -46,6 +48,7 @@ if __name__ == '__main__':
 
         check_output('apt-get install -y --force-yes openvstorage-sdm', shell=True).splitlines()
 
+        # Migrate main configuration file
         path = '/opt/alba-asdmanager/config/config.json'
         if client.file_exists(path):
             with open(path) as config_file:
@@ -55,6 +58,15 @@ if __name__ == '__main__':
             EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main'.format(node_id), config['main'], raw=False)
             EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/network'.format(node_id), config['network'], raw=False)
             client.file_delete(path)
+
+        # Migrate ASDs
+        for filename in glob.glob('/mnt/alba-asd/*/asd.json'):
+            with open(filename) as config_file:
+                config = json.load(config_file)
+            EtcdConfiguration.set('/ovs/alba/asds/{0}/config'.format(config['asd_id']), json.dumps(config, indent=4), raw=True)
+            ServiceManager.add_service('alba-asd', client, params={'ASD': config['asd_id']}, target_name='alba-asd-{0}'.format(config['asd_id']))
+            os.remove(filename)
+
         # Cleanup old data
         client.dir_delete('/opt/alba-asdmanager')
 
