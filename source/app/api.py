@@ -97,7 +97,7 @@ class API(object):
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
                     disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
-                    service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+                    service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
                     service_state = ServiceManager.get_service_status(service_name, local_client)
                     if service_state is False:
                         disks[disk_id]['state'] = {'state': 'error',
@@ -178,7 +178,7 @@ class API(object):
                 asd_config['ips'] = ips
             EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
 
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             params = {'ASD': asd_id,
                       'SERVICE_NAME': service_name}
             ServiceManager.add_service('alba-asd', local_client, params, service_name)
@@ -210,7 +210,7 @@ class API(object):
             # Stop and remove service
             print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             ServiceManager.stop_service(service_name, local_client)
             ServiceManager.remove_service(service_name, local_client)
             EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
@@ -239,7 +239,7 @@ class API(object):
 
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             ServiceManager.stop_service(service_name, local_client)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)

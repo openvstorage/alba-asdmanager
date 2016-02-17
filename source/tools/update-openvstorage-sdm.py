@@ -55,8 +55,12 @@ if __name__ == '__main__':
                 config = json.load(config_file)
             node_id = config['main']['node_id']
             # Migrate configuration file
-            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main'.format(node_id), config['main'], raw=False)
-            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/network'.format(node_id), config['network'], raw=False)
+            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main'.format(node_id), config['main'])
+            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main|port'.format(node_id), 8500)
+            EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/network'.format(node_id), config['network'])
+            ServiceManager.add_service(service_name, client, params={'ASD_NODE_ID': node_id,
+                                                                     'PORT_NUMBER': 8500})
+            ServiceManager.start_service(service_name, client)
             client.file_delete(path)
 
         # Migrate ASDs

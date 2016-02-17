@@ -22,6 +22,8 @@ from ConfigParser import RawConfigParser
 from source.tools.configuration import EtcdConfiguration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox
+from source.tools.services.service import ServiceManager
+from source.tools.localclient import LocalClient
 from subprocess import check_output
 
 
@@ -30,22 +32,13 @@ def setup():
     Interactive setup part for initial asd manager configuration with etcd
     """
     print Interactive.boxed_message(['ASD Manager setup'])
+    local_client = LocalClient()
+    service_name = 'asd-manager'
 
     print '- Verifying distribution'
-    with open('/proc/1/comm', 'r') as proc_comm:
-        init_info = proc_comm.read().strip()
-    if init_info == 'init':
-        source_file = '/opt/asd-manager/config/upstart/asd-manager.conf'
-        target_file = '/etc/init/asd-manager.conf'
-    elif init_info == 'systemd':
-        source_file = '/opt/asd-manager/config/systemd/asd-manager.service'
-        target_file = '/lib/systemd/system/asd-manager.service'
-    else:
-        raise RuntimeError('Unsupported OS detected {0}'.format(init_info))
-
-    if os.path.exists(target_file):
+    if ServiceManager.has_service(service_name, local_client):
         print ''  # Spacing
-        print Interactive.boxed_message(['Existing {0} config file detected: {1}'.format('upstart' if init_info == 'init' else 'systemd', target_file)])
+        print Interactive.boxed_message(['The ASD Manager is already installed.'])
         sys.exit(1)
 
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
@@ -138,18 +131,11 @@ def setup():
                                          'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
         sys.exit(1)
 
-    shutil.copy2(source_file, target_file)
-    if init_info == 'systemd':
-        check_output('systemctl daemon-reload', shell=True)
-
-    update_asd_id_cmd = """sed -i "s/<ASD_NODE_ID>/{0}/g" {1}""".format(alba_node_id, target_file)
-    update_port_nr_cmd = """sed -i "s/<PORT_NUMBER>/{0}/g" {1}""".format(api_port, target_file)
-    check_output(update_asd_id_cmd, shell=True)
-    check_output(update_port_nr_cmd, shell=True)
-
+    ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
+                                                                   'PORT_NUMBER': api_port})
     print '- Starting ASD manager service'
     try:
-        check_output('service asd-manager start', shell=True)
+        ServiceManager.start_service(service_name, local_client)
     except Exception as ex:
         EtcdConfiguration.uninitialize(alba_node_id)
         print Interactive.boxed_message(['Starting asd-manager failed with error:', str(ex)])
