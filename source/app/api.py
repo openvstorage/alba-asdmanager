@@ -38,6 +38,7 @@ local_client = LocalClient()
 
 #@TODO: make package management agnostic (apt vs rpm)
 
+
 class API(object):
     """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
@@ -55,7 +56,7 @@ class API(object):
     def index():
         """ Return available API calls """
         return {'node_id': API.NODE_ID,
-                '_links': ['/disks', '/net', '/update'],
+                '_links': ['/disks', '/net', '/update', '/maintenance'],
                 '_actions': []}
 
     @staticmethod
@@ -270,7 +271,8 @@ class API(object):
     def _get_package_information(package_name):
         installed = None
         candidate = None
-        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING), shell=True).splitlines():
+        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING),
+                                 shell=True).splitlines():
             line = line.strip()
             if line.startswith('Installed:'):
                 installed = line.lstrip('Installed:').strip()
@@ -355,7 +357,8 @@ class API(object):
                 if running_version != alba_package_info[1]:
                     status = ServiceManager.get_service_status(service, local_client)
                     if status is False:
-                        print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(), service)
+                        print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(),
+                                                                                           service)
                         result[service] = 'stopped'
                     else:
                         print '{0} - Restarting service {1}'.format(datetime.datetime.now(), service)
@@ -364,14 +367,15 @@ class API(object):
                             print '{0} - {1}'.format(datetime.datetime.now(), status)
                             result[service] = 'restarted'
                         except CalledProcessError as cpe:
-                            print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service, cpe)
+                            print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service,
+                                                                                   cpe)
                             result[service] = 'failed'
 
             return {'result': result}
 
+
     @staticmethod
-    @get('/maintenance')
-    def get_maintenance_services():
+    def _list_maintenance_services():
         """
         Retrieve all configured maintenance service running on this node for each backend
         :return: dict
@@ -380,11 +384,21 @@ class API(object):
         for file_name in ServiceManager.list_service_files(local_client):
             print file_name
             if file_name.startswith(API.MAINTENANCE_PREFIX):
-                print ServiceManager._get_service_filename(file_name, local_client)
                 with open(ServiceManager._get_service_filename(file_name, local_client)) as fp:
-                    services[file_name] = fp.read().strip()
-        print services
-        return {'services': services}
+                    services[file_name] = {'config': fp.read().strip(),
+                                           '_link': '',
+                                           '_actions': ['/maintenance/{0}/remove'.format(file_name)]}
+        return services
+
+    @staticmethod
+    @get('/maintenance')
+    def list_maintenance_services():
+        """ List all maintenance information """
+        print '{0} - Listing maintenance services'.format(datetime.datetime.now())
+        data = API._list_maintenance_services()
+        data['_parent'] = '/'
+        data['_actions'] = []
+        return data
 
     @staticmethod
     @post('/maintenance/<name>/add')
