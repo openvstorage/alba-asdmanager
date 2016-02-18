@@ -25,11 +25,20 @@ class Systemd(object):
     """
 
     @staticmethod
-    def _service_exists(name, client, path):
+    def _service_exists(name, client, path=None):
         if path is None:
             path = '/lib/systemd/system/'
         file_to_check = '{0}{1}.service'.format(path, name)
         return client.file_exists(file_to_check)
+
+    @staticmethod
+    def _get_service_filename(name, client, path=None):
+        if Systemd._service_exists(name, client, path):
+            if path is None:
+                path = '/lib/systemd/system/'
+            return '{0}{1}.service'.format(path, name)
+        else:
+            return ''
 
     @staticmethod
     def _get_name(name, client, path=None):
