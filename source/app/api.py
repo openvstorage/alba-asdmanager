@@ -43,6 +43,7 @@ class API(object):
     """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
     ASD_SERVICE_PREFIX = 'alba-asd-'
+    MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
@@ -55,7 +56,7 @@ class API(object):
     def index():
         """ Return available API calls """
         return {'node_id': API.NODE_ID,
-                '_links': ['/disks', '/net', '/update'],
+                '_links': ['/disks', '/net', '/update', '/maintenance'],
                 '_actions': []}
 
     @staticmethod
@@ -258,8 +259,7 @@ class API(object):
     @staticmethod
     def _get_sdm_services():
         services = {}
-        client = LocalClient('127.0.0.1', username='root')
-        for file_name in ServiceManager.list_service_files(client):
+        for file_name in ServiceManager.list_service_files(local_client):
             if file_name.startswith(API.ASD_SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
@@ -271,7 +271,8 @@ class API(object):
     def _get_package_information(package_name):
         installed = None
         candidate = None
-        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING), shell=True).splitlines():
+        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING),
+                                 shell=True).splitlines():
             line = line.strip()
             if line.startswith('Installed:'):
                 installed = line.lstrip('Installed:').strip()
@@ -356,7 +357,8 @@ class API(object):
                 if running_version != alba_package_info[1]:
                     status = ServiceManager.get_service_status(service, local_client)
                     if status is False:
-                        print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(), service)
+                        print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(),
+                                                                                           service)
                         result[service] = 'stopped'
                     else:
                         print '{0} - Restarting service {1}'.format(datetime.datetime.now(), service)
@@ -365,7 +367,69 @@ class API(object):
                             print '{0} - {1}'.format(datetime.datetime.now(), status)
                             result[service] = 'restarted'
                         except CalledProcessError as cpe:
-                            print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service, cpe)
+                            print "{0} - Failed to restart service {1} {2}".format(datetime.datetime.now(), service,
+                                                                                   cpe)
                             result[service] = 'failed'
 
             return {'result': result}
+
+    @staticmethod
+    def _list_maintenance_services():
+        """
+        Retrieve all configured maintenance service running on this node for each backend
+        :return: dict
+        """
+        services = {}
+        for file_name in ServiceManager.list_service_files(local_client):
+            print file_name
+            if file_name.startswith(API.MAINTENANCE_PREFIX):
+                with open(ServiceManager._get_service_filename(file_name, local_client)) as fp:
+                    services[file_name] = {'config': fp.read().strip(),
+                                           '_link': '',
+                                           '_actions': ['/maintenance/{0}/remove'.format(file_name)]}
+        return services
+
+    @staticmethod
+    @get('/maintenance')
+    def list_maintenance_services():
+        """ List all maintenance information """
+        print '{0} - Listing maintenance services'.format(datetime.datetime.now())
+        data = API._list_maintenance_services()
+        data['_parent'] = '/'
+        data['_actions'] = []
+        return data
+
+    @staticmethod
+    @post('/maintenance/<name>/add')
+    def add_maintenance_service(name):
+        """
+        Add a maintenance service with a specific name
+        :param name:
+        :return: None
+        """
+        if ServiceManager.has_service(name, local_client):
+            if not ServiceManager.is_enabled(name, local_client):
+                ServiceManager.enable_service(name, local_client)
+        else:
+            config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(request.form['alba_backend_guid'])
+            alba_config = 'etcd://127.0.0.1:2379{0}'.format(config_location)
+            params = {'ALBA_CONFIG': alba_config}
+            EtcdConfiguration.set(config_location, json.dumps({
+                'log_level': 'info',
+                'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(request.form['abm_name'])
+            }), raw=True)
+
+            ServiceManager.add_service(name='alba-maintenance', client=local_client, params=params, target_name=name)
+        ServiceManager.start_service(name, local_client)
+
+    @staticmethod
+    @post('/maintenance/<name>/remove')
+    def remove_maintenance_service(name):
+        """
+        Remove a maintenance service with a specific name
+        :param name:
+        :return: None
+        """
+        if ServiceManager.has_service(name, local_client):
+            ServiceManager.stop_service(name, local_client)
+        ServiceManager.remove_service(name, local_client)
