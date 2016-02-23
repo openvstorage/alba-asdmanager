@@ -42,7 +42,7 @@ local_client = LocalClient()
 class API(object):
     """ ALBA API """
     PACKAGE_NAME = 'openvstorage-sdm'
-    SERVICE_PREFIX = 'alba-asd-'
+    ASD_SERVICE_PREFIX = 'alba-asd-'
     MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
@@ -98,7 +98,7 @@ class API(object):
                 asd_id = disks[disk_id]['asd_id']
                 if disks[disk_id]['state']['state'] != 'error':
                     disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
-                    service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+                    service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
                     service_state = ServiceManager.get_service_status(service_name, local_client)
                     if service_state is False:
                         disks[disk_id]['state'] = {'state': 'error',
@@ -179,7 +179,7 @@ class API(object):
                 asd_config['ips'] = ips
             EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
 
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             params = {'ASD': asd_id,
                       'SERVICE_NAME': service_name}
             ServiceManager.add_service('alba-asd', local_client, params, service_name)
@@ -211,7 +211,7 @@ class API(object):
             # Stop and remove service
             print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             ServiceManager.stop_service(service_name, local_client)
             ServiceManager.remove_service(service_name, local_client)
             EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
@@ -240,7 +240,7 @@ class API(object):
 
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.SERVICE_PREFIX, asd_id)
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             ServiceManager.stop_service(service_name, local_client)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
@@ -260,7 +260,7 @@ class API(object):
     def _get_sdm_services():
         services = {}
         for file_name in ServiceManager.list_service_files(local_client):
-            if file_name.startswith(API.SERVICE_PREFIX):
+            if file_name.startswith(API.ASD_SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
@@ -372,7 +372,6 @@ class API(object):
                             result[service] = 'failed'
 
             return {'result': result}
-
 
     @staticmethod
     def _list_maintenance_services():
