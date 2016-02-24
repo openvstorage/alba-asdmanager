@@ -132,7 +132,7 @@ def setup():
         sys.exit(1)
 
     ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
-                                                                   'PORT_NUMBER': api_port})
+                                                                   'PORT_NUMBER': str(api_port)})
     print '- Starting ASD manager service'
     try:
         ServiceManager.start_service(service_name, local_client)
