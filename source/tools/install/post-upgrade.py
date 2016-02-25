@@ -15,13 +15,16 @@
 # limitations under the License.
 
 """
-Script to install openvstorage-sdm - uses FileMutex('package_update') to
- synchronize with asd-manager api
+Post upgrade script for package openvstorage-sdm
 """
 
 import sys
+from datetime import datetime
 sys.path.append('/opt/asd-manager')
 
+
+def _log(message):
+    print '{0} - {1}'.format(str(datetime.now()), message)
 
 if __name__ == '__main__':
     import os
@@ -31,26 +34,27 @@ if __name__ == '__main__':
     from source.tools.localclient import LocalClient
     from source.tools.services.service import ServiceManager
     from source.tools.configuration import EtcdConfiguration
-    from subprocess import check_output
 
+    _log('Executing post-upgrade logic of package openvstorage-sdm')
     with FileMutex('package_update'):
         client = LocalClient('127.0.0.1', username='root')
 
         migrate = False
         service_name = 'alba-asdmanager'
         if ServiceManager.has_service(service_name, client):
+            _log('Removing old alba-asdmanager service')
             ServiceManager.stop_service(service_name, client)
             ServiceManager.remove_service(service_name, client)
 
         service_name = 'asd-manager'
         if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client) is True:
+            _log('Stopping asd-manager service')
             ServiceManager.stop_service(service_name, client)
-
-        check_output('apt-get install -y --force-yes openvstorage-sdm', shell=True).splitlines()
 
         # Migrate main configuration file
         path = '/opt/alba-asdmanager/config/config.json'
         if client.file_exists(path):
+            _log('Migrating old configuration file to Etcd')
             with open(path) as config_file:
                 config = json.load(config_file)
             node_id = config['main']['node_id']
@@ -59,12 +63,12 @@ if __name__ == '__main__':
             EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/main|port'.format(node_id), 8500)
             EtcdConfiguration.set('/ovs/alba/asdnodes/{0}/config/network'.format(node_id), config['network'])
             ServiceManager.add_service(service_name, client, params={'ASD_NODE_ID': node_id,
-                                                                     'PORT_NUMBER': 8500})
-            ServiceManager.start_service(service_name, client)
+                                                                     'PORT_NUMBER': str(8500)})
             client.file_delete(path)
 
         # Migrate ASDs
         for filename in glob.glob('/mnt/alba-asd/*/asd.json'):
+            _log('Migrating old asd configuratoin files to Etcd')
             with open(filename) as config_file:
                 config = json.load(config_file)
             EtcdConfiguration.set('/ovs/alba/asds/{0}/config'.format(config['asd_id']), json.dumps(config, indent=4), raw=True)
@@ -72,7 +76,12 @@ if __name__ == '__main__':
             os.remove(filename)
 
         # Cleanup old data
-        client.dir_delete('/opt/alba-asdmanager')
+        if client.dir_exists('/opt/alba-asdmanager'):
+            _log('Removing old alba-asdmanager data')
+            client.dir_delete('/opt/alba-asdmanager')
 
         if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client) is False:
+            _log('Starting asd-manager service')
             ServiceManager.start_service(service_name, client)
+
+    _log('Post-upgrade logic executed')
