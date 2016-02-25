@@ -36,7 +36,7 @@ from subprocess import CalledProcessError
 
 local_client = LocalClient()
 
-#@TODO: make package management agnostic (apt vs rpm)
+# @TODO: make package management agnostic (apt vs rpm)
 
 
 class API(object):
@@ -45,7 +45,7 @@ class API(object):
     ASD_SERVICE_PREFIX = 'alba-asd-'
     MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
-    INSTALL_SCRIPT = "/opt/asd-manager/source/tools/update-openvstorage-sdm.py"
+    INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     NODE_ID = os.environ['ASD_NODE_ID']
@@ -337,7 +337,7 @@ class API(object):
             if sdm_package_info[0] != sdm_package_info[1]:
                 if status == 'started':
                     print '{0} - Updating package {1}'.format(datetime.datetime.now(), API.PACKAGE_NAME)
-                    check_output('echo "python {0} >> /var/log/ovs-upgrade-sdm.log 2>&1" > /tmp/update'.format(API.INSTALL_SCRIPT), shell=True)
+                    check_output('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(API.INSTALL_SCRIPT), shell=True)
                     check_output('at -f /tmp/update now', shell=True)
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
