@@ -21,14 +21,6 @@ chown -R alba:alba /opt/asd-manager
 
 if [[ ! -z "$2" ]]
 then
+    find /opt/asd-manager/ -name "*.pyc" -exec rm -f {} \;
     python /opt/asd-manager/source/tools/install/post-upgrade.py >> /var/log/post-upgrade-openvstorage-sdm.log 2>&1
-fi
-
-if [ -f /etc/init/asd-manager.conf ] || [ -f /lib/systemd/system/asd-manager.service ] ; then
-    service asd-manager status | grep running &> /dev/null
-    if [ $? -eq 0 ]; then
-        service asd-manager restart
-    else
-        service asd-manager start
-    fi
 fi
