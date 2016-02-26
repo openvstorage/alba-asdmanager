@@ -21,6 +21,7 @@ chown -R alba:alba /opt/asd-manager
 
 if [[ ! -z "$2" ]]
 then
-    find /opt/asd-manager/ -name "*.pyc" -exec rm -f {} \;
-    python /opt/asd-manager/source/tools/install/post-upgrade.py >> /var/log/post-upgrade-openvstorage-sdm.log 2>&1
+    cd /opt/asd-manager
+    find . -name "*.pyc" -exec rm -f {} \;
+    python ./source/tools/install/post-upgrade.py >> /var/log/post-upgrade-openvstorage-sdm.log 2>&1
 fi
