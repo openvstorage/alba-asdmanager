@@ -20,6 +20,10 @@ Post upgrade script for package openvstorage-sdm
 
 import sys
 from datetime import datetime
+
+for entry in sys.path:
+    if entry.startswith('/opt/alba-asdmanager'):
+        sys.path.remove(entry)
 sys.path.append('/opt/asd-manager')
 
 
