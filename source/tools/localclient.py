@@ -280,7 +280,7 @@ class LocalClient(object):
         """
         return os.path.isfile(self.shell_safe(filename))
 
-    def file_attribs(self, filename, mode):
+    def file_chmod(self, filename, mode):
         """
         Sets the mode of a file
         :param filename: File to chmod
