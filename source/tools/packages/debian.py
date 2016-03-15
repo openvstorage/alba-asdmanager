@@ -26,7 +26,6 @@ class DebianPackage(object):
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
 
-    OVS_PACKAGE_NAMES = ['openvstorage-sdm', 'alba', 'arakoon']
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
 
     @staticmethod

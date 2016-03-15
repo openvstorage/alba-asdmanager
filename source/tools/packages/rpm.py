@@ -25,8 +25,6 @@ class RpmPackage(object):
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
 
-    OVS_PACKAGE_NAMES = ['openvstorage-sdm', 'alba', 'arakoon']
-
     @staticmethod
     def get_installed_candidate_version(package_name, client):
         installed = RpmPackage._get_version(package_name)

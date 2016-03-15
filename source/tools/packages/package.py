@@ -26,6 +26,7 @@ class PackageManager(object):
     Factory class returning specialized classes
     """
     ImplementationClass = None
+    OVS_PACKAGE_NAMES = ['openvstorage-sdm', 'alba', 'arakoon']
 
     class MetaClass(type):
         """
@@ -53,6 +54,7 @@ class PackageManager(object):
                     PackageManager.ImplementationClass = RpmPackage
                 else:
                     raise RuntimeError('There is no handler for Distributor ID: {0}'.format(distributor))
+            PackageManager.ImplementationClass.OVS_PACKAGE_NAMES = PackageManager.OVS_PACKAGE_NAMES
             return getattr(PackageManager.ImplementationClass, item)
 
     __metaclass__ = MetaClass
