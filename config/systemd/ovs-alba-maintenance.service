@@ -11,4 +11,4 @@ TimeoutStopSec=60
 Environment=LD_LIBRARY_PATH=/usr/lib/alba
 
 ExecStart=/usr/bin/alba maintenance --config <ALBA_CONFIG>
-ExecStartPre=/bin/sh -c "if [ ! -d /opt/OpenvStorage/run ]; then mkdir /opt/OpenvStorage/run; chown ovs:ovs /opt/OpenvStorage/run; fi; echo `alba version --terse` > /opt/OpenvStorage/run/<SERVICE_NAME>.version"
+ExecStartPre=/bin/sh -c "if [ ! -d /opt/asd-manager/run ]; then mkdir /opt/asd-manager/run; chown alba:alba /opt/asd-manager/run; fi; echo `alba version --terse` > /opt/asd-manager/run/<SERVICE_NAME>.version"
