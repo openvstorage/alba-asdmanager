@@ -31,12 +31,11 @@ from source.tools.filemutex import FileMutex
 from source.tools.configuration import EtcdConfiguration
 from source.tools.localclient import LocalClient
 from source.tools.services.service import ServiceManager
+from source.tools.packages.package import PackageManager
 from subprocess import check_output
 from subprocess import CalledProcessError
 
 local_client = LocalClient()
-
-# @TODO: make package management agnostic (apt vs rpm)
 
 
 class API(object):
@@ -44,7 +43,6 @@ class API(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     ASD_SERVICE_PREFIX = 'alba-asd-'
     MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
-    APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
     INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
@@ -269,18 +267,7 @@ class API(object):
 
     @staticmethod
     def _get_package_information(package_name):
-        installed = None
-        candidate = None
-        for line in check_output('apt-cache policy {0} {1}'.format(package_name, API.APT_CONFIG_STRING),
-                                 shell=True).splitlines():
-            line = line.strip()
-            if line.startswith('Installed:'):
-                installed = line.lstrip('Installed:').strip()
-            elif line.startswith('Candidate:'):
-                candidate = line.lstrip('Candidate:').strip()
-
-            if installed is not None and candidate is not None:
-                break
+        installed, candidate = PackageManager.get_installed_candidate_version(package_name, local_client)
         print '{0} - Installed version for package {1}: {2}'.format(datetime.datetime.now(), package_name, installed)
         print '{0} - Candidate version for package {1}: {2}'.format(datetime.datetime.now(), package_name, candidate)
         return installed, candidate
@@ -292,7 +279,7 @@ class API(object):
         while True and counter < max_counter:
             counter += 1
             try:
-                check_output('apt-get update {0}'.format(API.APT_CONFIG_STRING), shell=True)
+                PackageManager.update(local_client)
                 break
             except CalledProcessError as cpe:
                 time.sleep(3)
@@ -306,7 +293,7 @@ class API(object):
     def get_update_information():
         """ Retrieve update information """
         with FileMutex('package_update'):
-            print '{0} - Locking in place for apt-get update'.format(datetime.datetime.now())
+            print '{0} - Locking in place for package update'.format(datetime.datetime.now())
             API._update_packages()
             sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
             sdm_installed = sdm_package_info[0]
