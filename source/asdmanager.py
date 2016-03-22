@@ -17,7 +17,6 @@
 import os
 import sys
 import json
-import shutil
 from ConfigParser import RawConfigParser
 from source.tools.configuration import EtcdConfiguration
 from source.tools.interactive import Interactive
@@ -48,48 +47,30 @@ def setup():
         sys.exit(1)
 
     config = None
-    preconfig = '/tmp/openvstorage_preconfig.cfg'
+    preconfig = '/opt/OpenvStorage/config/openvstorage_preconfig.json'
     run_interactive = True
     if os.path.exists(preconfig):
-        config = RawConfigParser()
-        config.read(preconfig)
-        if config.has_section('asdmanager'):
-            run_interactive = False
-            print '- Detected section "asdmanager" in {0}  - ASD manager setup will be executed non-interactively\n\n'.format(preconfig)
+        config = {}
+        with open(preconfig, 'r') as pre_config:
+            try:
+                config = json.loads(pre_config.read())
+            except Exception as ex:
+                raise ValueError('JSON contents could not be retrieved from file {0}.\nErrormessage: {1}'.format(preconfig, ex))
+        run_interactive = 'asdmanager' not in config
 
     if run_interactive is False:
-        asd_info = {}
-        for field in ['api_ip', 'api_port', 'asd_ips', 'asd_start_port']:
-            if not config.has_option('asdmanager', field):
-                continue
-
-            value = config.get('asdmanager', field)
-            if field in ('api_port', 'asd_start_port') and value:
-                try:
-                    asd_info[field] = config.getint('asdmanager', field)
-                except ValueError:
-                    print Interactive.boxed_message(['Invalid port specified for option "{0}"'.format(field)])
-                    sys.exit(1)
-            elif field == 'asd_ips' and value:
-                try:
-                    asd_info[field] = json.loads(value)
-                except ValueError:
-                    print Interactive.boxed_message(['Invalid IP range specified for option "{0}". (asd_ips = ["<ip1>", "<ip2>"] in section "asdmanager")'.format(field)])
-                    sys.exit(1)
-            elif value:
-                asd_info[field] = value
-
+        asd_preconfig = config['asdmanager']
         required = {'api_ip': (str, Toolbox.regex_ip),
                     'asd_ips': (list, Toolbox.regex_ip, False),
                     'api_port': (int, {'min': 1025, 'max': 65535}, False),
                     'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)}
         Toolbox.verify_required_params(required_params=required,
-                                       actual_params=asd_info)
+                                       actual_params=asd_preconfig)
 
-        api_ip = asd_info['api_ip']
-        api_port = asd_info.get('api_port', 8500)
-        asd_ips = asd_info.get('asd_ips') or ipaddresses
-        asd_start_port = asd_info.get('asd_start_port', 8600)
+        api_ip = asd_preconfig['api_ip']
+        api_port = asd_preconfig.get('api_port', 8500)
+        asd_ips = asd_preconfig.get('asd_ips') or ipaddresses
+        asd_start_port = asd_preconfig.get('asd_start_port', 8600)
 
         if api_ip not in ipaddresses:
             print Interactive.boxed_message(['Unknown API IP provided, please choose from: {0}'.format(', '.join(ipaddresses))])
