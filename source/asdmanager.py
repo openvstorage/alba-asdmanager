@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Module for ASD Manager SetupController
+"""
+
 import os
 import sys
 import json
@@ -69,7 +73,7 @@ def setup():
 
         api_ip = asd_preconfig['api_ip']
         api_port = asd_preconfig.get('api_port', 8500)
-        asd_ips = asd_preconfig.get('asd_ips') or ipaddresses
+        asd_ips = asd_preconfig.get('asd_ips', [])
         asd_start_port = asd_preconfig.get('asd_start_port', 8600)
 
         if api_ip not in ipaddresses:
