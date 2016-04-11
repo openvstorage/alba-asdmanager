@@ -113,9 +113,9 @@ class LocalClient(object):
                 if os.path.exists(directory):
                     for dirpath, dirnames, filenames in os.walk(directory, topdown=False, followlinks=follow_symlinks):
                         for filename in filenames:
-                            os.remove(os.path.join(dirpath, filename))
+                            os.remove('/'.join([dirpath, filename]))
                         for sub_directory in dirnames:
-                            os.rmdir(os.path.join(dirpath, sub_directory))
+                            os.rmdir('/'.join([dirpath, sub_directory]))
                     os.rmdir(directory)
 
     def dir_exists(self, directory):
@@ -145,7 +145,7 @@ class LocalClient(object):
             if recursive is True:
                 for root, dirs, _ in os.walk(directory):
                     for sub_dir in dirs:
-                        os.chmod(os.path.join(root, sub_dir), mode)
+                        os.chmod('/'.join([root, sub_dir]), mode)
 
     def dir_chown(self, directories, user, group, recursive=False):
         """
@@ -174,7 +174,7 @@ class LocalClient(object):
             if recursive is True:
                 for root, dirs, _ in os.walk(directory):
                     for sub_dir in dirs:
-                        os.chown(os.path.join(root, sub_dir), uid, gid)
+                        os.chown('/'.join([root, sub_dir]), uid, gid)
 
     def dir_list(self, directory):
         """
