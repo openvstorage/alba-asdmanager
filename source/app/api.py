@@ -32,6 +32,7 @@ from source.tools.configuration import EtcdConfiguration
 from source.tools.localclient import LocalClient
 from source.tools.services.service import ServiceManager
 from source.tools.packages.package import PackageManager
+from source.tools.fstab import FSTab
 from subprocess import check_output
 from subprocess import CalledProcessError
 
@@ -54,7 +55,7 @@ class API(object):
     def index():
         """ Return available API calls """
         return {'node_id': API.NODE_ID,
-                '_links': ['/disks', '/net', '/update', '/maintenance'],
+                '_links': ['/disks', '/asds', '/net', '/update', '/maintenance'],
                 '_actions': []}
 
     @staticmethod
@@ -79,12 +80,16 @@ class API(object):
     @staticmethod
     def _disk_hateoas(disk, disk_id):
         disk['_link'] = '/disks/{0}'.format(disk_id)
+        links = []
         if disk['available'] is False:
+            links.append('/disks/{0}/asds'.format(disk_id))
             actions = ['/disks/{0}/delete'.format(disk_id)]
             if disk['state']['state'] == 'error':
                 actions.append('/disks/{0}/restart'.format(disk_id))
         else:
-            actions = ['/disks/{0}/add'.format(disk_id)]
+            actions = ['/disks/{0}/add'.format(disk_id),
+                       '/disks/{0}/asds'.format(disk_id)]
+        disk['_links'] = links
         disk['_actions'] = actions
 
     @staticmethod
@@ -92,15 +97,6 @@ class API(object):
         print '{0} - Fetching disks'.format(datetime.datetime.now())
         disks = Disks.list_disks()
         for disk_id in disks:
-            if disks[disk_id]['available'] is False:
-                asd_id = disks[disk_id]['asd_id']
-                if disks[disk_id]['state']['state'] != 'error':
-                    disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
-                    service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-                    service_state = ServiceManager.get_service_status(service_name, local_client)
-                    if service_state is False:
-                        disks[disk_id]['state'] = {'state': 'error',
-                                                   'detail': 'servicefailure'}
             disks[disk_id]['name'] = disk_id
             disks[disk_id]['node_id'] = API.NODE_ID
             API._disk_hateoas(disks[disk_id], disk_id)
@@ -122,7 +118,7 @@ class API(object):
     def index_disk(disk):
         """
         Retrieve information about a single disk
-        :param disk: Guid of the disk
+        :param disk: Identifier of the disk
         """
         print '{0} - Listing disk {1}'.format(datetime.datetime.now(), disk)
         all_disks = API._list_disks()
@@ -138,7 +134,7 @@ class API(object):
     def add_disk(disk):
         """
         Add a disk
-        :param disk: Guid of the disk
+        :param disk: Identifier of the disk
         """
         print '{0} - Add disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('add_disk'), FileMutex('disk_'.format(disk)):
@@ -151,37 +147,7 @@ class API(object):
 
             # Partitioning and mounting
             print '{0} - Preparing disk {1}'.format(datetime.datetime.now(), disk)
-            asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-            Disks.prepare_disk(disk, asd_id)
-
-            # Prepare & start service
-            print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
-            port = EtcdConfiguration.get('{0}/network|port'.format(API.CONFIG_ROOT))
-            ips = EtcdConfiguration.get('{0}/network|ips'.format(API.CONFIG_ROOT))
-            used_ports = [all_disks[_disk]['port'] for _disk in all_disks
-                          if all_disks[_disk]['available'] is False and 'port' in all_disks[_disk]]
-            while port in used_ports:
-                port += 1
-            asd_config = {'home': '/mnt/alba-asd/{0}'.format(asd_id),
-                          'node_id': API.NODE_ID,
-                          'asd_id': asd_id,
-                          'log_level': 'info',
-                          'port': port}
-
-            if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT)):
-                data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT))
-                for extrakey in data:
-                    asd_config[extrakey] = data[extrakey]
-
-            if ips is not None and len(ips) > 0:
-                asd_config['ips'] = ips
-            EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
-
-            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-            params = {'ASD': asd_id,
-                      'SERVICE_NAME': service_name}
-            ServiceManager.add_service('alba-asd', local_client, params, service_name)
-            ServiceManager.start_service(service_name, local_client)
+            Disks.prepare_disk(disk)
 
             print '{0} - Returning info about added disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
@@ -195,7 +161,7 @@ class API(object):
     def delete_disk(disk):
         """
         Delete a disk
-        :param disk: Guid of the disk
+        :param disk: Identifier of the disk
         """
         print '{0} - Deleting disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('disk_'.format(disk)):
@@ -206,17 +172,9 @@ class API(object):
             if all_disks[disk]['available'] is True:
                 raise BadRequest('Disk not yet configured')
 
-            # Stop and remove service
-            print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
-            asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-            ServiceManager.stop_service(service_name, local_client)
-            ServiceManager.remove_service(service_name, local_client)
-            EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
-
             # Cleanup & unmount disk
             print '{0} - Cleaning disk {1}'.format(datetime.datetime.now(), disk)
-            Disks.clean_disk(disk, asd_id)
+            Disks.clean_disk(disk)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -225,7 +183,7 @@ class API(object):
     def restart_disk(disk):
         """
         Restart a disk
-        :param disk: Guid of the disk
+        :param disk: Identifier of the disk
         """
         print '{0} - Restarting disk {1}'.format(datetime.datetime.now(), disk)
         with FileMutex('disk_'.format(disk)):
@@ -236,15 +194,140 @@ class API(object):
             if all_disks[disk]['available'] is True:
                 raise BadRequest('Disk not yet configured')
 
-            # Stop service, remount, start service
-            asd_id = all_disks[disk]['asd_id']
-            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-            ServiceManager.stop_service(service_name, local_client)
-            check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            ServiceManager.start_service(service_name, local_client)
+            # Remount the disk
+            Disks.remount_disk(disk)
 
             return {'_link': '/disks/{0}'.format(disk)}
+
+    @staticmethod
+    def _asd_hateoas(asd, disk_id, asd_id):
+        asd['_link'] = '/disks/{0}/asds/{1}'.format(disk_id, asd_id)
+        asd['_actions'] = ['/disks/{0}/asds/{1}/delete'.format(disk_id, asd_id)]
+
+    @staticmethod
+    def _list_asds_disk(disk, mountpoint):
+        """
+        Lists all ASDs
+        """
+        asds = {}
+        for asd_id in os.listdir(mountpoint):
+            if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(API.ASD_CONFIG.format(asd_id)):
+                asds[asd_id] = EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id))
+                service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+                if ServiceManager.has_service(service_name, local_client):
+                    service_state = ServiceManager.get_service_status(service_name, local_client)
+                    if service_state is False:
+                        asds[asd_id]['state'] = {'state': 'error',
+                                                 'detail': 'servicefailure'}
+                    else:
+                        asds[asd_id]['state'] = {'state': 'ok'}
+                else:
+                    asds[asd_id]['state'] = {'state': 'error',
+                                             'detail': 'servicefailure'}
+                API._asd_hateoas(asds[asd_id], disk, asd_id)
+        return asds
+
+    @staticmethod
+    @get('/asds')
+    def list_asds():
+        asds = {}
+        mountpoints = FSTab.read()
+        for disk, mountpoint in mountpoints.iteritems():
+            asds.update(API._list_asds_disk(disk, mountpoint))
+        asds['_parent'] = '/'
+        asds['_actions'] = []
+        return asds
+
+    @staticmethod
+    @get('/disks/<disk>/asds')
+    def list_asds_disk(disk):
+        """
+        Lists all ASDs on a given disk
+        :param disk: Identifier of the disk
+        """
+        mountpoints = FSTab.read()
+        if disk not in mountpoints:
+            raise RuntimeError('Disk {0} is not yet initialized'.format(disk))
+        mountpoint = mountpoints[disk]
+        asds = API._list_asds_disk(disk, mountpoint)
+        asds['_parent'] = '/disks/{0}'.format(disk)
+        asds['_actions'] = []
+        return asds
+
+    @staticmethod
+    @post('/disks/<disk>/asds')
+    def add_asd_disk(disk):
+        """
+        Adds an ASD to a disk
+        :param disk: Identifier of the disk
+        """
+        mountpoints = FSTab.read()
+        if disk not in mountpoints:
+            raise RuntimeError('Disk {0} is not yet initialized'.format(disk))
+        asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        all_asds = {}
+        mountpoints = FSTab.read()
+        for disk, mountpoint in mountpoints.iteritems():
+            all_asds.update(API._list_asds_disk(disk, mountpoint))
+        mountpoint = mountpoints[disk]
+
+        # Prepare & start service
+        print '{0} - Setting up service for disk {1}'.format(datetime.datetime.now(), disk)
+        homedir = '{0}/{1}'.format(mountpoint, asd_id)
+        port = EtcdConfiguration.get('{0}/network|port'.format(API.CONFIG_ROOT))
+        ips = EtcdConfiguration.get('{0}/network|ips'.format(API.CONFIG_ROOT))
+        used_ports = [all_asds[asd]['port'] for asd in all_asds]
+        while port in used_ports:
+            port += 1
+        asd_config = {'home': homedir,
+                      'node_id': API.NODE_ID,
+                      'asd_id': asd_id,
+                      'log_level': 'info',
+                      'port': port}
+
+        if EtcdConfiguration.exists('{0}/extra'.format(API.CONFIG_ROOT)):
+            data = EtcdConfiguration.get('{0}/extra'.format(API.CONFIG_ROOT))
+            for extrakey in data:
+                asd_config[extrakey] = data[extrakey]
+
+        if ips is not None and len(ips) > 0:
+            asd_config['ips'] = ips
+        EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
+
+        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+        params = {'ASD': asd_id,
+                  'SERVICE_NAME': service_name}
+        os.mkdir(homedir)
+        check_output('chown -R alba:alba {0}'.format(homedir), shell=True)
+        ServiceManager.add_service('alba-asd', local_client, params, service_name)
+        ServiceManager.start_service(service_name, local_client)
+
+    @staticmethod
+    @post('/disks/<disk>/asds/<asd_id>/delete')
+    def asd_delete(disk, asd_id):
+        """
+        Deletes an ASD on a given Disk
+        :param disk: Idientifier of the Disk
+        :param asd_id: The ASD ID of the ASD to be removed
+        """
+        # Stop and remove service
+        print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
+        mountpoints = FSTab.read()
+        if disk not in mountpoints:
+            raise RuntimeError('Disk {0} is not yet initialized'.format(disk))
+        all_asds = {}
+        mountpoints = FSTab.read()
+        for disk, mountpoint in mountpoints.iteritems():
+            all_asds.update(API._list_asds_disk(disk, mountpoint))
+        if asd_id not in all_asds:
+            raise RuntimeError('Could not find ASD {0} on disk {1}'.format(asd_id, disk))
+        mountpoint = mountpoints[disk]
+        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+        if ServiceManager.has_service(service_name, local_client):
+            ServiceManager.stop_service(service_name, local_client)
+            ServiceManager.remove_service(service_name, local_client)
+        check_output('rm -rf {0}/{1}'.format(mountpoint, asd_id), shell=True)
+        EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod
     @get('/update')
@@ -368,7 +451,6 @@ class API(object):
         """
         services = {}
         for file_name in ServiceManager.list_service_files(local_client):
-            print file_name
             if file_name.startswith(API.MAINTENANCE_PREFIX):
                 with open(ServiceManager._get_service_filename(file_name, local_client)) as fp:
                     services[file_name] = {'config': fp.read().strip(),

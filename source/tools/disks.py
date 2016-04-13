@@ -19,6 +19,8 @@ import re
 import json
 import time
 import os
+import random
+import string
 from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
@@ -47,6 +49,7 @@ class Disks(object):
             match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
             if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
                 used_disks.append(match.groups()[0])
+
         # 2. Disks used in a software raid
         mdstat = check_output('cat /proc/mdstat', shell=True)
         for md_match in re.findall('([a-z]+\d+ : (in)?active raid\d+(( [a-z]+\d?\[\d+\])+))', mdstat):
@@ -72,27 +75,24 @@ class Disks(object):
             for disk_id in disks:
                 if disks[disk_id]['device'] == '/dev/disk/by-id/{0}'.format(device):
                     disks[disk_id].update({'available': False,
-                                           'mountpoint': fstab_disks[device],
-                                           'asd_id': fstab_disks[device].split('/')[-1]})
+                                           'mountpoint': fstab_disks[device]})
                     del fstab_disks[device]
         for device in fstab_disks.keys():
             disks[device] = {'device': '/dev/disk/by-id/{0}'.format(device),
                              'available': False,
                              'mountpoint': fstab_disks[device],
-                             'asd_id': fstab_disks[device].split('/')[-1],
                              'state': {'state': 'error',
                                        'detail': 'missing'}}
 
         # Load statistical information about the disk
         df_info = check_output('df -k /mnt/alba-asd/* || true', shell=True).strip().split('\n')
         for disk_id in disks:
-            if 'asd_id' in disks[disk_id]:
-                for df in df_info:
-                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/{0}'.format(disks[disk_id]['asd_id']), df)
-                    if match is not None:
-                        disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
-                                                         'used': int(match.groups()[1]) * 1024,
-                                                         'available': int(match.groups()[2]) * 1024}})
+            for df in df_info:
+                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/', df)
+                if match is not None:
+                    disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
+                                                     'used': int(match.groups()[1]) * 1024,
+                                                     'available': int(match.groups()[2]) * 1024}})
 
         # Execute some checkups on the disks
         for disk_id in disks:
@@ -105,18 +105,17 @@ class Disks(object):
         return disks
 
     @staticmethod
-    def prepare_disk(disk, asd_id):
+    def prepare_disk(disk):
         """
         Prepare a disk for use with ALBA
         :param disk: Disk ID
-        :param asd_id: ASD ID
         :return: None
         """
-        print 'Preparing disk {0} with ASD ID {1}'.format(disk, asd_id)
-        asd_mount = '/mnt/alba-asd/{0}'.format(asd_id)
+        print 'Preparing disk {0}'.format(disk)
+        mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
         disk_by_id = '/dev/disk/by-id/{0}'.format(disk)
         Disks.locate(disk, start=False)
-        check_output('umount {0} || true'.format(asd_mount), shell=True)
+        check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk), shell=True)
         check_output('partprobe {0}'.format(disk_by_id), shell=True)
@@ -129,31 +128,46 @@ class Disks(object):
             if counter > 10:
                 raise RuntimeError('Partition {0} not ready in 2 seconds'.format(partition_name))
         check_output('mkfs.xfs -qf {0}-part1'.format(disk_by_id), shell=True)
-        check_output('mkdir -p {0}'.format(asd_mount), shell=True)
-        FSTab.add('{0}-part1'.format(disk_by_id), asd_mount)
-        check_output('mount {0}'.format(asd_mount), shell=True)
-        check_output('chown -R alba:alba {0}'.format(asd_mount), shell=True)
-        print 'Prepare disk {0} with ASD ID {1} complete'.format(disk, asd_id)
+        check_output('mkdir -p {0}'.format(mountpoint), shell=True)
+        FSTab.add('{0}-part1'.format(disk_by_id), mountpoint)
+        check_output('mount {0}'.format(mountpoint), shell=True)
+        check_output('chown -R alba:alba {0}'.format(mountpoint), shell=True)
+        print 'Prepare disk {0} complete'.format(disk)
 
     @staticmethod
-    def clean_disk(disk, asd_id):
+    def clean_disk(disk):
         """
-        Remove the disk as ALBA device
+        Remove the disk
         :param disk: Disk ID
-        :param asd_id: ASD ID
         :return: None
         """
-        print 'Cleaning disk {0}/{1}'.format(disk, asd_id)
+        print 'Cleaning disk {0}'.format(disk)
+        mountpoints = FSTab.read()
+        mountpoint = mountpoints[disk]
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
-        check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-        check_output('rm -rf /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
+        check_output('umount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
+        check_output('rm -rf /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
         try:
             check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         except CalledProcessError:
             # Wiping the partition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
         Disks.locate(disk, start=True)
-        print 'Clean disk {0}/{1} complete'.format(disk, asd_id)
+        print 'Clean disk {0} complete'.format(disk)
+
+    @staticmethod
+    def remount_disk(disk):
+        """
+        Remount the disk
+        :param disk: Disk ID
+        :return: None
+        """
+        print 'Remounting disk {0}'.format(disk)
+        mountpoints = FSTab.read()
+        mountpoint = mountpoints[disk]
+        check_output('umount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
+        check_output('mount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
+        print 'Remounting disk {0} complete'.format(disk)
 
     @staticmethod
     def scan_controllers():
