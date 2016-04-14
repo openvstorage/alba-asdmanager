@@ -57,7 +57,7 @@ def setup():
         config = {}
         with open(preconfig, 'r') as pre_config:
             try:
-                config = json.loads(pre_config.read())
+                config = json.load(pre_config)
             except Exception as ex:
                 raise ValueError('JSON contents could not be retrieved from file {0}.\nErrormessage: {1}'.format(preconfig, ex))
         run_interactive = 'asdmanager' not in config
