@@ -309,7 +309,7 @@ class API(object):
 
             if ips is not None and len(ips) > 0:
                 asd_config['ips'] = ips
-            EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config), raw=True)
+            EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
             service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             params = {'ASD': asd_id,
@@ -501,7 +501,7 @@ class API(object):
             EtcdConfiguration.set(config_location, json.dumps({
                 'log_level': 'info',
                 'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(request.form['abm_name'])
-            }), raw=True)
+            }, indent=4), raw=True)
 
             ServiceManager.add_service(name='alba-maintenance', client=local_client, params=params, target_name=name)
         ServiceManager.start_service(name, local_client)
