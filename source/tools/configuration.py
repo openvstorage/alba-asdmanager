@@ -16,8 +16,8 @@
 Generic module for managing configuration in Etcd
 """
 
-import json
 import etcd
+import json
 import random
 import string
 
@@ -126,14 +126,15 @@ class EtcdConfiguration(object):
         EtcdConfiguration._set(key_entries[0], data, raw)
 
     @staticmethod
-    def exists(key):
+    def exists(key, raw=False):
         """
         Check if key exists in etcd
         :param key: Key to check
+        :param raw: Process raw data
         :return: True if exists
         """
         try:
-            _ = EtcdConfiguration.get(key)
+            EtcdConfiguration.get(key, raw)
             return True
         except (KeyError, etcd.EtcdKeyNotFound):
             return False
@@ -146,6 +147,24 @@ class EtcdConfiguration(object):
         :return: True if exists
         """
         return EtcdConfiguration._dir_exists(key)
+
+    @staticmethod
+    def create_dir(key):
+        """
+        Creates a directory, including subdirs
+        :param key: full directory path to be created
+        :return: None
+        """
+        EtcdConfiguration._create_dir(key)
+
+    @staticmethod
+    def delete_dir(key):
+        """
+        Deletes a directory
+        :param key: full directory path to be deleted
+        :return: None
+        """
+        EtcdConfiguration._delete_dir(key)
 
     @staticmethod
     def list(key):
@@ -198,10 +217,23 @@ class EtcdConfiguration(object):
             return False
 
     @staticmethod
+    def _create_dir(key):
+        if not EtcdConfiguration._dir_exists(key):
+            client = EtcdConfiguration._get_client()
+            client.write(key, '', dir=True)
+
+    @staticmethod
+    def _delete_dir(key):
+        if EtcdConfiguration._dir_exists(key):
+            client = EtcdConfiguration._get_client()
+            client.delete(key, dir=True)
+
+    @staticmethod
     def _list(key):
         client = EtcdConfiguration._get_client()
         for child in client.get(key).children:
-            yield child.key.replace('{0}/'.format(key), '')
+            if child.key is not None and child.key != key:
+                yield child.key.replace('{0}/'.format(key), '')
 
     @staticmethod
     def _delete(key, recursive):
