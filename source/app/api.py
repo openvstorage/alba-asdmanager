@@ -249,7 +249,7 @@ class API(object):
         asds = {}
         mountpoints = FSTab.read()
         for disk, mountpoint in mountpoints.iteritems():
-            asds.update(API._list_asds_disk(disk, mountpoint))
+            asds[disk] = API._list_asds_disk(disk, mountpoint)
         asds['_parent'] = '/'
         asds['_actions'] = []
         return asds
