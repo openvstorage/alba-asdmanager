@@ -179,8 +179,8 @@ class API(object):
             if disk in mountpoints:
                 mountpoint = mountpoints[disk]
                 asds = API._list_asds_disk(disk, mountpoint)
-                if len(asds) != 0:
-                    raise BadRequest('There are still ASDs configured on disk {0}'.format(disk))
+                for asd_id in asds:
+                    API._delete_asd(asd_id, mountpoint)
 
             # Cleanup & unmount disk
             API._log('Cleaning disk {0}'.format(disk))
@@ -207,11 +207,19 @@ class API(object):
             if disk in mountpoints:
                 mountpoint = mountpoints[disk]
                 asds = API._list_asds_disk(disk, mountpoint)
-                if len(asds) != 0:
-                    raise BadRequest('There are still ASDs configured on disk {0}'.format(disk))
-
-            # Remount the disk
+                for asd_id in asds:
+                    service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+                    if ServiceManager.has_service(service_name, local_client):
+                        ServiceManager.stop_service(service_name, local_client)
             Disks.remount_disk(disk)
+            mountpoints = FSTab.read()
+            if disk in mountpoints:
+                mountpoint = mountpoints[disk]
+                asds = API._list_asds_disk(disk, mountpoint)
+                for asd_id in asds:
+                    service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+                    if ServiceManager.has_service(service_name, local_client):
+                        ServiceManager.start_service(service_name, local_client)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -226,21 +234,29 @@ class API(object):
         Lists all ASDs
         """
         asds = {}
-        for asd_id in os.listdir(mountpoint):
-            if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(API.ASD_CONFIG.format(asd_id)):
-                asds[asd_id] = EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id))
-                service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-                if ServiceManager.has_service(service_name, local_client):
-                    service_state = ServiceManager.get_service_status(service_name, local_client)
-                    if service_state is False:
+        try:
+            for asd_id in os.listdir(mountpoint):
+                if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(API.ASD_CONFIG.format(asd_id)):
+                    asds[asd_id] = EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id))
+                    output = check_output('ls {0}/{1}/ 2>&1 || true'.format(mountpoint, asd_id), shell=True)
+                    if 'Input/output error' in output:
                         asds[asd_id]['state'] = {'state': 'error',
-                                                 'detail': 'servicefailure'}
+                                                 'detail': 'ioerror'}
                     else:
-                        asds[asd_id]['state'] = {'state': 'ok'}
-                else:
-                    asds[asd_id]['state'] = {'state': 'error',
-                                             'detail': 'servicefailure'}
-                API._asd_hateoas(asds[asd_id], disk, asd_id)
+                        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+                        if ServiceManager.has_service(service_name, local_client):
+                            service_state = ServiceManager.get_service_status(service_name, local_client)
+                            if service_state is False:
+                                asds[asd_id]['state'] = {'state': 'error',
+                                                         'detail': 'servicefailure'}
+                            else:
+                                asds[asd_id]['state'] = {'state': 'ok'}
+                        else:
+                            asds[asd_id]['state'] = {'state': 'error',
+                                                     'detail': 'servicefailure'}
+                    API._asd_hateoas(asds[asd_id], disk, asd_id)
+        except OSError as ex:
+            API._log('Error collecting ASD information: {0}'.format(str(ex)))
         return asds
 
     @staticmethod
@@ -284,8 +300,8 @@ class API(object):
             asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
             all_asds = {}
             mountpoints = FSTab.read()
-            for disk, mountpoint in mountpoints.iteritems():
-                all_asds.update(API._list_asds_disk(disk, mountpoint))
+            for _disk, mountpoint in mountpoints.iteritems():
+                all_asds.update(API._list_asds_disk(_disk, mountpoint))
             mountpoint = mountpoints[disk]
 
             # Prepare & start service
@@ -311,6 +327,8 @@ class API(object):
                 asd_config['ips'] = ips
             EtcdConfiguration.set(API.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
+            # @TODO: Recalculate all this disk's ASD's quotas
+
             service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             params = {'ASD': asd_id,
                       'SERVICE_NAME': service_name}
@@ -318,6 +336,49 @@ class API(object):
             check_output('chown -R alba:alba {0}'.format(homedir), shell=True)
             ServiceManager.add_service('alba-asd', local_client, params, service_name)
             ServiceManager.start_service(service_name, local_client)
+
+    @staticmethod
+    @get('/disks/<disk>/asds/<asd_id>')
+    def get_asd(disk, asd_id):
+        if EtcdConfiguration.exists(API.ASD_CONFIG.format(asd_id)):
+            asd = EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id))
+            service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+            if ServiceManager.has_service(service_name, local_client):
+                service_state = ServiceManager.get_service_status(service_name, local_client)
+                if service_state is False:
+                    asd['state'] = {'state': 'error',
+                                    'detail': 'servicefailure'}
+                else:
+                    asd['state'] = {'state': 'ok'}
+            else:
+                asd['state'] = {'state': 'error',
+                                'detail': 'servicefailure'}
+            API._asd_hateoas(asd, disk, asd_id)
+            return asd
+        raise Exception('Could not find the given ASD')
+
+    @staticmethod
+    @post('/disks/<disk>/asds/<asd_id>/restart')
+    def restart_asd(disk, asd_id):
+        """
+        Restart an ASD
+        :param disk: Identifier of the disk
+        :param asd_id: Identifier of the ASD
+        """
+        API._log('Restarting ASD {0}'.format(asd_id))
+        _ = disk
+        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+        if ServiceManager.has_service(service_name, local_client):
+            ServiceManager.restart_service(service_name, local_client)
+
+    @staticmethod
+    def _delete_asd(asd_id, mountpoint):
+        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
+        if ServiceManager.has_service(service_name, local_client):
+            ServiceManager.stop_service(service_name, local_client)
+            ServiceManager.remove_service(service_name, local_client)
+        check_output('rm -rf {0}/{1}'.format(mountpoint, asd_id), shell=True)
+        EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod
     @post('/disks/<disk>/asds/<asd_id>/delete')
@@ -339,12 +400,7 @@ class API(object):
         if asd_id not in all_asds:
             raise BadRequest('Could not find ASD {0} on disk {1}'.format(asd_id, disk))
         mountpoint = mountpoints[disk]
-        service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-        if ServiceManager.has_service(service_name, local_client):
-            ServiceManager.stop_service(service_name, local_client)
-            ServiceManager.remove_service(service_name, local_client)
-        check_output('rm -rf {0}/{1}'.format(mountpoint, asd_id), shell=True)
-        EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
+        API._delete_asd(asd_id, mountpoint)
 
     @staticmethod
     @get('/update')

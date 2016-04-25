@@ -43,12 +43,15 @@ class Disks(object):
         # Find used disks
         # 1. Mounted disks
         all_mounts = check_output('mount', shell=True).splitlines()
+        all_mounted_disks = []
         used_disks = []
         for mount in all_mounts:
             mount = mount.strip()
             match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
-            if match is not None and not match.groups()[1].startswith('/mnt/alba-asd/'):
-                used_disks.append(match.groups()[0])
+            if match is not None:
+                all_mounted_disks.append(match.groups()[0])
+                if not match.groups()[1].startswith('/mnt/alba-asd/'):
+                    used_disks.append(match.groups()[0])
 
         # 2. Disks used in a software raid
         mdstat = check_output('cat /proc/mdstat', shell=True)
@@ -63,6 +66,9 @@ class Disks(object):
             match = re.search('.+?(((scsi-)|(ata-)|(virtio-)).+?) -> ../../([sv]d.+)', disk)
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
+                if disk_name in all_mounted_disks:
+                    all_mounted_disks.remove(disk_name)
+                    all_mounted_disks.append(disk_id.replace('-part1', ''))
                 if re.search('-part\d+', disk_id) is None:
                     if not any(used_disk for used_disk in used_disks if disk_name in used_disk):
                         disks[disk_id] = {'device': '/dev/disk/by-id/{0}'.format(disk_id),
@@ -84,15 +90,22 @@ class Disks(object):
                              'state': {'state': 'error',
                                        'detail': 'missing'}}
 
+        # Locate unmounted disks
+        for disk_id in disks:
+            if disks[disk_id]['state']['state'] == 'ok' and disk_id not in all_mounted_disks:
+                disks[disk_id]['state'] = {'state': 'error',
+                                           'detail': 'ioerror'}
+
         # Load statistical information about the disk
         df_info = check_output('df -k /mnt/alba-asd/* || true', shell=True).strip().split('\n')
         for disk_id in disks:
-            for df in df_info:
-                match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/', df)
-                if match is not None:
-                    disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
-                                                     'used': int(match.groups()[1]) * 1024,
-                                                     'available': int(match.groups()[2]) * 1024}})
+            if disks[disk_id]['state']['state'] == 'ok':
+                for df in df_info:
+                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/', df)
+                    if match is not None:
+                        disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
+                                                         'used': int(match.groups()[1]) * 1024,
+                                                         'available': int(match.groups()[2]) * 1024}})
 
         # Execute some checkups on the disks
         for disk_id in disks:
@@ -145,8 +158,8 @@ class Disks(object):
         mountpoints = FSTab.read()
         mountpoint = mountpoints[disk]
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
-        check_output('umount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
-        check_output('rm -rf /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
+        check_output('umount {0} || true'.format(mountpoint), shell=True)
+        check_output('rm -rf {0} || true'.format(mountpoint), shell=True)
         try:
             check_output('parted /dev/disk/by-id/{0} -s mklabel gpt'.format(disk), shell=True)
         except CalledProcessError:
@@ -165,8 +178,8 @@ class Disks(object):
         print 'Remounting disk {0}'.format(disk)
         mountpoints = FSTab.read()
         mountpoint = mountpoints[disk]
-        check_output('umount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
-        check_output('mount /mnt/alba-asd/{0} || true'.format(mountpoint), shell=True)
+        check_output('umount {0} || true'.format(mountpoint), shell=True)
+        check_output('mount {0} || true'.format(mountpoint), shell=True)
         print 'Remounting disk {0} complete'.format(disk)
 
     @staticmethod
