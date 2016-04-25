@@ -101,7 +101,7 @@ class Disks(object):
         for disk_id in disks:
             if disks[disk_id]['state']['state'] == 'ok':
                 for df in df_info:
-                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?/mnt/alba-asd/', df)
+                    match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?{0}'.format(disks[disk_id]['mountpoint']), df)
                     if match is not None:
                         disks[disk_id].update({'usage': {'size': int(match.groups()[0]) * 1024,
                                                          'used': int(match.groups()[1]) * 1024,
