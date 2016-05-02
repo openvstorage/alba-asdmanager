@@ -21,7 +21,6 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
-from ConfigParser import RawConfigParser
 from source.tools.configuration import EtcdConfiguration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox

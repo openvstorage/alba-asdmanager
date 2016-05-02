@@ -34,13 +34,13 @@ if __name__ == '__main__':
     import os
     import json
     import glob
-    from source.tools.filemutex import FileMutex
+    from source.tools.filemutex import file_mutex
     from source.tools.localclient import LocalClient
     from source.tools.services.service import ServiceManager
     from source.tools.configuration import EtcdConfiguration
 
     _log('Executing post-upgrade logic of package openvstorage-sdm')
-    with FileMutex('package_update'):
+    with file_mutex('package_update'):
         client = LocalClient('127.0.0.1', username='root')
 
         migrate = False

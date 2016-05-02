@@ -21,7 +21,7 @@ import os
 import stat
 
 
-class FileMutex(object):
+class file_mutex(object):
     """
     This is mutex backed on the filesystem. It's cross thread and cross process. However
     its limited to the boundaries of a filesystem

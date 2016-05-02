@@ -27,15 +27,13 @@ from source.app.decorators import get
 from source.app.decorators import post
 from source.app.exceptions import BadRequest
 from source.tools.disks import Disks
-from source.tools.filemutex import FileMutex
+from source.tools.filemutex import file_mutex
 from source.tools.configuration import EtcdConfiguration
 from source.tools.localclient import LocalClient
 from source.tools.services.service import ServiceManager
 from source.tools.packages.package import PackageManager
 from subprocess import check_output
 from subprocess import CalledProcessError
-
-local_client = LocalClient()
 
 
 class API(object):
@@ -48,6 +46,7 @@ class API(object):
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     NODE_ID = os.environ['ASD_NODE_ID']
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
+    _local_client = LocalClient()
 
     @staticmethod
     @get('/')
@@ -97,7 +96,7 @@ class API(object):
                 if disks[disk_id]['state']['state'] != 'error':
                     disks[disk_id].update(EtcdConfiguration.get(API.ASD_CONFIG.format(asd_id)))
                     service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-                    service_state = ServiceManager.get_service_status(service_name, local_client)
+                    service_state = ServiceManager.get_service_status(service_name, API._local_client)
                     if service_state is False:
                         disks[disk_id]['state'] = {'state': 'error',
                                                    'detail': 'servicefailure'}
@@ -141,7 +140,7 @@ class API(object):
         :param disk: Guid of the disk
         """
         print '{0} - Add disk {1}'.format(datetime.datetime.now(), disk)
-        with FileMutex('add_disk'), FileMutex('disk_'.format(disk)):
+        with file_mutex('add_disk'), file_mutex('disk_'.format(disk)):
             print '{0} - Got lock for add disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
@@ -180,8 +179,8 @@ class API(object):
             service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
             params = {'ASD': asd_id,
                       'SERVICE_NAME': service_name}
-            ServiceManager.add_service('alba-asd', local_client, params, service_name)
-            ServiceManager.start_service(service_name, local_client)
+            ServiceManager.add_service('alba-asd', API._local_client, params, service_name)
+            ServiceManager.start_service(service_name, API._local_client)
 
             print '{0} - Returning info about added disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
@@ -198,7 +197,7 @@ class API(object):
         :param disk: Guid of the disk
         """
         print '{0} - Deleting disk {1}'.format(datetime.datetime.now(), disk)
-        with FileMutex('disk_'.format(disk)):
+        with file_mutex('disk_'.format(disk)):
             print '{0} - Got lock for deleting disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
@@ -210,8 +209,8 @@ class API(object):
             print '{0} - Removing services for disk {1}'.format(datetime.datetime.now(), disk)
             asd_id = all_disks[disk]['asd_id']
             service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-            ServiceManager.stop_service(service_name, local_client)
-            ServiceManager.remove_service(service_name, local_client)
+            ServiceManager.stop_service(service_name, API._local_client)
+            ServiceManager.remove_service(service_name, API._local_client)
             EtcdConfiguration.delete(API.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
             # Cleanup & unmount disk
@@ -228,7 +227,7 @@ class API(object):
         :param disk: Guid of the disk
         """
         print '{0} - Restarting disk {1}'.format(datetime.datetime.now(), disk)
-        with FileMutex('disk_'.format(disk)):
+        with file_mutex('disk_'.format(disk)):
             print '{0} - Got lock for restarting disk {1}'.format(datetime.datetime.now(), disk)
             all_disks = API._list_disks()
             if disk not in all_disks:
@@ -239,10 +238,10 @@ class API(object):
             # Stop service, remount, start service
             asd_id = all_disks[disk]['asd_id']
             service_name = '{0}{1}'.format(API.ASD_SERVICE_PREFIX, asd_id)
-            ServiceManager.stop_service(service_name, local_client)
+            ServiceManager.stop_service(service_name, API._local_client)
             check_output('umount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
             check_output('mount /mnt/alba-asd/{0} || true'.format(asd_id), shell=True)
-            ServiceManager.start_service(service_name, local_client)
+            ServiceManager.start_service(service_name, API._local_client)
 
             return {'_link': '/disks/{0}'.format(disk)}
 
@@ -257,7 +256,7 @@ class API(object):
     @staticmethod
     def _get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files(local_client):
+        for file_name in ServiceManager.list_service_files(API._local_client):
             if file_name.startswith(API.ASD_SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
@@ -267,7 +266,7 @@ class API(object):
 
     @staticmethod
     def _get_package_information(package_name):
-        installed, candidate = PackageManager.get_installed_candidate_version(package_name, local_client)
+        installed, candidate = PackageManager.get_installed_candidate_version(package_name, API._local_client)
         print '{0} - Installed version for package {1}: {2}'.format(datetime.datetime.now(), package_name, installed)
         print '{0} - Candidate version for package {1}: {2}'.format(datetime.datetime.now(), package_name, candidate)
         return installed, candidate
@@ -279,7 +278,7 @@ class API(object):
         while True and counter < max_counter:
             counter += 1
             try:
-                PackageManager.update(local_client)
+                PackageManager.update(API._local_client)
                 break
             except CalledProcessError as cpe:
                 time.sleep(3)
@@ -292,7 +291,7 @@ class API(object):
     @get('/update/information')
     def get_update_information():
         """ Retrieve update information """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             print '{0} - Locking in place for package update'.format(datetime.datetime.now())
             API._update_packages()
             sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
@@ -314,7 +313,7 @@ class API(object):
         Execute an update
         :param status: Current status of the update
         """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             try:
                 API._update_packages()
                 sdm_package_info = API._get_package_information(package_name=API.PACKAGE_NAME)
@@ -329,20 +328,20 @@ class API(object):
                     check_output('rm /tmp/update', shell=True)
                 return {'status': 'running'}
             else:
-                status = ServiceManager.get_service_status('asd-manager', local_client)
+                status = ServiceManager.get_service_status('asd-manager', API._local_client)
                 return {'status': 'done' if status is True else 'running'}
 
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
         """ Restart services """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             API._update_packages()
             alba_package_info = API._get_package_information(package_name='alba')
             result = {}
             for service, running_version in API._get_sdm_services().iteritems():
                 if running_version != alba_package_info[1]:
-                    status = ServiceManager.get_service_status(service, local_client)
+                    status = ServiceManager.get_service_status(service, API._local_client)
                     if status is False:
                         print "{0} - Found stopped service {1}. Will not start it.".format(datetime.datetime.now(),
                                                                                            service)
@@ -350,7 +349,7 @@ class API(object):
                     else:
                         print '{0} - Restarting service {1}'.format(datetime.datetime.now(), service)
                         try:
-                            status = ServiceManager.restart_service(service, local_client)
+                            status = ServiceManager.restart_service(service, API._local_client)
                             print '{0} - {1}'.format(datetime.datetime.now(), status)
                             result[service] = 'restarted'
                         except CalledProcessError as cpe:
@@ -367,10 +366,10 @@ class API(object):
         :return: dict
         """
         services = {}
-        for file_name in ServiceManager.list_service_files(local_client):
+        for file_name in ServiceManager.list_service_files(API._local_client):
             print file_name
             if file_name.startswith(API.MAINTENANCE_PREFIX):
-                with open(ServiceManager._get_service_filename(file_name, local_client)) as fp:
+                with open(ServiceManager._get_service_filename(file_name, API._local_client)) as fp:
                     services[file_name] = {'config': fp.read().strip(),
                                            '_link': '',
                                            '_actions': ['/maintenance/{0}/remove'.format(file_name)]}
@@ -394,9 +393,9 @@ class API(object):
         :param name:
         :return: None
         """
-        if ServiceManager.has_service(name, local_client):
-            if not ServiceManager.is_enabled(name, local_client):
-                ServiceManager.enable_service(name, local_client)
+        if ServiceManager.has_service(name, API._local_client):
+            if not ServiceManager.is_enabled(name, API._local_client):
+                ServiceManager.enable_service(name, API._local_client)
         else:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(request.form['alba_backend_guid'])
             alba_config = 'etcd://127.0.0.1:2379{0}'.format(config_location)
@@ -406,8 +405,8 @@ class API(object):
                 'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(request.form['abm_name'])
             }), raw=True)
 
-            ServiceManager.add_service(name='alba-maintenance', client=local_client, params=params, target_name=name)
-        ServiceManager.start_service(name, local_client)
+            ServiceManager.add_service(name='alba-maintenance', client=API._local_client, params=params, target_name=name)
+        ServiceManager.start_service(name, API._local_client)
 
     @staticmethod
     @post('/maintenance/<name>/remove')
@@ -417,6 +416,6 @@ class API(object):
         :param name:
         :return: None
         """
-        if ServiceManager.has_service(name, local_client):
-            ServiceManager.stop_service(name, local_client)
-        ServiceManager.remove_service(name, local_client)
+        if ServiceManager.has_service(name, API._local_client):
+            ServiceManager.stop_service(name, API._local_client)
+        ServiceManager.remove_service(name, API._local_client)
