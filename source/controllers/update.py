@@ -1,0 +1,126 @@
+# Copyright 2016 iNuron NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+This module contains logic related to updates
+"""
+import os
+import time
+import datetime
+from subprocess import CalledProcessError
+from source.tools.packages.package import PackageManager
+from source.tools.services.service import ServiceManager
+from source.tools.localclient import LocalClient
+
+local_client = LocalClient()
+
+
+class UpdateController(object):
+    PACKAGE_NAME = 'openvstorage-sdm'
+    ASD_SERVICE_PREFIX = 'alba-asd-'
+    INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
+
+    @staticmethod
+    def _log(message):
+        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+
+    @staticmethod
+    def get_package_information(package_name):
+        installed, candidate = PackageManager.get_installed_candidate_version(package_name, local_client)
+        UpdateController._log('Installed version for package {0}: {1}'.format(package_name, installed))
+        UpdateController._log('Candidate version for package {0}: {1}'.format(package_name, candidate))
+        return installed, candidate
+
+    @staticmethod
+    def get_sdm_services():
+        services = {}
+        for file_name in ServiceManager.list_service_files(local_client):
+            if file_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
+                file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
+                if os.path.isfile(file_path):
+                    with open(file_path) as fp:
+                        services[file_name] = fp.read().strip()
+        return services
+
+    @staticmethod
+    def update_package_cache():
+        counter = 0
+        max_counter = 3
+        while True and counter < max_counter:
+            counter += 1
+            try:
+                PackageManager.update(local_client)
+                break
+            except CalledProcessError as cpe:
+                time.sleep(3)
+                if counter == max_counter:
+                    raise cpe
+            except Exception as ex:
+                raise ex
+
+    @staticmethod
+    def get_update_information():
+        UpdateController.update_package_cache()
+        sdm_package_info = UpdateController.get_package_information(package_name=UpdateController.PACKAGE_NAME)
+        sdm_installed = sdm_package_info[0]
+        sdm_candidate = sdm_package_info[1]
+        if sdm_installed != sdm_candidate:
+            return {'version': sdm_candidate,
+                    'installed': sdm_installed}
+        alba_package_info = UpdateController.get_package_information(package_name='alba')
+        services = [key for key, value in UpdateController.get_sdm_services().iteritems() if value != alba_package_info[1]]
+        return {'version': sdm_candidate if services else '',
+                'installed': sdm_installed}
+
+    @staticmethod
+    def execute_update(status):
+        try:
+            UpdateController.update_package_cache()
+            sdm_package_info = UpdateController.get_package_information(package_name=UpdateController.PACKAGE_NAME)
+        except CalledProcessError:
+            return {'status': 'started'}
+
+        if sdm_package_info[0] != sdm_package_info[1]:
+            if status == 'started':
+                UpdateController._log('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
+                local_client.run('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.INSTALL_SCRIPT))
+                local_client.run('at -f /tmp/update now')
+                local_client.run('rm /tmp/update')
+            return {'status': 'running'}
+        else:
+            status = ServiceManager.get_service_status('asd-manager', local_client)
+            return {'status': 'done' if status is True else 'running'}
+
+    @staticmethod
+    def restart_services():
+        UpdateController.update_package_cache()
+        alba_package_info = UpdateController.get_package_information(package_name='alba')
+        result = {}
+        for service, running_version in UpdateController.get_sdm_services().iteritems():
+            if running_version != alba_package_info[1]:
+                status = ServiceManager.get_service_status(service, local_client)
+                if status is False:
+                    UpdateController._log('Found stopped service {0}. Will not start it.'.format(service))
+                    result[service] = 'stopped'
+                else:
+                    UpdateController._log('Restarting service {0}'.format(service))
+                    try:
+                        status = ServiceManager.restart_service(service, local_client)
+                        UpdateController._log(status)
+                        result[service] = 'restarted'
+                    except CalledProcessError as cpe:
+                        UpdateController._log('Failed to restart service {0} {1}'.format(service, cpe))
+                        result[service] = 'failed'
+
+        return {'result': result}

@@ -15,22 +15,27 @@
 """
 Disk related code
 """
+import os
 import re
 import json
 import time
-import os
 import random
 import string
+import datetime
 from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 
 
-class Disks(object):
+class DiskController(object):
     """
     Disk helper methods
     """
-
+    NODE_ID = os.environ['ASD_NODE_ID']
     controllers = {}
+
+    @staticmethod
+    def _log(message):
+        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
 
     @staticmethod
     def list_disks():
@@ -43,15 +48,16 @@ class Disks(object):
         # Find used disks
         # 1. Mounted disks
         all_mounts = check_output('mount', shell=True).splitlines()
-        all_mounted_disks = []
+        all_mounted_asds = []
         used_disks = []
         for mount in all_mounts:
             mount = mount.strip()
             match = re.search('/dev/(.+?) on (/.*?) type.*', mount)
             if match is not None:
-                all_mounted_disks.append(match.groups()[0])
                 if not match.groups()[1].startswith('/mnt/alba-asd/'):
                     used_disks.append(match.groups()[0])
+                else:
+                    all_mounted_asds.append(match.groups()[0])
 
         # 2. Disks used in a software raid
         mdstat = check_output('cat /proc/mdstat', shell=True)
@@ -66,9 +72,9 @@ class Disks(object):
             match = re.search('.+?(((scsi-)|(ata-)|(virtio-)).+?) -> ../../([sv]d.+)', disk)
             if match is not None:
                 disk_id, disk_name = match.groups()[0], match.groups()[-1]
-                if disk_name in all_mounted_disks:
-                    all_mounted_disks.remove(disk_name)
-                    all_mounted_disks.append(disk_id.replace('-part1', ''))
+                if disk_name in all_mounted_asds:
+                    all_mounted_asds.remove(disk_name)
+                    all_mounted_asds.append(disk_id.replace('-part1', ''))
                 if re.search('-part\d+', disk_id) is None:
                     if not any(used_disk for used_disk in used_disks if disk_name in used_disk):
                         disks[disk_id] = {'device': '/dev/disk/by-id/{0}'.format(disk_id),
@@ -79,10 +85,13 @@ class Disks(object):
         fstab_disks = FSTab.read()
         for device in fstab_disks.keys():
             for disk_id in disks:
-                if disks[disk_id]['device'] == '/dev/disk/by-id/{0}'.format(device):
+                if disk_id == device:
                     disks[disk_id].update({'available': False,
                                            'mountpoint': fstab_disks[device]})
                     del fstab_disks[device]
+            if device not in all_mounted_asds:
+                disks[device]['state'] = {'state': 'error',
+                                          'detail': 'notmounted'}
         for device in fstab_disks.keys():
             disks[device] = {'device': '/dev/disk/by-id/{0}'.format(device),
                              'available': False,
@@ -90,16 +99,10 @@ class Disks(object):
                              'state': {'state': 'error',
                                        'detail': 'missing'}}
 
-        # Locate unmounted disks
-        for disk_id in disks:
-            if disks[disk_id]['state']['state'] == 'ok' and disk_id not in all_mounted_disks:
-                disks[disk_id]['state'] = {'state': 'error',
-                                           'detail': 'ioerror'}
-
         # Load statistical information about the disk
         df_info = check_output('df -k /mnt/alba-asd/* || true', shell=True).strip().split('\n')
         for disk_id in disks:
-            if disks[disk_id]['state']['state'] == 'ok':
+            if disks[disk_id]['available'] is False and disks[disk_id]['state']['state'] == 'ok':
                 for df in df_info:
                     match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?{0}'.format(disks[disk_id]['mountpoint']), df)
                     if match is not None:
@@ -115,6 +118,11 @@ class Disks(object):
                     disks[disk_id]['state'] = {'state': 'error',
                                                'detail': 'ioerror'}
 
+        # Extra information
+        for disk_id in disks:
+            disks[disk_id]['name'] = disk_id
+            disks[disk_id]['node_id'] = DiskController.NODE_ID
+
         return disks
 
     @staticmethod
@@ -124,10 +132,10 @@ class Disks(object):
         :param disk: Disk ID
         :return: None
         """
-        print 'Preparing disk {0}'.format(disk)
+        DiskController._log('Preparing disk {0}'.format(disk))
         mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
         disk_by_id = '/dev/disk/by-id/{0}'.format(disk)
-        Disks.locate(disk, start=False)
+        DiskController.locate(disk, start=False)
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk), shell=True)
@@ -145,7 +153,7 @@ class Disks(object):
         FSTab.add('{0}-part1'.format(disk_by_id), mountpoint)
         check_output('mount {0}'.format(mountpoint), shell=True)
         check_output('chown -R alba:alba {0}'.format(mountpoint), shell=True)
-        print 'Prepare disk {0} complete'.format(disk)
+        DiskController._log('Prepare disk {0} complete'.format(disk))
 
     @staticmethod
     def clean_disk(disk):
@@ -154,7 +162,7 @@ class Disks(object):
         :param disk: Disk ID
         :return: None
         """
-        print 'Cleaning disk {0}'.format(disk)
+        DiskController._log('Cleaning disk {0}'.format(disk))
         mountpoints = FSTab.read()
         mountpoint = mountpoints[disk]
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk))
@@ -165,8 +173,8 @@ class Disks(object):
         except CalledProcessError:
             # Wiping the partition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
-        Disks.locate(disk, start=True)
-        print 'Clean disk {0} complete'.format(disk)
+        DiskController.locate(disk, start=True)
+        DiskController._log('Clean disk {0} complete'.format(disk))
 
     @staticmethod
     def remount_disk(disk):
@@ -175,12 +183,12 @@ class Disks(object):
         :param disk: Disk ID
         :return: None
         """
-        print 'Remounting disk {0}'.format(disk)
+        DiskController._log('Remounting disk {0}'.format(disk))
         mountpoints = FSTab.read()
         mountpoint = mountpoints[disk]
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('mount {0} || true'.format(mountpoint), shell=True)
-        print 'Remounting disk {0} complete'.format(disk)
+        DiskController._log('Remounting disk {0} complete'.format(disk))
 
     @staticmethod
     def scan_controllers():
@@ -188,7 +196,7 @@ class Disks(object):
         Scan the disk controller(s)
         :return: None
         """
-        print 'Scanning controllers'
+        DiskController._log('Scanning controllers')
         controllers = {}
         has_storecli = check_output('which storcli64 || true', shell=True).strip() != ''
         if has_storecli is True:
@@ -202,8 +210,8 @@ class Disks(object):
                     if data['Drive {0}'.format(location)][0]['State'] == 'JBOD':
                         wwn = data['Drive {0} - Detailed Information'.format(location)]['Drive {0} Device attributes'.format(location)]['WWN']
                         controllers[wwn] = ('storcli64', location)
-        Disks.controllers = controllers
-        print 'Scan complete'
+        DiskController.controllers = controllers
+        DiskController._log('Scan complete')
 
     @staticmethod
     def locate(disk, start):
@@ -213,9 +221,9 @@ class Disks(object):
         :param start: True to start locating, False otherwise
         :return: None
         """
-        for wwn in Disks.controllers:
+        for wwn in DiskController.controllers:
             if disk.endswith(wwn):
-                controller_type, location = Disks.controllers[wwn]
+                controller_type, location = DiskController.controllers[wwn]
                 if controller_type == 'storcli64':
-                    print 'Location {0} for {1}'.format('start' if start is True else 'stop', location)
+                    DiskController._log('Location {0} for {1}'.format('start' if start is True else 'stop', location))
                     check_output('storcli64 {0} {1} locate'.format(location, 'start' if start is True else 'stop'), shell=True)
