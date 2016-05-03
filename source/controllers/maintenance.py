@@ -29,7 +29,7 @@ class MaintenanceController(object):
     def get_services():
         """
         Retrieve all configured maintenance service running on this node for each backend
-        :return: list
+        :return: generator
         """
         for service_name in ServiceManager.list_services(MaintenanceController._local_client):
             if service_name.startswith(MaintenanceController.MAINTENANCE_PREFIX):

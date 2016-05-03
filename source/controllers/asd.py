@@ -45,6 +45,12 @@ class ASDController(object):
 
     @staticmethod
     def list_asds(mountpoint):
+        """
+        Lists all asds found on a given mountpoint
+        :param mountpoint: Mountpoint to list asds on
+        :type mountpoint: str
+        :return: dict of asds
+        """
         asds = {}
         try:
             for asd_id in os.listdir(mountpoint):
@@ -71,15 +77,20 @@ class ASDController(object):
         return asds
 
     @staticmethod
-    def create_asd(disk):
+    def create_asd(disk_id):
+        """
+        Creates an ASD on a given disk
+        :param disk_id: Disk identifier
+        :type disk_id: str
+        """
         all_asds = {}
         mountpoints = FSTab.read()
         for mountpoint in mountpoints.values():
             all_asds.update(ASDController.list_asds(mountpoint))
-        mountpoint = mountpoints[disk]
+        mountpoint = mountpoints[disk_id]
 
         # Fetch disk information
-        disk_size = int(check_output('df -B 1 --output=size {0} || true'.format(mountpoint), shell=True).splitlines()[1])
+        disk_size = int(check_output('df -B 1 --output=size {0}'.format(mountpoint), shell=True).splitlines()[1])
 
         # Find out appropriate disk size
         asds = 1.0
@@ -101,7 +112,7 @@ class ASDController(object):
 
         # Prepare & start service
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        ASDController._log('Setting up service for disk {0}'.format(disk))
+        ASDController._log('Setting up service for disk {0}'.format(disk_id))
         homedir = '{0}/{1}'.format(mountpoint, asd_id)
         port = EtcdConfiguration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
         ips = EtcdConfiguration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
@@ -133,6 +144,13 @@ class ASDController(object):
 
     @staticmethod
     def remove_asd(asd_id, mountpoint):
+        """
+        Removes an ASD
+        :param asd_id: ASD identifier
+        :type asd_id: str
+        :param mountpoint: Mountpoint of the asd's disk
+        :type mountpoint: str
+        """
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
@@ -142,18 +160,33 @@ class ASDController(object):
 
     @staticmethod
     def start_asd(asd_id):
+        """
+        Starts an ASD
+        :param asd_id: ASD identifier
+        :type asd_id: str
+        """
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.start_service(service_name, ASDController._local_client)
 
     @staticmethod
     def stop_asd(asd_id):
+        """
+        Stops an ASD
+        :param asd_id: ASD identifier
+        :type asd_id: str
+        """
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
 
     @staticmethod
     def restart_asd(asd_id):
+        """
+        Restart an ASD
+        :param asd_id: ASD identifier
+        :type asd_id: str
+        """
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.restart_service(service_name, ASDController._local_client)
