@@ -16,7 +16,6 @@
 This module contains the asd controller (logic for managing asds)
 """
 import os
-import re
 import json
 import math
 import random
@@ -24,21 +23,21 @@ import signal
 import string
 import datetime
 from subprocess import check_output
-from source.tools.fstab import FSTab
-from source.tools.services.service import ServiceManager
 from source.tools.configuration import EtcdConfiguration
+from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
-
-local_client = LocalClient()
+from source.tools.services.service import ServiceManager
 
 
 class ASDController(object):
     NODE_ID = os.environ['ASD_NODE_ID']
-    ASD_SERVICE_PREFIX = 'alba-asd-'
+    ASD_SERVICE_PREFIX = 'alba-asd-{0}'
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     ASDS = {}
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
+
+    _local_client = LocalClient()
 
     @staticmethod
     def _log(message):
@@ -53,20 +52,20 @@ class ASDController(object):
                     asds[asd_id] = EtcdConfiguration.get(ASDController.ASD_CONFIG.format(asd_id))
                     output = check_output('ls {0}/{1}/ 2>&1 || true'.format(mountpoint, asd_id), shell=True)
                     if 'Input/output error' in output:
-                        asds[asd_id]['state'] = {'state': 'error',
-                                                 'detail': 'ioerror'}
-                    else:
-                        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
-                        if ServiceManager.has_service(service_name, local_client):
-                            service_state = ServiceManager.get_service_status(service_name, local_client)
-                            if service_state is False:
-                                asds[asd_id]['state'] = {'state': 'error',
-                                                         'detail': 'servicefailure'}
-                            else:
-                                asds[asd_id]['state'] = {'state': 'ok'}
+                        asds[asd_id].update({'state': 'error',
+                                             'state_detail': 'ioerror'})
+                        continue
+                    service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+                    if ServiceManager.has_service(service_name, ASDController._local_client):
+                        service_state = ServiceManager.get_service_status(service_name, ASDController._local_client)
+                        if service_state is False:
+                            asds[asd_id].update({'state': 'error',
+                                                 'state_detail': 'servicefailure'})
                         else:
-                            asds[asd_id]['state'] = {'state': 'error',
-                                                     'detail': 'servicefailure'}
+                            asds[asd_id].update({'state': 'ok'})
+                    else:
+                        asds[asd_id].update({'state': 'error',
+                                             'state_detail': 'servicefailure'})
         except OSError as ex:
             ASDController._log('Error collecting ASD information: {0}'.format(str(ex)))
         return asds
@@ -75,16 +74,12 @@ class ASDController(object):
     def create_asd(disk):
         all_asds = {}
         mountpoints = FSTab.read()
-        for _disk, mountpoint in mountpoints.iteritems():
+        for mountpoint in mountpoints.values():
             all_asds.update(ASDController.list_asds(mountpoint))
         mountpoint = mountpoints[disk]
 
         # Fetch disk information
-        df_info = check_output('df -k {0} || true'.format(mountpoint), shell=True).strip()
-        match = re.search('\S+?\s+?(\d+?)\s+?(\d+?)\s+?(\d+?)\s.+?{0}'.format(mountpoint), df_info)
-        if match is None:
-            raise RuntimeError('Could not determine disk usage')
-        disk_size = int(match.groups()[0]) * 1024
+        disk_size = int(check_output('df -B 1 --output=size {0} || true'.format(mountpoint), shell=True).splitlines()[1])
 
         # Find out appropriate disk size
         asds = 1.0
@@ -97,9 +92,12 @@ class ASDController(object):
                 config = json.loads(EtcdConfiguration.get(ASDController.ASD_CONFIG.format(asd_id), raw=True))
                 config['capacity'] = asd_size
                 EtcdConfiguration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(config, indent=4), raw=True)
-                ServiceManager.send_signal('{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id),
-                                           signal.SIGUSR1,
-                                           local_client)
+                try:
+                    ServiceManager.send_signal(ASDController.ASD_SERVICE_PREFIX.format(asd_id),
+                                               signal.SIGUSR1,
+                                               ASDController._local_client)
+                except Exception as ex:
+                    ASDController._log('Could not send signal to ASD for reloading the quota: {0}'.format(ex))
 
         # Prepare & start service
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
@@ -119,44 +117,43 @@ class ASDController(object):
 
         if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
             data = EtcdConfiguration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
-            for extrakey in data:
-                asd_config[extrakey] = data[extrakey]
+            asd_config.update(data)
 
         if ips is not None and len(ips) > 0:
             asd_config['ips'] = ips
         EtcdConfiguration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
-        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         params = {'ASD': asd_id,
                   'SERVICE_NAME': service_name}
         os.mkdir(homedir)
         check_output('chown -R alba:alba {0}'.format(homedir), shell=True)
-        ServiceManager.add_service('alba-asd', local_client, params, service_name)
+        ServiceManager.add_service('alba-asd', ASDController._local_client, params, service_name)
         ASDController.start_asd(asd_id)
 
     @staticmethod
     def remove_asd(asd_id, mountpoint):
-        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
-        if ServiceManager.has_service(service_name, local_client):
-            ServiceManager.stop_service(service_name, local_client)
-            ServiceManager.remove_service(service_name, local_client)
-        check_output('rm -rf {0}/{1}'.format(mountpoint, asd_id), shell=True)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        if ServiceManager.has_service(service_name, ASDController._local_client):
+            ServiceManager.stop_service(service_name, ASDController._local_client)
+            ServiceManager.remove_service(service_name, ASDController._local_client)
+        ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
         EtcdConfiguration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod
     def start_asd(asd_id):
-        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
-        if ServiceManager.has_service(service_name, local_client):
-            ServiceManager.start_service(service_name, local_client)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        if ServiceManager.has_service(service_name, ASDController._local_client):
+            ServiceManager.start_service(service_name, ASDController._local_client)
 
     @staticmethod
     def stop_asd(asd_id):
-        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
-        if ServiceManager.has_service(service_name, local_client):
-            ServiceManager.stop_service(service_name, local_client)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        if ServiceManager.has_service(service_name, ASDController._local_client):
+            ServiceManager.stop_service(service_name, ASDController._local_client)
 
     @staticmethod
     def restart_asd(asd_id):
-        service_name = '{0}{1}'.format(ASDController.ASD_SERVICE_PREFIX, asd_id)
-        if ServiceManager.has_service(service_name, local_client):
-            ServiceManager.restart_service(service_name, local_client)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        if ServiceManager.has_service(service_name, ASDController._local_client):
+            ServiceManager.restart_service(service_name, ASDController._local_client)

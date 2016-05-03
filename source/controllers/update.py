@@ -19,17 +19,16 @@ import os
 import time
 import datetime
 from subprocess import CalledProcessError
+from source.tools.localclient import LocalClient
 from source.tools.packages.package import PackageManager
 from source.tools.services.service import ServiceManager
-from source.tools.localclient import LocalClient
-
-local_client = LocalClient()
 
 
 class UpdateController(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     ASD_SERVICE_PREFIX = 'alba-asd-'
     INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
+    _local_client = LocalClient()
 
     @staticmethod
     def _log(message):
@@ -37,7 +36,8 @@ class UpdateController(object):
 
     @staticmethod
     def get_package_information(package_name):
-        installed, candidate = PackageManager.get_installed_candidate_version(package_name, local_client)
+        installed, candidate = PackageManager.get_installed_candidate_version(package_name,
+                                                                              UpdateController._local_client)
         UpdateController._log('Installed version for package {0}: {1}'.format(package_name, installed))
         UpdateController._log('Candidate version for package {0}: {1}'.format(package_name, candidate))
         return installed, candidate
@@ -45,7 +45,7 @@ class UpdateController(object):
     @staticmethod
     def get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files(local_client):
+        for file_name in ServiceManager.list_service_files(UpdateController._local_client):
             if file_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
                 file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
                 if os.path.isfile(file_path):
@@ -60,14 +60,12 @@ class UpdateController(object):
         while True and counter < max_counter:
             counter += 1
             try:
-                PackageManager.update(local_client)
+                PackageManager.update(UpdateController._local_client)
                 break
             except CalledProcessError as cpe:
                 time.sleep(3)
                 if counter == max_counter:
                     raise cpe
-            except Exception as ex:
-                raise ex
 
     @staticmethod
     def get_update_information():
@@ -94,12 +92,12 @@ class UpdateController(object):
         if sdm_package_info[0] != sdm_package_info[1]:
             if status == 'started':
                 UpdateController._log('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
-                local_client.run('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.INSTALL_SCRIPT))
-                local_client.run('at -f /tmp/update now')
-                local_client.run('rm /tmp/update')
+                UpdateController._local_client.run('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.INSTALL_SCRIPT))
+                UpdateController._local_client.run('at -f /tmp/update now')
+                UpdateController._local_client.run('rm /tmp/update')
             return {'status': 'running'}
         else:
-            status = ServiceManager.get_service_status('asd-manager', local_client)
+            status = ServiceManager.get_service_status('asd-manager', UpdateController._local_client)
             return {'status': 'done' if status is True else 'running'}
 
     @staticmethod
@@ -109,14 +107,14 @@ class UpdateController(object):
         result = {}
         for service, running_version in UpdateController.get_sdm_services().iteritems():
             if running_version != alba_package_info[1]:
-                status = ServiceManager.get_service_status(service, local_client)
+                status = ServiceManager.get_service_status(service, UpdateController._local_client)
                 if status is False:
                     UpdateController._log('Found stopped service {0}. Will not start it.'.format(service))
                     result[service] = 'stopped'
                 else:
                     UpdateController._log('Restarting service {0}'.format(service))
                     try:
-                        status = ServiceManager.restart_service(service, local_client)
+                        status = ServiceManager.restart_service(service, UpdateController._local_client)
                         UpdateController._log(status)
                         result[service] = 'restarted'
                     except CalledProcessError as cpe:

@@ -73,85 +73,86 @@ class API(object):
         return DiskController.list_disks()
 
     @staticmethod
-    @get('/disks/<disk>')
-    def index_disk(disk):
+    @get('/disks/<disk_id>')
+    def index_disk(disk_id):
         """
         Retrieve information about a single disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
-        API._log('Listing disk {0}'.format(disk))
+        API._log('Listing disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
-        if disk not in all_disks:
+        if disk_id not in all_disks:
             raise BadRequest('Disk unknown')
-        return all_disks[disk]
+        return all_disks[disk_id]
 
     @staticmethod
-    @post('/disks/<disk>/add')
-    def add_disk(disk):
+    @post('/disks/<disk_id>/add')
+    def add_disk(disk_id):
         """
         Add a disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
-        API._log('Add disk {0}'.format(disk))
+        API._log('Add disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
-        if disk not in all_disks:
+        if disk_id not in all_disks:
             raise BadRequest('Disk not available')
-        if all_disks[disk]['available'] is False:
+        if all_disks[disk_id]['available'] is False:
             raise BadRequest('Disk already configured')
-        with FileMutex('add_disk'), FileMutex('disk_{0}'.format(disk)):
-            DiskController.prepare_disk(disk)
+        with FileMutex('add_disk'), FileMutex('disk_{0}'.format(disk_id)):
+            DiskController.prepare_disk(disk_id)
         all_disks = DiskController.list_disks()
-        if disk not in all_disks:
+        if disk_id not in all_disks:
             raise BadRequest('Disk could not be added')
-        return all_disks[disk]
+        return all_disks[disk_id]
 
     @staticmethod
-    @post('/disks/<disk>/delete')
-    def delete_disk(disk):
+    @post('/disks/<disk_id>/delete')
+    def delete_disk(disk_id):
         """
         Delete a disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
-        API._log('Deleting disk {0}'.format(disk))
+        API._log('Deleting disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
-        if disk not in all_disks:
+        if disk_id not in all_disks:
             raise BadRequest('Disk not available')
-        if all_disks[disk]['available'] is True:
+        if all_disks[disk_id]['available'] is True:
             raise BadRequest('Disk not yet configured')
-        with FileMutex('disk_{0}'.format(disk)):
+        with FileMutex('disk_{0}'.format(disk_id)):
             mountpoints = FSTab.read()
-            if disk in mountpoints:
-                mountpoint = mountpoints[disk]
+            if disk_id in mountpoints:
+                mountpoint = mountpoints[disk_id]
                 asds = ASDController.list_asds(mountpoint)
                 for asd_id in asds:
                     ASDController.remove_asd(asd_id, mountpoint)
-            DiskController.clean_disk(disk)
+                DiskController.clean_disk(disk_id, mountpoint)
 
     @staticmethod
-    @post('/disks/<disk>/restart')
-    def restart_disk(disk):
+    @post('/disks/<disk_id>/restart')
+    def restart_disk(disk_id):
         """
         Restart a disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
-        API._log('Restarting disk {0}'.format(disk))
+        API._log('Restarting disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
-        if disk not in all_disks:
+        if disk_id not in all_disks:
             raise BadRequest('Disk not available')
-        if all_disks[disk]['available'] is False:
+        if all_disks[disk_id]['available'] is False:
             raise BadRequest('Disk already configured')
-        with FileMutex('disk_{0}'.format(disk)):
-            API._log('Got lock for restarting disk {0}'.format(disk))
+        with FileMutex('disk_{0}'.format(disk_id)):
+            API._log('Got lock for restarting disk {0}'.format(disk_id))
             mountpoints = FSTab.read()
-            if disk in mountpoints:
-                mountpoint = mountpoints[disk]
+            if disk_id in mountpoints:
+                mountpoint = mountpoints[disk_id]
                 asds = ASDController.list_asds(mountpoint)
                 for asd_id in asds:
                     ASDController.stop_asd(asd_id)
-            DiskController.remount_disk(disk)
-            mountpoints = FSTab.read()
-            if disk in mountpoints:
-                mountpoint = mountpoints[disk]
+                DiskController.remount_disk(disk_id, mountpoint)
                 asds = ASDController.list_asds(mountpoint)
                 for asd_id in asds:
                     ASDController.start_asd(asd_id)
@@ -166,76 +167,87 @@ class API(object):
         return asds
 
     @staticmethod
-    @get('/disks/<disk>/asds')
-    def list_asds_disk(disk):
+    @get('/disks/<disk_id>/asds')
+    def list_asds_disk(disk_id):
         """
         Lists all ASDs on a given disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
         mountpoints = FSTab.read()
-        if disk not in mountpoints:
-            raise BadRequest('Disk {0} is not yet initialized'.format(disk))
-        mountpoint = mountpoints[disk]
-        asds = ASDController.list_asds(mountpoint)
-        return asds
+        if disk_id not in mountpoints:
+            raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
+        mountpoint = mountpoints[disk_id]
+        return ASDController.list_asds(mountpoint)
 
     @staticmethod
-    @post('/disks/<disk>/asds')
-    def add_asd_disk(disk):
+    @post('/disks/<disk_id>/asds')
+    def add_asd_disk(disk_id):
         """
         Adds an ASD to a disk
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         """
         mountpoints = FSTab.read()
-        if disk not in mountpoints:
-            raise BadRequest('Disk {0} is not yet initialized'.format(disk))
+        if disk_id not in mountpoints:
+            raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
         with FileMutex('add_asd'):
-            ASDController.create_asd(disk)
+            ASDController.create_asd(disk_id)
 
     @staticmethod
-    @get('/disks/<disk>/asds/<asd_id>')
-    def get_asd(disk, asd_id):
+    @get('/disks/<disk_id>/asds/<asd_id>')
+    def get_asd(disk_id, asd_id):
+        """
+        Gets an ASD
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
+        :param asd_id: Identifier of the ASD
+        :type asd_id: str
+        """
         mountpoints = FSTab.read()
-        if disk not in mountpoints:
-            raise BadRequest('Disk {0} is not yet initialized'.format(disk))
-        mountpoint = mountpoints[disk]
+        if disk_id not in mountpoints:
+            raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
+        mountpoint = mountpoints[disk_id]
         asds = ASDController.list_asds(mountpoint)
         if asd_id not in asds:
-            raise BadRequest('ASD {0} could not be found on disk'.format(disk))
+            raise BadRequest('ASD {0} could not be found on disk'.format(disk_id))
         return asds[asd_id]
 
     @staticmethod
-    @post('/disks/<disk>/asds/<asd_id>/restart')
-    def restart_asd(disk, asd_id):
+    @post('/disks/<disk_id>/asds/<asd_id>/restart')
+    def restart_asd(disk_id, asd_id):
         """
         Restart an ASD
-        :param disk: Identifier of the disk
+        :param disk_id: Identifier of the disk
+        :type disk_id: str
         :param asd_id: Identifier of the ASD
+        :type asd_id: str
         """
         API._log('Restarting ASD {0}'.format(asd_id))
-        _ = disk
+        _ = disk_id
         ASDController.restart_asd(asd_id)
 
     @staticmethod
-    @post('/disks/<disk>/asds/<asd_id>/delete')
-    def asd_delete(disk, asd_id):
+    @post('/disks/<disk_id>/asds/<asd_id>/delete')
+    def asd_delete(disk_id, asd_id):
         """
         Deletes an ASD on a given Disk
-        :param disk: Idientifier of the Disk
+        :param disk_id: Identifier of the Disk
+        :type disk_id: str
         :param asd_id: The ASD ID of the ASD to be removed
+        :type asd_id: str
         """
         # Stop and remove service
-        API._log('Removing services for disk {0}'.format(disk))
+        API._log('Removing services for disk {0}'.format(disk_id))
         mountpoints = FSTab.read()
-        if disk not in mountpoints:
-            raise BadRequest('Disk {0} is not yet initialized'.format(disk))
+        if disk_id not in mountpoints:
+            raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
         all_asds = {}
-        mountpoints = FSTab.read()
         for mountpoint in mountpoints.values():
             all_asds.update(ASDController.list_asds(mountpoint))
         if asd_id not in all_asds:
-            raise BadRequest('Could not find ASD {0} on disk {1}'.format(asd_id, disk))
-        mountpoint = mountpoints[disk]
+            raise BadRequest('Could not find ASD {0} on disk {1}'.format(asd_id, disk_id))
+        mountpoint = mountpoints[disk_id]
         ASDController.remove_asd(asd_id, mountpoint)
 
     @staticmethod
@@ -252,6 +264,7 @@ class API(object):
         """
         Execute an update
         :param status: Current status of the update
+        :type status: str
         """
         with FileMutex('package_update'):
             return UpdateController.execute_update(status)
@@ -277,6 +290,7 @@ class API(object):
         """
         Add a maintenance service with a specific name
         :param name: Name of the maintenance service
+        :type name: str
         """
         alba_backend_guid = request.form['alba_backend_guid']
         abm_name = request.form['abm_name']
@@ -288,5 +302,6 @@ class API(object):
         """
         Remove a maintenance service with a specific name
         :param name: Name of the maintenance service
+        :type name: str
         """
         MaintenanceController.remove_maintenance_service(name)

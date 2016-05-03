@@ -17,14 +17,13 @@ This module contains the maintenance controller (maintenance service logic)
 """
 import json
 from source.tools.configuration import EtcdConfiguration
-from source.tools.services.service import ServiceManager
 from source.tools.localclient import LocalClient
-
-local_client = LocalClient()
+from source.tools.services.service import ServiceManager
 
 
 class MaintenanceController(object):
-    MAINTENANCE_PREFIX = 'ovs-alba-maintenance'
+    MAINTENANCE_PREFIX = 'alba-maintenance'
+    _local_client = LocalClient()
 
     @staticmethod
     def get_services():
@@ -32,7 +31,7 @@ class MaintenanceController(object):
         Retrieve all configured maintenance service running on this node for each backend
         :return: list
         """
-        for service_name in ServiceManager.list_services(local_client):
+        for service_name in ServiceManager.list_services(MaintenanceController._local_client):
             if service_name.startswith(MaintenanceController.MAINTENANCE_PREFIX):
                 yield service_name
 
@@ -47,9 +46,9 @@ class MaintenanceController(object):
         :param abm_name: Name of the ABM cluster
         :type abm_name: str
         """
-        if ServiceManager.has_service(name, local_client):
-            if not ServiceManager.is_enabled(name, local_client):
-                ServiceManager.enable_service(name, local_client)
+        if ServiceManager.has_service(name, MaintenanceController._local_client):
+            if not ServiceManager.is_enabled(name, MaintenanceController._local_client):
+                ServiceManager.enable_service(name, MaintenanceController._local_client)
         else:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
             alba_config = 'etcd://127.0.0.1:2379{0}'.format(config_location)
@@ -59,8 +58,9 @@ class MaintenanceController(object):
                 'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(abm_name)
             }, indent=4), raw=True)
 
-            ServiceManager.add_service(name='alba-maintenance', client=local_client, params=params, target_name=name)
-        ServiceManager.start_service(name, local_client)
+            ServiceManager.add_service(name='alba-maintenance', client=MaintenanceController._local_client,
+                                       params=params, target_name=name)
+        ServiceManager.start_service(name, MaintenanceController._local_client)
 
     @staticmethod
     def remove_maintenance_service(name):
@@ -68,6 +68,6 @@ class MaintenanceController(object):
         Remove a maintenance service with a specific name
         :param name: Name of the service
         """
-        if ServiceManager.has_service(name, local_client):
-            ServiceManager.stop_service(name, local_client)
-        ServiceManager.remove_service(name, local_client)
+        if ServiceManager.has_service(name, MaintenanceController._local_client):
+            ServiceManager.stop_service(name, MaintenanceController._local_client)
+            ServiceManager.remove_service(name, MaintenanceController._local_client)

@@ -250,7 +250,7 @@ class FleetCtl(object):
     @staticmethod
     def _get_unit_name(name, client):
         try:
-            name = Systemd._get_name(name, client, '/opt/OpenvStorage/config/templates/systemd/')
+            name = Systemd._get_name(name, client, '/opt/asd-manager/config/systemd/')
         except ValueError:
             try:
                 name = Systemd._get_name(name, client)
