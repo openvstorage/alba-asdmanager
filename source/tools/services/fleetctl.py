@@ -16,26 +16,31 @@
 Fleetctl module
 """
 import time
+import datetime
 from subprocess import check_output
+from source.tools.services.systemd import Systemd
 
 try:
     import fleet.v1 as fleet
+    import googleapiclient
+except ImportError as ie:
+    raise ImportError('Fleet python client is not installed. Please check documentation on how to install it. {0}'.format(ie))
+
+try:
     FLEET_CLIENT = fleet.Client('http+unix://%2Fvar%2Frun%2Ffleet.sock')
-except ImportError:
-    raise ImportError('Fleet python client is not installed. Please check documentation on how to install it')
-
-from .systemd import Systemd
-
+except googleapiclient.errors.HttpError as he:
+    raise ValueError(he)
 
 
 class FleetCtl(object):
     """
     Contains all logic related to managing services through fleet
+    Allows services not managed by fleet to be managed through this extension - delegates to systemd
     """
 
     @staticmethod
-    def prepare_template(base_name, target_name, client):
-        return Systemd.prepare_template(base_name, target_name, client)
+    def _log(message):
+        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
 
     @staticmethod
     def add_service(name, client, params=None, target_name=None, additional_dependencies=None):
@@ -47,14 +52,15 @@ class FleetCtl(object):
             params = {}
         if additional_dependencies is None:
             additional_dependencies = []
+
         client_ip = FleetCtl._get_client_ip(client)
 
         if FleetCtl.has_service(name, client):
-            print('Not re-adding service {0} to machine {1}'.format(name, client_ip))
+            FleetCtl._log('Not re-adding service {0} to machine {1}'.format(name, client_ip))
             return
 
-        name = Systemd._get_name(name, client, '/opt/OpenvStorage/config/templates/systemd/')
-        template_service = '/opt/OpenvStorage/config/templates/systemd/{0}.service'
+        name = Systemd._get_name(name, client, '/opt/asd-manager/config/systemd/')
+        template_service = '/opt/asd-manager/config/systemd/{0}.service'
 
         if not client.file_exists(template_service.format(name)):
             # Given template doesn't exist so we are probably using system
@@ -68,30 +74,32 @@ class FleetCtl(object):
         if '<SERVICE_NAME>' in template_file:
             service_name = name if target_name is None else target_name
             template_file = template_file.replace('<SERVICE_NAME>', service_name.lstrip('ovs-'))
+        template_file = template_file.replace('<_SERVICE_SUFFIX_>', '@{0}'.format(client_ip))
 
         dependencies = ''
         for service in additional_dependencies:
-            dependencies += '{0}.service '.format(service)
+            dependencies += '{0}@{1}.service '.format(service, client_ip)
         template_file = template_file.replace('<ADDITIONAL_DEPENDENCIES>', dependencies)
 
-
         template_file += "\n[X-Fleet]\nMachineID={0}".format(FleetCtl._get_id_from_ip(client_ip))
+        if target_name is not None:
+            name = target_name
         fleet_name = "{0}@{1}.service".format(name, client_ip)
 
-        print('Creating fleet unit {0} {1}'.format(fleet_name, template_file))
+        FleetCtl._log('Creating fleet unit {0} {1}'.format(fleet_name, template_file))
         unit = FleetCtl._create_unit(fleet_name, template_file)
         time.sleep(1)
         FLEET_CLIENT.set_unit_desired_state(unit, 'loaded')
         time.sleep(1)
         unit = FleetCtl._get_unit(fleet_name)
-        print('Created unit {0}'.format(unit.as_dict()))
+        FleetCtl._log('Created unit {0}'.format(unit.as_dict()))
 
     @staticmethod
     def get_service_status(name, client):
         if FleetCtl._has_service(name, client):
             fleet_name = FleetCtl._get_unit_name(name, client)
             unit = FleetCtl._get_unit(fleet_name)
-            print('Fleet unit {0} status {1}'.format(fleet_name, unit.as_dict()['currentState']))
+            FleetCtl._log('Fleet unit {0} status {1}'.format(fleet_name, unit.as_dict()['currentState']))
             return unit.as_dict()['currentState'] == 'launched'
         return Systemd.get_service_status(name, client)
 
@@ -103,23 +111,30 @@ class FleetCtl(object):
             FleetCtl.stop_service(name, client)
             result = FLEET_CLIENT.destroy_unit(unit)
             start = time.time()
-            print('Fleet destroy unit {0} {1}'.format(fleet_name, result))
+            FleetCtl._log('Fleet destroy unit {0} {1}'.format(fleet_name, result))
             while time.time() - start < 60:
                 time.sleep(1)
                 if FleetCtl._has_service(name, client) is False:
                     return
-            print('Failed to remove unit {0} after 60 seconds'.format(fleet_name))
-        return Systemd.remove_service(name, client)
+            FleetCtl._log('Failed to remove unit {0} after 60 seconds'.format(fleet_name))
+        else:
+            return Systemd.remove_service(name, client)
 
     @staticmethod
     def disable_service(name, client):
-        fleet_name = FleetCtl._get_unit_name(name, client)
-        return Systemd.disable_service(fleet_name, client)
+        if FleetCtl._has_service(name, client):
+            fleet_name = FleetCtl._get_unit_name(name, client)
+            client.run('systemctl disable {0}'.format(fleet_name))
+        else:
+            Systemd.disable_service(name, client)
 
     @staticmethod
     def enable_service(name, client):
-        fleet_name = FleetCtl._get_unit_name(name, client)
-        return Systemd.enable_service(fleet_name, client)
+        if FleetCtl._has_service(name, client):
+            fleet_name = FleetCtl._get_unit_name(name, client)
+            client.run('systemctl enable {0}'.format(fleet_name))
+        else:
+            Systemd.enable_service(name, client)
 
     @staticmethod
     def start_service(name, client):
@@ -135,10 +150,10 @@ class FleetCtl(object):
                     break
             unit = FleetCtl._get_unit(fleet_name)
             if unit.as_dict()['currentState'] != 'launched':
-                print('Failed to start unit {0}'.format(unit.as_dict()))
-            print('Fleet start unit {0} > {1}'.format(fleet_name, unit.as_dict()['currentState']))
+                FleetCtl._log('Failed to start unit {0}'.format(unit.as_dict()))
+            FleetCtl._log('Fleet start unit {0} > {1}'.format(fleet_name, unit.as_dict()['currentState']))
             return unit.as_dict()['currentState']
-        return Systemd.stop_service(name, client)
+        return Systemd.start_service(name, client)
 
     @staticmethod
     def stop_service(name, client):
@@ -154,14 +169,14 @@ class FleetCtl(object):
                     break
             unit = FleetCtl._get_unit(fleet_name)
             if unit['currentState'] != 'loaded':
-                print('Failed to stop unit {0}'.format(unit.as_dict()))
-            print('Fleet stop unit {0} {1}'.format(fleet_name, unit.as_dict()['currentState']))
+                FleetCtl._log('Failed to stop unit {0}'.format(unit.as_dict()))
+            FleetCtl._log('Fleet stop unit {0} {1}'.format(fleet_name, unit.as_dict()['currentState']))
             return unit.as_dict()['currentState']
         return Systemd.stop_service(name, client)
 
     @staticmethod
     def restart_service(name, client):
-        if not FleetCtl._has_service(name, client):
+        if not FleetCtl.has_service(name, client):
             return Systemd.restart_service(name, client)
         FleetCtl.stop_service(name, client)
         FleetCtl.start_service(name, client)
@@ -185,11 +200,19 @@ class FleetCtl(object):
 
     @staticmethod
     def is_enabled(name, client):
+        if FleetCtl._has_service(name, client):
+            fleet_name = FleetCtl._get_unit_name(name, client)
+            output = client.run('systemctl is-enabled {0} || true'.format(fleet_name))
+            return 'enabled' in output
         return Systemd.is_enabled(name, client)
 
     @staticmethod
     def get_service_pid(name, client):
         return Systemd.get_service_pid(name, client)
+
+    @staticmethod
+    def send_signal(name, signal, client):
+        return Systemd.send_signal(name, signal, client)
 
     @staticmethod
     def _list_fleet_machines():
@@ -200,7 +223,7 @@ class FleetCtl(object):
         if client.ip == '127.0.0.1':
             ips = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).split('\n')
             fleet_machines = dict((m['primaryIP'], m['id']) for m in FLEET_CLIENT.list_machines())
-            match = set(fleet_machines.keys()).intersection(set(ips))
+            match = list(set(fleet_machines.keys()).intersection(set(ips)))
             if len(match) == 1:
                 return match[0]
             raise ValueError('Could not determine a match between this node and running fleet nodes')
@@ -218,7 +241,7 @@ class FleetCtl(object):
         try:
             return FLEET_CLIENT.get_unit(fleet_name)
         except fleet.APIError as ae:
-            print('Unit {0} not found. {1}'.format(fleet_name, ae))
+            FleetCtl._log('Unit {0} not found. {1}'.format(fleet_name, ae))
             if ae.code == 404:
                 # make error more descriptive
                 raise ValueError('Unit with name {0} not found'.format(fleet_name))
@@ -226,7 +249,13 @@ class FleetCtl(object):
 
     @staticmethod
     def _get_unit_name(name, client):
-        name = Systemd._get_name(name, client, '/opt/OpenvStorage/config/templates/systemd/')
+        try:
+            name = Systemd._get_name(name, client, '/opt/asd-manager/config/systemd/')
+        except ValueError:
+            try:
+                name = Systemd._get_name(name, client)
+            except ValueError:
+                name = 'ovs-{0}'.format(name)
         client_ip = FleetCtl._get_client_ip(client)
         fleet_name = "{0}@{1}.service".format(name, client_ip)
         return fleet_name
@@ -241,7 +270,7 @@ class FleetCtl(object):
                 return unit
             except fleet.APIError as ae:
                 if ae.code == 500:
-                    print('API Error in fleet, most likely caused by etcd, retrying. {0}'.format(ae))
+                    FleetCtl._log('API Error in fleet, most likely caused by etcd, retrying. {0}'.format(ae))
                     key = '/_coreos.com/fleet/job/{0}/object'.format(fleet_name)
                     if EtcdConfiguration.exists(key):
                         EtcdConfiguration.delete(key)
@@ -249,16 +278,3 @@ class FleetCtl(object):
                 else:
                     raise
         raise RuntimeError('Failed to create ')
-
-    @staticmethod
-    def list_service_files(client):
-        client_ip = FleetCtl._get_client_ip(client)
-        for unit in FLEET_CLIENT.list_units():
-            unit_ = unit.as_dict()
-            unit_name = unit_['name']
-            suffix = '{0}.service'.format(client_ip)
-            if unit_name.ensdwith(suffix):
-                yield unit_name.replace(suffix, '')
-
-
-

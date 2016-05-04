@@ -15,7 +15,7 @@
 """
 Systemd module
 """
-
+import datetime
 from subprocess import CalledProcessError
 
 
@@ -25,20 +25,15 @@ class Systemd(object):
     """
 
     @staticmethod
-    def _service_exists(name, client, path=None):
+    def _log(message):
+        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+
+    @staticmethod
+    def _service_exists(name, client, path):
         if path is None:
             path = '/lib/systemd/system/'
         file_to_check = '{0}{1}.service'.format(path, name)
         return client.file_exists(file_to_check)
-
-    @staticmethod
-    def _get_service_filename(name, client, path=None):
-        if Systemd._service_exists(name, client, path):
-            if path is None:
-                path = '/lib/systemd/system/'
-            return '{0}{1}.service'.format(path, name)
-        else:
-            return ''
 
     @staticmethod
     def _get_name(name, client, path=None):
@@ -52,17 +47,8 @@ class Systemd(object):
         name = 'ovs-{0}'.format(name)
         if Systemd._service_exists(name, client, path):
             return name
-        print('Service {0} could not be found.'.format(name))
+        Systemd._log('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
-
-    @staticmethod
-    def prepare_template(base_name, target_name, client):
-        template_name = '/opt/asd-manager/config/systemd/{0}.service'
-        if client.file_exists(template_name.format(base_name)):
-            client.run('cp -f {0} {1}'.format(
-                template_name.format(base_name),
-                template_name.format(target_name)
-            ))
 
     @staticmethod
     def add_service(name, client, params=None, target_name=None, additional_dependencies=None):
@@ -84,6 +70,7 @@ class Systemd(object):
         if '<SERVICE_NAME>' in template_file:
             service_name = name if target_name is None else target_name
             template_file = template_file.replace('<SERVICE_NAME>', service_name.lstrip('ovs-'))
+        template_file = template_file.replace('<_SERVICE_SUFFIX_>', '')
 
         dependencies = ''
         if additional_dependencies:
@@ -102,17 +89,23 @@ class Systemd(object):
             client.run('systemctl enable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Add {0}.service failed, {1}'.format(name, output))
+            Systemd._log('Add {0}.service failed, {1}'.format(name, output))
             raise Exception('Add {0}.service failed, {1}'.format(name, output))
 
     @staticmethod
-    def get_service_status(name, client):
+    def get_service_status(name, client, return_output=False):
         name = Systemd._get_name(name, client)
         output = client.run('systemctl is-active {0} || true'.format(name))
         if 'active' == output:
+            if return_output is True:
+                return True, output
             return True
         if 'inactive' == output:
+            if return_output is True:
+                return False, output
             return False
+        if return_output is True:
+            return False, output
         return False
 
     @staticmethod
@@ -129,7 +122,7 @@ class Systemd(object):
             client.run('systemctl disable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Disable {0} failed, {1}'.format(name, output))
+            Systemd._log('Disable {0} failed, {1}'.format(name, output))
             raise Exception('Disable {0} failed, {1}'.format(name, output))
 
     @staticmethod
@@ -139,27 +132,33 @@ class Systemd(object):
             client.run('systemctl enable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Enable {0} failed, {1}'.format(name, output))
+            Systemd._log('Enable {0} failed, {1}'.format(name, output))
             raise Exception('Enable {0} failed, {1}'.format(name, output))
 
     @staticmethod
     def start_service(name, client):
+        status, output = Systemd.get_service_status(name, client, True)
+        if status is True:
+            return output
         try:
             name = Systemd._get_name(name, client)
             output = client.run('systemctl start {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Start {0} failed, {1}'.format(name, output))
+            Systemd._log('Start {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
     def stop_service(name, client):
+        status, output = Systemd.get_service_status(name, client, True)
+        if status is False:
+            return output
         try:
             name = Systemd._get_name(name, client)
             output = client.run('systemctl stop {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Stop {0} failed, {1}'.format(name, output))
+            Systemd._log('Stop {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
@@ -169,7 +168,7 @@ class Systemd(object):
             output = client.run('systemctl restart {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Restart {0} failed, {1}'.format(name, output))
+            Systemd._log('Restart {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
@@ -207,7 +206,8 @@ class Systemd(object):
         return pid
 
     @staticmethod
-    def list_service_files(client):
-        for file in client.dir_list('/lib/systemd/system'):
-            if file.endswith('.service'):
-                yield file.replace('.service', '')
+    def send_signal(name, signal, client):
+        pid = Systemd.get_service_pid(name, client)
+        if pid == 0:
+            raise RuntimeError('Could not determine PID to send signal to')
+        client.run('kill -s {0} {1}'.format(signal, pid))

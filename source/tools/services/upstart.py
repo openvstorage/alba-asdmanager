@@ -18,6 +18,7 @@ Upstart module
 
 import re
 import time
+import datetime
 from subprocess import CalledProcessError
 
 
@@ -27,20 +28,15 @@ class Upstart(object):
     """
 
     @staticmethod
-    def _service_exists(name, client, path=None):
+    def _log(message):
+        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+
+    @staticmethod
+    def _service_exists(name, client, path):
         if path is None:
             path = '/etc/init/'
         file_to_check = '{0}{1}.conf'.format(path, name)
         return client.file_exists(file_to_check)
-
-    @staticmethod
-    def _get_service_filename(name, client, path=None):
-        if Upstart._service_exists(name, client, path):
-            if path is None:
-                path = '/etc/init/'
-            return '{0}{1}.conf'.format(path, name)
-        else:
-            return ''
 
     @staticmethod
     def _get_name(name, client, path=None):
@@ -54,17 +50,8 @@ class Upstart(object):
         name = 'ovs-{0}'.format(name)
         if Upstart._service_exists(name, client, path):
             return name
-        print('Service {0} could not be found.'.format(name))
+        Upstart._log('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
-
-    @staticmethod
-    def prepare_template(base_name, target_name, client):
-        template_name = '/opt/asd-manager/config/upstart/{0}.conf'
-        if client.file_exists(template_name.format(base_name)):
-            client.run('cp -f {0} {1}'.format(
-                template_name.format(base_name),
-                template_name.format(target_name)
-            ))
 
     @staticmethod
     def add_service(name, client, params=None, target_name=None, additional_dependencies=None):
@@ -86,6 +73,7 @@ class Upstart(object):
         if '<SERVICE_NAME>' in template_file:
             service_name = name if target_name is None else target_name
             template_file = template_file.replace('<SERVICE_NAME>', service_name.lstrip('ovs-'))
+        template_file = template_file.replace('<_SERVICE_SUFFIX_>', '')
 
         dependencies = ''
         if additional_dependencies:
@@ -122,7 +110,7 @@ class Upstart(object):
                 return False, output
             return False
         except CalledProcessError as ex:
-            print('Get {0}.service status failed: {1}'.format(name, ex))
+            Upstart._log('Get {0}.service status failed: {1}'.format(name, ex))
             raise Exception('Retrieving status for service "{0}" failed'.format(name))
 
     @staticmethod
@@ -144,12 +132,15 @@ class Upstart(object):
 
     @staticmethod
     def start_service(name, client):
+        status, output = Upstart.get_service_status(name, client, True)
+        if status is True:
+            return output
         try:
             name = Upstart._get_name(name, client)
             client.run('service {0} start'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Start {0} failed, {1}'.format(name, output))
+            Upstart._log('Start {0} failed, {1}'.format(name, output))
             raise RuntimeError('Start {0} failed. {1}'.format(name, output))
         tries = 10
         while tries > 0:
@@ -161,17 +152,20 @@ class Upstart(object):
         status, output = Upstart.get_service_status(name, client, True)
         if status is True:
             return output
-        print('Start {0} failed. {1}'.format(name, output))
+        Upstart._log('Start {0} failed. {1}'.format(name, output))
         raise RuntimeError('Start {0} failed. {1}'.format(name, output))
 
     @staticmethod
     def stop_service(name, client):
+        status, output = Upstart.get_service_status(name, client, True)
+        if status is False:
+            return output
         try:
             name = Upstart._get_name(name, client)
             client.run('service {0} stop'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            print('Stop {0} failed, {1}'.format(name, output))
+            Upstart._log('Stop {0} failed, {1}'.format(name, output))
             raise RuntimeError('Stop {0} failed, {1}'.format(name, output))
         tries = 10
         while tries > 0:
@@ -183,7 +177,7 @@ class Upstart(object):
         status, output = Upstart.get_service_status(name, client, True)
         if status is False:
             return output
-        print('Stop {0} failed. {1}'.format(name, output))
+        Upstart._log('Stop {0} failed. {1}'.format(name, output))
         raise RuntimeError('Stop {0} failed. {1}'.format(name, output))
 
     @staticmethod
@@ -225,7 +219,19 @@ class Upstart(object):
         return -1
 
     @staticmethod
-    def list_service_files(client):
-        for file in client.dir_list('/etc/init'):
-            if file.endswith('.conf'):
-                yield file.replace('.conf', '')
+    def send_signal(name, signal, client):
+        name = Upstart._get_name(name, client)
+        pid = Upstart.get_service_pid(name, client)
+        if pid == -1:
+            raise RuntimeError('Could not determine PID to send signal to')
+        client.run('kill -s {0} {1}'.format(signal, pid))
+
+    @staticmethod
+    def list_services(client):
+        for filename in client.dir_list('/etc/init'):
+            if filename.endswith('.conf'):
+                yield filename.replace('.conf', '')
+
+    @staticmethod
+    def get_service_filename(name):
+        return '/etc/init/{0}.conf'.format(name)
