@@ -282,7 +282,7 @@ class API(object):
         """ List all maintenance information """
         API._log('Listing maintenance services')
         data = MaintenanceController.get_services()
-        return list(data)
+        return {'services': list(data)}
 
     @staticmethod
     @post('/maintenance/<name>/add')

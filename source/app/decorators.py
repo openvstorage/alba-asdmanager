@@ -89,7 +89,7 @@ def _build_function(f, authenticate):
                 print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
                                 '_error': str(ex)}, 500
-        data['_version'] = 1
+        data['_version'] = 2
         data['_duration'] = time.time() - start
         return Response(json.dumps(data), content_type='application/json', status=status)
 

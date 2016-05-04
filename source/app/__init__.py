@@ -16,10 +16,10 @@
 API module
 """
 
-from source.tools.disks import Disks
+from source.controllers.disk import DiskController
 from flask import Flask
 app = Flask(__name__)
 
-Disks.scan_controllers()
+DiskController.scan_controllers()
 
 from api import API
