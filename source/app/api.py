@@ -29,6 +29,7 @@ from source.controllers.update import UpdateController
 from source.tools.configuration import EtcdConfiguration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
+from subprocess import check_output
 
 
 class API(object):
@@ -158,6 +159,9 @@ class API(object):
     @staticmethod
     @get('/asds')
     def list_asds():
+        """
+        List all ASDs
+        """
         asds = {}
         mountpoints = FSTab.read()
         for disk, mountpoint in mountpoints.iteritems():
@@ -192,6 +196,7 @@ class API(object):
         with file_mutex('add_asd'):
             ASDController.create_asd(disk_id)
 
+    @staticmethod
     @get('/disks/<disk_id>/asds/<asd_id>')
     def get_asd(disk_id, asd_id):
         """
@@ -210,6 +215,7 @@ class API(object):
             raise BadRequest('ASD {0} could not be found on disk'.format(disk_id))
         return asds[asd_id]
 
+    @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/restart')
     def restart_asd(disk_id, asd_id):
         """
@@ -223,6 +229,7 @@ class API(object):
         _ = disk_id
         ASDController.restart_asd(asd_id)
 
+    @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/delete')
     def asd_delete(disk_id, asd_id):
         """
