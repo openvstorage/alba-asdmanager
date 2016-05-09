@@ -20,17 +20,16 @@ import os
 import json
 import datetime
 from flask import request
-from subprocess import check_output
-from source.app.decorators import get
-from source.app.decorators import post
+from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
-from source.controllers.maintenance import MaintenanceController
 from source.controllers.disk import DiskController
+from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import UpdateController
 from source.tools.configuration import EtcdConfiguration
-from source.tools.filemutex import FileMutex
+from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
+from subprocess import check_output
 
 
 class API(object):
@@ -100,7 +99,7 @@ class API(object):
             raise BadRequest('Disk not available')
         if all_disks[disk_id]['available'] is False:
             raise BadRequest('Disk already configured')
-        with FileMutex('add_disk'), FileMutex('disk_{0}'.format(disk_id)):
+        with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
             DiskController.prepare_disk(disk_id)
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
@@ -121,7 +120,7 @@ class API(object):
             raise BadRequest('Disk not available')
         if all_disks[disk_id]['available'] is True:
             raise BadRequest('Disk not yet configured')
-        with FileMutex('disk_{0}'.format(disk_id)):
+        with file_mutex('disk_{0}'.format(disk_id)):
             mountpoints = FSTab.read()
             if disk_id in mountpoints:
                 mountpoint = mountpoints[disk_id]
@@ -144,7 +143,7 @@ class API(object):
             raise BadRequest('Disk not available')
         if all_disks[disk_id]['available'] is False:
             raise BadRequest('Disk already configured')
-        with FileMutex('disk_{0}'.format(disk_id)):
+        with file_mutex('disk_{0}'.format(disk_id)):
             API._log('Got lock for restarting disk {0}'.format(disk_id))
             mountpoints = FSTab.read()
             if disk_id in mountpoints:
@@ -160,6 +159,9 @@ class API(object):
     @staticmethod
     @get('/asds')
     def list_asds():
+        """
+        List all ASDs
+        """
         asds = {}
         mountpoints = FSTab.read()
         for disk, mountpoint in mountpoints.iteritems():
@@ -191,7 +193,7 @@ class API(object):
         mountpoints = FSTab.read()
         if disk_id not in mountpoints:
             raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
-        with FileMutex('add_asd'):
+        with file_mutex('add_asd'):
             ASDController.create_asd(disk_id)
 
     @staticmethod
@@ -254,7 +256,7 @@ class API(object):
     @get('/update/information')
     def get_update_information():
         """ Retrieve update information """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             API._log('Locking in place for package update')
             return UpdateController.get_update_information()
 
@@ -266,14 +268,14 @@ class API(object):
         :param status: Current status of the update
         :type status: str
         """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             return UpdateController.execute_update(status)
 
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
         """ Restart services """
-        with FileMutex('package_update'):
+        with file_mutex('package_update'):
             return UpdateController.restart_services()
 
     @staticmethod

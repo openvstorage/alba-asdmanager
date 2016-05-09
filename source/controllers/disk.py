@@ -225,6 +225,8 @@ class DiskController(object):
         :param start: True to start locating, False otherwise
         :type start: bool
         """
+        if DiskController.controllers == {}:
+            DiskController.scan_controllers()
         for wwn in DiskController.controllers:
             if disk_id.endswith(wwn):
                 controller_type, location = DiskController.controllers[wwn]

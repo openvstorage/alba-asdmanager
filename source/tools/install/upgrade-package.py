@@ -27,11 +27,11 @@ def _log(message):
     print '{0} - {1}'.format(str(datetime.now()), message)
 
 if __name__ == '__main__':
-    from source.tools.filemutex import FileMutex
+    from source.tools.filemutex import file_mutex
     from subprocess import check_output
 
     _log('Upgrading package openvstorage-sdm')
-    with FileMutex('package_update'):
+    with file_mutex('package_update'):
         _log('Lock in place, starting upgrade')
         for line in check_output('apt-get install -y --force-yes openvstorage-sdm', shell=True).splitlines():
             _log('  {0}'.format(line))
