@@ -125,7 +125,6 @@ class LocalClient(object):
         """
         return os.path.isdir(self.shell_safe(directory))
 
-
     def dir_chmod(self, directories, mode, recursive=False):
         """
         Chmod a or multiple directories
