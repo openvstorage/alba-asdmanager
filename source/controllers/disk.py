@@ -102,15 +102,16 @@ class DiskController(object):
                              'state_detail': 'missing'}
 
         # Load statistical information about the disk
-        df_info = check_output('df -B 1 --output=size,used,avail,target /mnt/alba-asd/*', shell=True).strip().splitlines()[1:]
-        for disk_id in disks:
-            if disks[disk_id]['available'] is False and disks[disk_id]['state'] == 'ok':
-                for df in df_info:
-                    params = df.split()
-                    if params[-1] == disks[disk_id]['mountpoint']:
-                        disks[disk_id].update({'usage': {'size': int(params[0]),
-                                                         'used': int(params[1]),
-                                                         'available': int(params[2])}})
+        if DiskController._local_client.dir_list('/mnt/alba-asd'):
+            df_info = check_output('df -B 1 --output=size,used,avail,target /mnt/alba-asd/*', shell=True).strip().splitlines()[1:]
+            for disk_id in disks:
+                if disks[disk_id]['available'] is False and disks[disk_id]['state'] == 'ok':
+                    for df in df_info:
+                        params = df.split()
+                        if params[-1] == disks[disk_id]['mountpoint']:
+                            disks[disk_id].update({'usage': {'size': int(params[0]),
+                                                             'used': int(params[1]),
+                                                             'available': int(params[2])}})
 
         # Execute some checkups on the disks
         for disk_id in disks:
