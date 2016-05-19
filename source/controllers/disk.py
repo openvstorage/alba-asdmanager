@@ -23,10 +23,10 @@ import json
 import time
 import random
 import string
-import datetime
 from subprocess import check_output, CalledProcessError
 from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
+from source.tools.log_handler import LogHandler
 
 
 class DiskController(object):
@@ -34,12 +34,10 @@ class DiskController(object):
     Disk helper methods
     """
     NODE_ID = os.environ['ASD_NODE_ID']
+
     controllers = {}
     _local_client = LocalClient()
-
-    @staticmethod
-    def _log(message):
-        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+    _logger = LogHandler.get('asd-manager', name='disk')
 
     @staticmethod
     def list_disks():
@@ -88,12 +86,14 @@ class DiskController(object):
         # Load information about mount configuration (detect whether the disks are configured)
         fstab_disks = FSTab.read()
         for device in fstab_disks.keys():
+            found = False
             for disk_id in disks:
                 if disk_id == device:
                     disks[disk_id].update({'available': False,
                                            'mountpoint': fstab_disks[device]})
                     del fstab_disks[device]
-            if device not in all_mounted_asds:
+                    found = True
+            if found is True and device not in all_mounted_asds:
                 disks[device].update({'state': 'error',
                                       'state_detail': 'notmounted'})
         for device in fstab_disks.keys():
@@ -138,7 +138,7 @@ class DiskController(object):
         :param disk_id: Disk identifier
         :type disk_id: str
         """
-        DiskController._log('Preparing disk {0}'.format(disk_id))
+        DiskController._logger.info('Preparing disk {0}'.format(disk_id))
         mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
         disk_by_id = '/dev/disk/by-id/{0}'.format(disk_id)
         DiskController.locate(disk_id, start=False)
@@ -159,7 +159,7 @@ class DiskController(object):
         FSTab.add('{0}-part1'.format(disk_by_id), mountpoint)
         check_output('mount {0}'.format(mountpoint), shell=True)
         check_output('chown -R alba:alba {0}'.format(mountpoint), shell=True)
-        DiskController._log('Prepare disk {0} complete'.format(disk_id))
+        DiskController._logger.info('Prepare disk {0} complete'.format(disk_id))
 
     @staticmethod
     def clean_disk(disk_id, mountpoint):
@@ -170,7 +170,7 @@ class DiskController(object):
         :param mountpoint: Mountpoint of the disk
         :type mountpoint: str
         """
-        DiskController._log('Cleaning disk {0}'.format(disk_id))
+        DiskController._logger.info('Cleaning disk {0}'.format(disk_id))
         FSTab.remove('/dev/disk/by-id/{0}-part1'.format(disk_id))
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         DiskController._local_client.dir_delete(mountpoint)
@@ -180,7 +180,7 @@ class DiskController(object):
             # Wiping the partition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
         DiskController.locate(disk_id, start=True)
-        DiskController._log('Clean disk {0} complete'.format(disk_id))
+        DiskController._logger.info('Clean disk {0} complete'.format(disk_id))
 
     @staticmethod
     def remount_disk(disk_id, mountpoint):
@@ -191,17 +191,17 @@ class DiskController(object):
         :param mountpoint: Mountpoint of the disk
         :type mountpoint: str
         """
-        DiskController._log('Remounting disk {0}'.format(disk_id))
+        DiskController._logger.info('Remounting disk {0}'.format(disk_id))
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('mount {0} || true'.format(mountpoint), shell=True)
-        DiskController._log('Remounting disk {0} complete'.format(disk_id))
+        DiskController._logger.info('Remounting disk {0} complete'.format(disk_id))
 
     @staticmethod
     def scan_controllers():
         """
         Scan the disk controller(s)
         """
-        DiskController._log('Scanning controllers')
+        DiskController._logger.info('Scanning controllers')
         controllers = {}
         has_storecli = check_output('which storcli64 || true', shell=True).strip() != ''
         if has_storecli is True:
@@ -216,7 +216,7 @@ class DiskController(object):
                         wwn = data['Drive {0} - Detailed Information'.format(location)]['Drive {0} Device attributes'.format(location)]['WWN']
                         controllers[wwn] = ('storcli64', location)
         DiskController.controllers = controllers
-        DiskController._log('Scan complete')
+        DiskController._logger.info('Scan complete')
 
     @staticmethod
     def locate(disk_id, start):
@@ -233,5 +233,5 @@ class DiskController(object):
             if disk_id.endswith(wwn):
                 controller_type, location = DiskController.controllers[wwn]
                 if controller_type == 'storcli64':
-                    DiskController._log('Location {0} for {1}'.format('start' if start is True else 'stop', location))
+                    DiskController._logger.info('Location {0} for {1}'.format('start' if start is True else 'stop', location))
                     check_output('storcli64 {0} {1} locate'.format(location, 'start' if start is True else 'stop'), shell=True)

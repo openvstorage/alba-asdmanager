@@ -19,9 +19,9 @@ This module contains logic related to updates
 """
 import os
 import time
-import datetime
 from subprocess import CalledProcessError
 from source.tools.localclient import LocalClient
+from source.tools.log_handler import LogHandler
 from source.tools.packages.package import PackageManager
 from source.tools.services.service import ServiceManager
 
@@ -30,18 +30,16 @@ class UpdateController(object):
     PACKAGE_NAME = 'openvstorage-sdm'
     ASD_SERVICE_PREFIX = 'alba-asd-'
     INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
-    _local_client = LocalClient()
 
-    @staticmethod
-    def _log(message):
-        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+    _local_client = LocalClient()
+    _logger = LogHandler.get('asd-manager', name='update')
 
     @staticmethod
     def get_package_information(package_name):
         installed, candidate = PackageManager.get_installed_candidate_version(package_name,
                                                                               UpdateController._local_client)
-        UpdateController._log('Installed version for package {0}: {1}'.format(package_name, installed))
-        UpdateController._log('Candidate version for package {0}: {1}'.format(package_name, candidate))
+        UpdateController._logger.info('Installed version for package {0}: {1}'.format(package_name, installed))
+        UpdateController._logger.info('Candidate version for package {0}: {1}'.format(package_name, candidate))
         return installed, candidate
 
     @staticmethod
@@ -93,7 +91,7 @@ class UpdateController(object):
 
         if sdm_package_info[0] != sdm_package_info[1]:
             if status == 'started':
-                UpdateController._log('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
+                UpdateController._logger.info('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
                 UpdateController._local_client.run('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.INSTALL_SCRIPT))
                 UpdateController._local_client.run('at -f /tmp/update now')
                 UpdateController._local_client.run('rm /tmp/update')
@@ -111,16 +109,16 @@ class UpdateController(object):
             if running_version != alba_package_info[1]:
                 status = ServiceManager.get_service_status(service, UpdateController._local_client)
                 if status is False:
-                    UpdateController._log('Found stopped service {0}. Will not start it.'.format(service))
+                    UpdateController._logger.info('Found stopped service {0}. Will not start it.'.format(service))
                     result[service] = 'stopped'
                 else:
-                    UpdateController._log('Restarting service {0}'.format(service))
+                    UpdateController._logger.info('Restarting service {0}'.format(service))
                     try:
                         status = ServiceManager.restart_service(service, UpdateController._local_client)
-                        UpdateController._log(status)
+                        UpdateController._logger.info(status)
                         result[service] = 'restarted'
                     except CalledProcessError as cpe:
-                        UpdateController._log('Failed to restart service {0} {1}'.format(service, cpe))
+                        UpdateController._logger.info('Failed to restart service {0} {1}'.format(service, cpe))
                         result[service] = 'failed'
 
         return {'result': result}

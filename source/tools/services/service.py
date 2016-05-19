@@ -20,8 +20,9 @@ Service Factory module
 import time
 
 from subprocess import check_output, CalledProcessError
-from .upstart import Upstart
-from .systemd import Systemd
+from source.tools.log_handler import LogHandler
+from source.tools.services.upstart import Upstart
+from source.tools.services.systemd import Systemd
 
 
 class ServiceManager(object):
@@ -29,6 +30,8 @@ class ServiceManager(object):
     Factory class returning specialized classes
     """
     ImplementationClass = None
+
+    _logger = LogHandler.get('asd-manager', name='service')
 
     class MetaClass(type):
         """
@@ -59,7 +62,7 @@ class ServiceManager(object):
                     else:
                         raise RuntimeError('There was no known ServiceManager detected')
                 except Exception as ex:
-                    print('Error loading ServiceManager: {0}'.format(ex))
+                    ServiceManager._logger.exception('Error loading ServiceManager: {0}'.format(ex))
                     raise
             return getattr(ServiceManager.ImplementationClass, item)
 
@@ -75,18 +78,18 @@ class ServiceManager(object):
             from ovs.extensions.services.fleetctl import FleetCtl
             has_fleet_client = True
         except ImportError as ie:
-            print('No fleet client detected {0}'.format(ie))
+            ServiceManager._logger.exception('No fleet client detected {0}'.format(ie))
             has_fleet_client = False
         return has_fleet_client
 
     @staticmethod
     def setup_fleet():
         if ServiceManager.has_fleet_client() is False:
-            print('Cannot use fleet because the client is not installed')
+            ServiceManager._logger.error('Cannot use fleet because the client is not installed')
             return
         if ServiceManager.has_fleet():
             if ServiceManager._is_fleet_running_and_usable():
-                print('Fleet service is running')
+                ServiceManager._logger.debug('Fleet service is running')
                 ServiceManager.reload()
                 return
             else:
@@ -94,7 +97,7 @@ class ServiceManager(object):
                 start = time.time()
                 while time.time() - start < 15:
                     if ServiceManager._is_fleet_running_and_usable():
-                        print('Fleet service is running and usable')
+                        ServiceManager._logger.info('Fleet service is running and usable')
                         ServiceManager.reload()
                         return
                     time.sleep(1)
@@ -107,7 +110,7 @@ class ServiceManager(object):
             has_fleetd_bin = 'fleetd' in check_output('which fleetd', shell=True)
             return has_fleetctl_bin and has_fleetd_bin
         except CalledProcessError as cpe:
-            print('Could not determine if fleet can be used. {0}'.format(cpe))
+            ServiceManager._logger.exception('Could not determine if fleet can be used. {0}'.format(cpe))
             return False
 
     @staticmethod
@@ -116,5 +119,5 @@ class ServiceManager(object):
             is_fleetd_usable = "Error" not in check_output('fleetctl list-machines 2>&1 || true', shell=True).strip()
             return is_fleetd_usable
         except CalledProcessError as cpe:
-            print('Could not determine if fleetd is running. {0}'.format(cpe))
+            ServiceManager._logger.exception('Could not determine if fleetd is running. {0}'.format(cpe))
             return False

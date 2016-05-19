@@ -21,20 +21,19 @@ Script to install/upgrade the openvstorage-sdm package
 """
 
 import sys
-from datetime import datetime
 sys.path.append('/opt/asd-manager')
 
-
-def _log(message):
-    print '{0} - {1}'.format(str(datetime.now()), message)
 
 if __name__ == '__main__':
     from source.tools.filemutex import file_mutex
     from subprocess import check_output
+    from source.tools.log_handler import LogHandler
 
-    _log('Upgrading package openvstorage-sdm')
+    _logger = LogHandler.get('asd-manager', name='post-upgrade')
+
+    _logger.info('Upgrading package openvstorage-sdm')
     with file_mutex('package_update'):
-        _log('Lock in place, starting upgrade')
+        _logger.info('Lock in place, starting upgrade')
         for line in check_output('apt-get install -y --force-yes openvstorage-sdm', shell=True).splitlines():
-            _log('  {0}'.format(line))
-    _log('Upgrade completed')
+            _logger.info('  {0}'.format(line))
+    _logger.info('Upgrade completed')

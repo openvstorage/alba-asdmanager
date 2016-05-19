@@ -20,7 +20,6 @@ API views
 
 import os
 import json
-import datetime
 from flask import request
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
@@ -31,6 +30,7 @@ from source.controllers.update import UpdateController
 from source.tools.configuration import EtcdConfiguration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
+from source.tools.log_handler import LogHandler
 from subprocess import check_output
 
 
@@ -39,9 +39,7 @@ class API(object):
     NODE_ID = os.environ['ASD_NODE_ID']
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
-    @staticmethod
-    def _log(message):
-        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+    _logger = LogHandler.get('asd-manager', name='api')
 
     @staticmethod
     @get('/')
@@ -53,7 +51,7 @@ class API(object):
     @get('/net', authenticate=False)
     def net():
         """ Retrieve IP information """
-        API._log('Loading network information')
+        API._logger.info('Loading network information')
         output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
         my_ips = output.split('\n')
         return {'ips': [found_ip.strip() for found_ip in my_ips if
@@ -63,14 +61,14 @@ class API(object):
     @post('/net')
     def set_net():
         """ Set IP information """
-        API._log('Setting network information')
+        API._logger.info('Setting network information')
         EtcdConfiguration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/disks')
     def list_disks():
         """ List all disk information """
-        API._log('Listing disks')
+        API._logger.info('Listing disks')
         return DiskController.list_disks()
 
     @staticmethod
@@ -81,7 +79,7 @@ class API(object):
         :param disk_id: Identifier of the disk
         :type disk_id: str
         """
-        API._log('Listing disk {0}'.format(disk_id))
+        API._logger.info('Listing disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
             raise BadRequest('Disk unknown')
@@ -95,7 +93,7 @@ class API(object):
         :param disk_id: Identifier of the disk
         :type disk_id: str
         """
-        API._log('Add disk {0}'.format(disk_id))
+        API._logger.info('Add disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
             raise BadRequest('Disk not available')
@@ -116,7 +114,7 @@ class API(object):
         :param disk_id: Identifier of the disk
         :type disk_id: str
         """
-        API._log('Deleting disk {0}'.format(disk_id))
+        API._logger.info('Deleting disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
             raise BadRequest('Disk not available')
@@ -139,14 +137,14 @@ class API(object):
         :param disk_id: Identifier of the disk
         :type disk_id: str
         """
-        API._log('Restarting disk {0}'.format(disk_id))
+        API._logger.info('Restarting disk {0}'.format(disk_id))
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
             raise BadRequest('Disk not available')
         if all_disks[disk_id]['available'] is False:
             raise BadRequest('Disk already configured')
         with file_mutex('disk_{0}'.format(disk_id)):
-            API._log('Got lock for restarting disk {0}'.format(disk_id))
+            API._logger.info('Got lock for restarting disk {0}'.format(disk_id))
             mountpoints = FSTab.read()
             if disk_id in mountpoints:
                 mountpoint = mountpoints[disk_id]
@@ -227,7 +225,7 @@ class API(object):
         :param asd_id: Identifier of the ASD
         :type asd_id: str
         """
-        API._log('Restarting ASD {0}'.format(asd_id))
+        API._logger.info('Restarting ASD {0}'.format(asd_id))
         _ = disk_id
         ASDController.restart_asd(asd_id)
 
@@ -242,7 +240,7 @@ class API(object):
         :type asd_id: str
         """
         # Stop and remove service
-        API._log('Removing services for disk {0}'.format(disk_id))
+        API._logger.info('Removing services for disk {0}'.format(disk_id))
         mountpoints = FSTab.read()
         if disk_id not in mountpoints:
             raise BadRequest('Disk {0} is not yet initialized'.format(disk_id))
@@ -259,7 +257,7 @@ class API(object):
     def get_update_information():
         """ Retrieve update information """
         with file_mutex('package_update'):
-            API._log('Locking in place for package update')
+            API._logger.info('Locking in place for package update')
             return UpdateController.get_update_information()
 
     @staticmethod
@@ -284,7 +282,7 @@ class API(object):
     @get('/maintenance')
     def list_maintenance_services():
         """ List all maintenance information """
-        API._log('Listing maintenance services')
+        API._logger.info('Listing maintenance services')
         data = MaintenanceController.get_services()
         return {'services': list(data)}
 

@@ -23,11 +23,11 @@ import math
 import random
 import signal
 import string
-import datetime
 from subprocess import check_output
 from source.tools.configuration import EtcdConfiguration
 from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
+from source.tools.log_handler import LogHandler
 from source.tools.services.service import ServiceManager
 
 
@@ -40,10 +40,7 @@ class ASDController(object):
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
     _local_client = LocalClient()
-
-    @staticmethod
-    def _log(message):
-        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+    _logger = LogHandler.get('asd-manager', name='asd')
 
     @staticmethod
     def list_asds(mountpoint):
@@ -75,7 +72,7 @@ class ASDController(object):
                         asds[asd_id].update({'state': 'error',
                                              'state_detail': 'servicefailure'})
         except OSError as ex:
-            ASDController._log('Error collecting ASD information: {0}'.format(str(ex)))
+            ASDController._logger.info('Error collecting ASD information: {0}'.format(str(ex)))
         return asds
 
     @staticmethod
@@ -110,11 +107,11 @@ class ASDController(object):
                                                signal.SIGUSR1,
                                                ASDController._local_client)
                 except Exception as ex:
-                    ASDController._log('Could not send signal to ASD for reloading the quota: {0}'.format(ex))
+                    ASDController._logger.info('Could not send signal to ASD for reloading the quota: {0}'.format(ex))
 
         # Prepare & start service
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        ASDController._log('Setting up service for disk {0}'.format(disk_id))
+        ASDController._logger.info('Setting up service for disk {0}'.format(disk_id))
         homedir = '{0}/{1}'.format(mountpoint, asd_id)
         port = EtcdConfiguration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
         ips = EtcdConfiguration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
