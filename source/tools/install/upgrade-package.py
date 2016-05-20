@@ -29,7 +29,7 @@ if __name__ == '__main__':
     from subprocess import check_output
     from source.tools.log_handler import LogHandler
 
-    _logger = LogHandler.get('asd-manager', name='post-upgrade')
+    _logger = LogHandler.get('asd-manager', name='upgrade-package')
 
     _logger.info('Upgrading package openvstorage-sdm')
     with file_mutex('package_update'):

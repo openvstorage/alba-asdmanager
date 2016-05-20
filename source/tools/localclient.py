@@ -14,14 +14,13 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from subprocess import check_output, CalledProcessError, PIPE, Popen
-from source.tools.log_handler import LogHandler
-
 import os
 import re
 import grp
 import pwd
 import glob
+from subprocess import check_output, CalledProcessError, PIPE, Popen
+from source.tools.log_handler import LogHandler
 
 
 class LocalClient(object):

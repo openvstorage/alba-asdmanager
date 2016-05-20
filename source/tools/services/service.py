@@ -18,7 +18,6 @@
 Service Factory module
 """
 import time
-
 from subprocess import check_output, CalledProcessError
 from source.tools.log_handler import LogHandler
 from source.tools.services.upstart import Upstart

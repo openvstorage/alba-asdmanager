@@ -33,9 +33,9 @@ if __name__ == '__main__':
     import glob
     from source.tools.filemutex import file_mutex
     from source.tools.localclient import LocalClient
+    from source.tools.log_handler import LogHandler
     from source.tools.services.service import ServiceManager
     from source.tools.configuration import EtcdConfiguration
-    from source.tools.log_handler import LogHandler
 
     _logger = LogHandler.get('asd-manager', name='post-upgrade')
 

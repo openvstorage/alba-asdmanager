@@ -102,7 +102,7 @@ class DebianPackage(object):
                 break
             except CalledProcessError as cpe:
                 if cpe.output and 'Could not get lock' in cpe.output[0] and counter != max_counter:
-                    DebianPackage._logger.info('Attempt {0} to get lock failed, trying again'.format(counter))
+                    DebianPackage._logger.warning('Attempt {0} to get lock failed, trying again'.format(counter))
                 if counter == max_counter:  # Update can sometimes fail because apt lock cannot be retrieved
                     DebianPackage._logger.exception('Update failed. Error: {0}'.format(cpe.output))
                     raise cpe

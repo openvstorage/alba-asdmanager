@@ -152,7 +152,7 @@ class Upstart(object):
         status, output = Upstart.get_service_status(name, client, True)
         if status is True:
             return output
-        Upstart._logger.exception('Start {0} failed. {1}'.format(name, output))
+        Upstart._logger.error('Start {0} failed. {1}'.format(name, output))
         raise RuntimeError('Start {0} failed. {1}'.format(name, output))
 
     @staticmethod
@@ -177,7 +177,7 @@ class Upstart(object):
         status, output = Upstart.get_service_status(name, client, True)
         if status is False:
             return output
-        Upstart._logger.exception('Stop {0} failed. {1}'.format(name, output))
+        Upstart._logger.error('Stop {0} failed. {1}'.format(name, output))
         raise RuntimeError('Stop {0} failed. {1}'.format(name, output))
 
     @staticmethod
