@@ -145,7 +145,7 @@ if __name__ == '__main__':
 
     @app.before_first_request
     def setup_logging():
-        if not app.debug:
+        if app.debug is False:
             _logger = LogHandler.get('asd-manager', name='flask')
             app.logger.handlers = []
             app.logger.addHandler(_logger.handler)

@@ -19,8 +19,8 @@ import re
 import grp
 import pwd
 import glob
-from subprocess import check_output, CalledProcessError, PIPE, Popen
 from source.tools.log_handler import LogHandler
+from subprocess import check_output, CalledProcessError, PIPE, Popen
 
 
 class LocalClient(object):
