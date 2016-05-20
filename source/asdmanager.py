@@ -23,11 +23,13 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
+import logging
 from source.tools.configuration import EtcdConfiguration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox
 from source.tools.services.service import ServiceManager
 from source.tools.localclient import LocalClient
+from source.tools.log_handler import LogHandler
 from subprocess import check_output
 
 
@@ -140,6 +142,20 @@ if __name__ == '__main__':
         raise RuntimeError('Port provided must be within range 1025 - 65535')
 
     from source.app import app
+
+    @app.before_first_request
+    def setup_logging():
+        if app.debug is False:
+            _logger = LogHandler.get('asd-manager', name='flask')
+            app.logger.handlers = []
+            app.logger.addHandler(_logger.handler)
+            app.logger.propagate = False
+            wz_logger = logging.getLogger('werkzeug')
+            wz_logger.handlers = []
+            wz_logger.addHandler(_logger.handler)
+            wz_logger.propagate = False
+
+    app.debug = False
     app.run(host='0.0.0.0',
             port=int(sys.argv[1]),
             ssl_context=('server.crt', 'server.key'),

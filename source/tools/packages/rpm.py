@@ -20,12 +20,15 @@ Rpm Package module
 import time
 from subprocess import check_output
 from subprocess import CalledProcessError
+from source.tools.log_handler import LogHandler
 
 
 class RpmPackage(object):
     """
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
+
+    _logger = LogHandler.get('asd-manager', name='rpm')
 
     @staticmethod
     def get_installed_candidate_version(package_name, client):
@@ -66,7 +69,7 @@ class RpmPackage(object):
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
                 if counter == max_counter:
-                    print('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
+                    RpmPackage._logger.exception('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
                     raise cpe
             except Exception as ex:
                 raise ex
@@ -79,7 +82,7 @@ class RpmPackage(object):
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
-                print('Update failed. Error: {0}'.format(cpe.output))
+                RpmPackage._logger.exception('Update failed. Error: {0}'.format(cpe.output))
                 raise cpe
 
     @staticmethod

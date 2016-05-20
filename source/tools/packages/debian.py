@@ -21,6 +21,7 @@ Debian Package module
 import time
 from subprocess import check_output
 from subprocess import CalledProcessError
+from source.tools.log_handler import LogHandler
 
 
 class DebianPackage(object):
@@ -29,6 +30,8 @@ class DebianPackage(object):
     """
 
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"'
+
+    _logger = LogHandler.get('asd-manager', name='debian')
 
     @staticmethod
     def _get_version(package_name):
@@ -75,14 +78,14 @@ class DebianPackage(object):
                     break
                 else:
                     last_exception = RuntimeError('"apt-get install" succeeded, but upgrade not visible in "apt-cache policy"')
-                    print('Failure: Upgrade not visible{0}'.format(try_again))
+                    DebianPackage._logger.error('Failure: Upgrade not visible{0}'.format(try_again))
             except CalledProcessError as cpe:
-                print('Install failed{0}: {1}'.format(try_again, cpe.output))
+                DebianPackage._logger.exception('Install failed{0}: {1}'.format(try_again, cpe.output))
                 if cpe.output and 'You may want to run apt-get update' in cpe.output[0] and counter != max_counter:
                     DebianPackage.update(client)
                 last_exception = cpe
             except Exception as ex:
-                print('Install failed{0}: {1}'.format(try_again, ex))
+                DebianPackage._logger.exception('Install failed{0}: {1}'.format(try_again, ex))
                 last_exception = ex
             time.sleep(1)
         if success is False:
@@ -99,9 +102,9 @@ class DebianPackage(object):
                 break
             except CalledProcessError as cpe:
                 if cpe.output and 'Could not get lock' in cpe.output[0] and counter != max_counter:
-                    print('Attempt {0} to get lock failed, trying again'.format(counter))
+                    DebianPackage._logger.warning('Attempt {0} to get lock failed, trying again'.format(counter))
                 if counter == max_counter:  # Update can sometimes fail because apt lock cannot be retrieved
-                    print('Update failed. Error: {0}'.format(cpe.output))
+                    DebianPackage._logger.exception('Update failed. Error: {0}'.format(cpe.output))
                     raise cpe
             time.sleep(1)
 

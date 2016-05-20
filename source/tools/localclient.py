@@ -14,13 +14,13 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from subprocess import check_output, CalledProcessError, PIPE, Popen
-
 import os
 import re
 import grp
 import pwd
 import glob
+from source.tools.log_handler import LogHandler
+from subprocess import check_output, CalledProcessError, PIPE, Popen
 
 
 class LocalClient(object):
@@ -29,6 +29,8 @@ class LocalClient(object):
     """
 
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
+
+    _logger = LogHandler.get('asd-manager', name='client')
 
     def __init__(self, endpoint='127.0.0.1', username='root', password=None):
         """
@@ -64,25 +66,24 @@ class LocalClient(object):
         :param command: Command to execute
         :param debug: Extended logging and stderr output returned
         """
-
         try:
             try:
                 process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
             except OSError as ose:
                 if suppress_logging is False:
-                    print('Command: "{0}" failed with output: "{1}"'.format(command, str(ose)))
+                    LocalClient._logger.exception('Command: "{0}" failed with output: "{1}"'.format(command, str(ose)))
                 raise CalledProcessError(1, command, str(ose))
             out, err = process.communicate()
             if debug:
-                print('stdout: {0}'.format(out))
-                print('stderr: {0}'.format(err))
+                LocalClient._logger.debug('stdout: {0}'.format(out))
+                LocalClient._logger.debug('stderr: {0}'.format(err))
                 return out.strip(), err
             else:
                 return out.strip()
 
         except CalledProcessError as cpe:
             if suppress_logging is False:
-                print('Command: "{0}" failed with output: "{1}"'.format(command, cpe.output))
+                LocalClient._logger.exception('Command: "{0}" failed with output: "{1}"'.format(command, cpe.output))
             raise cpe
 
     def dir_create(self, directories):
@@ -246,7 +247,6 @@ class LocalClient(object):
         if os.path.islink(path):
             return os.path.realpath(path)
 
-
     def file_read(self, filename):
         """
         Load a file from
@@ -272,7 +272,6 @@ class LocalClient(object):
         :param local_filename: Name of the file locally
         """
         check_output('cp -f "{0}" "{1}"'.format(local_filename, remote_filename), shell=True)
-
 
     def file_exists(self, filename):
         """

@@ -17,8 +17,8 @@
 """
 Systemd module
 """
-import datetime
 from subprocess import CalledProcessError
+from source.tools.log_handler import LogHandler
 
 
 class Systemd(object):
@@ -26,9 +26,7 @@ class Systemd(object):
     Contains all logic related to Systemd services
     """
 
-    @staticmethod
-    def _log(message):
-        print '{0} - {1}'.format(str(datetime.datetime.now()), message)
+    _logger = LogHandler.get('asd-manager', name='systemd')
 
     @staticmethod
     def _service_exists(name, client, path):
@@ -49,7 +47,7 @@ class Systemd(object):
         name = 'ovs-{0}'.format(name)
         if Systemd._service_exists(name, client, path):
             return name
-        Systemd._log('Service {0} could not be found.'.format(name))
+        Systemd._logger.debug('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
     @staticmethod
@@ -91,7 +89,7 @@ class Systemd(object):
             client.run('systemctl enable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Add {0}.service failed, {1}'.format(name, output))
+            Systemd._logger.exception('Add {0}.service failed, {1}'.format(name, output))
             raise Exception('Add {0}.service failed, {1}'.format(name, output))
 
     @staticmethod
@@ -124,7 +122,7 @@ class Systemd(object):
             client.run('systemctl disable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Disable {0} failed, {1}'.format(name, output))
+            Systemd._logger.exception('Disable {0} failed, {1}'.format(name, output))
             raise Exception('Disable {0} failed, {1}'.format(name, output))
 
     @staticmethod
@@ -134,7 +132,7 @@ class Systemd(object):
             client.run('systemctl enable {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Enable {0} failed, {1}'.format(name, output))
+            Systemd._logger.exception('Enable {0} failed, {1}'.format(name, output))
             raise Exception('Enable {0} failed, {1}'.format(name, output))
 
     @staticmethod
@@ -147,7 +145,7 @@ class Systemd(object):
             output = client.run('systemctl start {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Start {0} failed, {1}'.format(name, output))
+            Systemd._logger.exception('Start {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
@@ -160,7 +158,7 @@ class Systemd(object):
             output = client.run('systemctl stop {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Stop {0} failed, {1}'.format(name, output))
+            Systemd._logger.exception('Stop {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
@@ -170,7 +168,7 @@ class Systemd(object):
             output = client.run('systemctl restart {0}.service'.format(name))
         except CalledProcessError as cpe:
             output = cpe.output
-            Systemd._log('Restart {0} failed, {1}'.format(name, output))
+            Systemd._logger.exception('Restart {0} failed, {1}'.format(name, output))
         return output
 
     @staticmethod
