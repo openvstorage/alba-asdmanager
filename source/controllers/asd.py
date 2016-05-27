@@ -32,6 +32,9 @@ from source.tools.services.service import ServiceManager
 
 
 class ASDController(object):
+    """
+    ASD Controller class
+    """
     NODE_ID = os.environ['ASD_NODE_ID']
     ASD_SERVICE_PREFIX = 'alba-asd-{0}'
     ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
