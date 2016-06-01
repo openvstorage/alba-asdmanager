@@ -101,6 +101,7 @@ class ASDController(object):
             if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(ASDController.ASD_CONFIG.format(asd_id)):
                 config = json.loads(EtcdConfiguration.get(ASDController.ASD_CONFIG.format(asd_id), raw=True))
                 config['capacity'] = asd_size
+                config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
                 EtcdConfiguration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(config, indent=4), raw=True)
                 try:
                     ServiceManager.send_signal(ASDController.ASD_SERVICE_PREFIX.format(asd_id),
@@ -123,7 +124,8 @@ class ASDController(object):
                       'asd_id': asd_id,
                       'capacity': asd_size,
                       'log_level': 'info',
-                      'port': port}
+                      'port': port,
+                      'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
 
         if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
             data = EtcdConfiguration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
