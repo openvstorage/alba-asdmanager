@@ -123,7 +123,8 @@ class ASDController(object):
                       'asd_id': asd_id,
                       'capacity': asd_size,
                       'log_level': 'info',
-                      'port': port}
+                      'port': port,
+                      'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
 
         if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
             data = EtcdConfiguration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
