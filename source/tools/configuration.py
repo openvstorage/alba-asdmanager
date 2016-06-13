@@ -17,12 +17,11 @@
 """
 Generic module for managing configuration in Etcd
 """
-
+import os
 import etcd
 import json
 import random
 import string
-import unittest
 from itertools import groupby
 try:
     from requests.packages.urllib3 import disable_warnings
@@ -216,7 +215,7 @@ class EtcdConfiguration(object):
         key = EtcdConfiguration._coalesce_dashes(key=key)
 
         # Unittests
-        if hasattr(unittest, 'running_tests') and getattr(unittest, 'running_tests') is True:
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
             current_dict = EtcdConfiguration._unittest_data
             for part in stripped_key.split('/'):
@@ -237,7 +236,7 @@ class EtcdConfiguration(object):
         key = EtcdConfiguration._coalesce_dashes(key=key)
 
         # Unittests
-        if hasattr(unittest, 'running_tests') and getattr(unittest, 'running_tests') is True:
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
             data = EtcdConfiguration._unittest_data
             ends_with_dash = key.endswith('/')
             starts_with_dash = key.startswith('/')
@@ -267,7 +266,7 @@ class EtcdConfiguration(object):
         key = EtcdConfiguration._coalesce_dashes(key=key)
 
         # Unittests
-        if hasattr(unittest, 'running_tests') and getattr(unittest, 'running_tests') is True:
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
             data = EtcdConfiguration._unittest_data
             for part in stripped_key.split('/')[:-1]:
@@ -288,7 +287,7 @@ class EtcdConfiguration(object):
         key = EtcdConfiguration._coalesce_dashes(key=key)
 
         # Unittests
-        if hasattr(unittest, 'running_tests') and getattr(unittest, 'running_tests') is True:
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
             if key in ['', '/']:
                 return
             stripped_key = key.strip('/')
@@ -320,7 +319,7 @@ class EtcdConfiguration(object):
             data = json.dumps(value)
 
         # Unittests
-        if hasattr(unittest, 'running_tests') and getattr(unittest, 'running_tests') is True:
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
             ut_data = EtcdConfiguration._unittest_data
             for part in stripped_key.split('/')[:-1]:
