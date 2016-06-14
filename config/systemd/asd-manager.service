@@ -11,4 +11,5 @@ TimeoutStopSec=60
 Environment=PYTHONPATH=:/opt/asd-manager
 Environment=ASD_NODE_ID=<ASD_NODE_ID>
 WorkingDirectory=/opt/asd-manager/source
+LimitMEMLOCK=infinity
 ExecStart=/usr/bin/python asdmanager.py <PORT_NUMBER>
