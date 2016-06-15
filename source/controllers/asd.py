@@ -128,6 +128,7 @@ class ASDController(object):
                       'capacity': asd_size,
                       'log_level': 'info',
                       'port': port,
+                      'transport': 'rdma' if EtcdConfiguration.get('/ovs/framework/rdma') else 'tcp',
                       'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
 
         if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):

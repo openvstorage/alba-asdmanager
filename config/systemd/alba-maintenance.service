@@ -9,6 +9,7 @@ Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
 Environment=LD_LIBRARY_PATH=/usr/lib/alba
+LimitMEMLOCK=infinity
 
 ExecStart=/usr/bin/alba maintenance --config <ALBA_CONFIG> --log-sink <LOG_SINK>
 ExecStartPre=/bin/sh -c "if [ ! -d /opt/asd-manager/run ]; then mkdir /opt/asd-manager/run; chown alba:alba /opt/asd-manager/run; fi; echo `alba version --terse` > /opt/asd-manager/run/<SERVICE_NAME>.version"
