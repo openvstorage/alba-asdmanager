@@ -27,6 +27,7 @@ from source.tools.services.service import ServiceManager
 
 
 class UpdateController(object):
+    NODE_ID = os.environ['ASD_NODE_ID']
     PACKAGE_NAME = 'openvstorage-sdm'
     ASD_SERVICE_PREFIX = 'alba-asd-'
     INSTALL_SCRIPT = '/opt/asd-manager/source/tools/install/upgrade-package.py'
@@ -92,7 +93,7 @@ class UpdateController(object):
         if sdm_package_info[0] != sdm_package_info[1]:
             if status == 'started':
                 UpdateController._logger.info('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
-                UpdateController._local_client.run('echo "python {0} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.INSTALL_SCRIPT))
+                UpdateController._local_client.run('echo "ASD_NODE_ID={0} python {1} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.NODE_ID, UpdateController.INSTALL_SCRIPT))
                 UpdateController._local_client.run('at -f /tmp/update now')
                 UpdateController._local_client.run('rm /tmp/update')
             return {'status': 'running'}

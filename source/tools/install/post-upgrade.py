@@ -20,6 +20,10 @@
 Post upgrade script for package openvstorage-sdm
 """
 
+import sys
+sys.path.append('/opt/asd-manager')
+
+
 if __name__ == '__main__':
     import os
     import json
