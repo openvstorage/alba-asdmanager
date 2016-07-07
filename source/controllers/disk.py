@@ -71,9 +71,10 @@ class DiskController(object):
         all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
         for disk in all_disks:
             disk = disk.strip()
-            match = re.search('.+?(((scsi-)|(ata-)|(virtio-)).+?) -> ../../([sv]d.+)', disk)
+            match = re.search('.+?(?P<disk_id>((scsi-)|(ata-)|(virtio-)|(nvme-)).+?) -> ../../(?P<disk_name>([sv]d.+)|(nvme.+))', disk)
             if match is not None:
-                disk_id, disk_name = match.groups()[0], match.groups()[-1]
+                groupdict = match.groupdict()
+                disk_id, disk_name = groupdict['disk_id'], groupdict['disk_name']
                 if disk_name in all_mounted_asds:
                     all_mounted_asds.remove(disk_name)
                     all_mounted_asds.append(disk_id.replace('-part1', ''))
@@ -145,7 +146,7 @@ class DiskController(object):
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk_id), shell=True)
-        check_output('partprobe {0}'.format(disk_by_id), shell=True)
+        check_output('partprobe {0} || true'.format(disk_by_id), shell=True)
         counter = 0
         partition_name = '{0}-part1'.format(disk_by_id)
         while not os.path.exists(partition_name):
