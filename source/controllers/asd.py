@@ -117,19 +117,30 @@ class ASDController(object):
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         ASDController._logger.info('Setting up service for disk {0}'.format(disk_id))
         homedir = '{0}/{1}'.format(mountpoint, asd_id)
-        port = EtcdConfiguration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
+        base_port = EtcdConfiguration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
         ips = EtcdConfiguration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
-        used_ports = [all_asds[asd]['port'] for asd in all_asds]
-        while port in used_ports:
-            port += 1
+        used_ports = []
+        for asd in all_asds.itervalues():
+            used_ports.append(asd['port'])
+            if 'rora_port' in asd:
+                used_ports.append(asd['rora_port'])
+        asd_port = base_port
+        rora_port = base_port + 1
+        while asd_port in used_ports:
+            asd_port += 1
+        used_ports.append(asd_port)
+        while rora_port in used_ports:
+            rora_port += 1
         asd_config = {'home': homedir,
                       'node_id': ASDController.NODE_ID,
                       'asd_id': asd_id,
                       'capacity': asd_size,
                       'log_level': 'info',
-                      'port': port,
+                      'port': asd_port,
                       'transport': 'rdma' if EtcdConfiguration.get('/ovs/framework/rdma') else 'tcp',
                       'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
+        if EtcdConfiguration.get('/ovs/framework/rdma'):
+            asd_config['rora_port'] = rora_port
 
         if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
             data = EtcdConfiguration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
