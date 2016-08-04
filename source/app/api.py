@@ -141,8 +141,6 @@ class API(object):
         all_disks = DiskController.list_disks()
         if disk_id not in all_disks:
             raise BadRequest('Disk not available')
-        if all_disks[disk_id]['available'] is False:
-            raise BadRequest('Disk already configured')
         with file_mutex('disk_{0}'.format(disk_id)):
             API._logger.info('Got lock for restarting disk {0}'.format(disk_id))
             mountpoints = FSTab.read()

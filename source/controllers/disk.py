@@ -71,9 +71,10 @@ class DiskController(object):
         all_disks = check_output('ls -al /dev/disk/by-id/', shell=True).split('\n')
         for disk in all_disks:
             disk = disk.strip()
-            match = re.search('.+?(((scsi-)|(ata-)|(virtio-)).+?) -> ../../([sv]d.+)', disk)
+            match = re.search('.+?(?P<disk_id>((scsi-)|(ata-)|(virtio-)|(nvme-)).+?) -> ../../(?P<disk_name>([sv]d.+)|(nvme.+))', disk)
             if match is not None:
-                disk_id, disk_name = match.groups()[0], match.groups()[-1]
+                groupdict = match.groupdict()
+                disk_id, disk_name = groupdict['disk_id'], groupdict['disk_name']
                 if disk_name in all_mounted_asds:
                     all_mounted_asds.remove(disk_name)
                     all_mounted_asds.append(disk_id.replace('-part1', ''))
@@ -106,15 +107,15 @@ class DiskController(object):
         # Load statistical information about the disk
         root_directory = '/mnt/alba-asd'
         if DiskController._local_client.dir_exists(root_directory) and DiskController._local_client.dir_list(root_directory):
-            df_info = check_output('df -B 1 --output=size,used,avail,target /mnt/alba-asd/*', shell=True).strip().splitlines()[1:]
-            for disk_id in disks:
-                if disks[disk_id]['available'] is False and disks[disk_id]['state'] == 'ok':
-                    for df in df_info:
-                        params = df.split()
-                        if params[-1] == disks[disk_id]['mountpoint']:
-                            disks[disk_id].update({'usage': {'size': int(params[0]),
-                                                             'used': int(params[1]),
-                                                             'available': int(params[2])}})
+            df_info = check_output('df -B 1 --output=size,used,avail,target /mnt/alba-asd/* || true', shell=True).strip()
+            for match in re.findall('^(?P<size>\d+) (?P<used>\d+) (?P<avail>\d+) (?P<mountpoint>/mnt/alba-asd/.*?)$', df_info):
+                groups = match.groupdict()
+                for disk_id in disks:
+                    if disks[disk_id]['available'] is False and disks[disk_id]['state'] == 'ok':
+                        if groups['mountpoint'] == disks[disk_id]['mountpoint']:
+                            disks[disk_id].update({'usage': {'size': int(groups['size']),
+                                                             'used': int(groups['used']),
+                                                             'available': int(groups['avail'])}})
 
         # Execute some checkups on the disks
         for disk_id in disks:
@@ -145,7 +146,7 @@ class DiskController(object):
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('parted {0} -s mklabel gpt'.format(disk_by_id), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(disk_by_id, disk_id), shell=True)
-        check_output('partprobe {0}'.format(disk_by_id), shell=True)
+        check_output('partprobe {0} || true'.format(disk_by_id), shell=True)
         counter = 0
         partition_name = '{0}-part1'.format(disk_by_id)
         while not os.path.exists(partition_name):
