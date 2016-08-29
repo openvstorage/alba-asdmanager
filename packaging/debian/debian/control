@@ -9,7 +9,7 @@ Package: openvstorage-sdm
 Architecture: amd64
 Pre-Depends: ${misc:Pre-Depends}, python (>= 2.7.2), python-flask
 Depends: ${misc:Depends}, lsscsi (>= 0.27-2), ipython, alba, openssl,
-         python-openssl, parted, xfsprogs, etcd, python-etcd, python-requests
+         python-openssl, parted, xfsprogs, etcd, python-etcd, python-requests (>= 2.9.1)
 Recommends: avahi-utils
 Description: Open vStorage Backend ASD Manager
  Management suite for Open vStorage Backend ASDs
