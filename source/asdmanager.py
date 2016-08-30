@@ -118,7 +118,7 @@ def setup():
                                    question='Select the configuration management system',
                                    default_value='Arakoon').lower()
     if store == 'arakoon':
-        from source.tools.configuration.arakoonconfiguration import ArakoonConfiguration
+        from source.tools.configuration.arakoon_config import ArakoonConfiguration
         file_location = ArakoonConfiguration.CACC_LOCATION
         while not local_client.file_exists(file_location):
             print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
@@ -186,7 +186,7 @@ if __name__ == '__main__':
                     _logger.exception('Error during configuration store test')
                     sys.exit(1)
                 if Configuration.get_store() == 'arakoon':
-                    from source.tools.configuration.arakoonconfiguration import ArakoonConfiguration
+                    from source.tools.configuration.arakoon_config import ArakoonConfiguration
                     client = ArakoonConfiguration.get_client()
                     contents = client.get(INTERNAL_CONFIG_KEY)
                     with open(ArakoonConfiguration.CACC_LOCATION, 'w') as config_file:

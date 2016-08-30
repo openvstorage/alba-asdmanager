@@ -351,7 +351,7 @@ class Configuration(object):
         store = Configuration.get_store()
         if store == 'etcd':
             import etcd
-            from source.tools.configuration.etcdconfiguration import EtcdConfiguration
+            from source.tools.configuration.etcd_config import EtcdConfiguration
             try:
                 return getattr(EtcdConfiguration, method)(*args, **kwargs)
             except etcd.EtcdKeyNotFound as ex:
@@ -359,7 +359,7 @@ class Configuration(object):
             except (etcd.EtcdConnectionFailed, etcd.EtcdException) as ex:
                 raise ConnectionException(ex.message)
         if store == 'arakoon':
-            from source.tools.configuration.arakoonconfiguration import ArakoonConfiguration
+            from source.tools.configuration.arakoon_config import ArakoonConfiguration
             from source.tools.pyrakoon.pyrakoon.compat import ArakoonNotFound
             try:
                 return getattr(ArakoonConfiguration, method)(*args, **kwargs)

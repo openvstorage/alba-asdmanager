@@ -21,7 +21,7 @@ import etcd
 import time
 import logging
 from itertools import groupby
-from ovs.log.log_handler import LogHandler
+from source.tools.log_handler import LogHandler
 try:
     from requests.packages.urllib3 import disable_warnings
 except ImportError:
