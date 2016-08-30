@@ -32,7 +32,7 @@ if __name__ == '__main__':
     from source.tools.localclient import LocalClient
     from source.tools.log_handler import LogHandler
     from source.tools.services.service import ServiceManager
-    from source.tools.configuration import EtcdConfiguration
+    from source.tools.configuration.configuration import Configuration
 
     NODE_ID = os.environ['ASD_NODE_ID']
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
@@ -45,7 +45,7 @@ if __name__ == '__main__':
         client = LocalClient('127.0.0.1', username='root')
 
         key = '{0}/versions'.format(CONFIG_ROOT)
-        version = EtcdConfiguration.get(key) if EtcdConfiguration.exists(key) else 0
+        version = Configuration.get(key) if Configuration.exists(key) else 0
 
         if version < CURRENT_VERSION:
             service_name = 'asd-manager'
@@ -59,6 +59,6 @@ if __name__ == '__main__':
                 _logger.info('Starting asd-manager service')
                 ServiceManager.start_service(service_name, client)
 
-        EtcdConfiguration.set(key, CURRENT_VERSION)
+        Configuration.set(key, CURRENT_VERSION)
 
     _logger.info('Post-upgrade logic executed')

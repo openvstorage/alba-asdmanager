@@ -23,14 +23,18 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
+import time
 import logging
-from source.tools.configuration import EtcdConfiguration
+from threading import Thread
+from source.tools.configuration.configuration import Configuration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox
 from source.tools.services.service import ServiceManager
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from subprocess import check_output
+
+INTERNAL_CONFIG_KEY = '__ovs_config'
 
 
 def setup():
@@ -110,13 +114,28 @@ def setup():
         print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
         sys.exit(1)
 
-    print '- Initializing etcd'
+    store = Interactive.ask_choice(['Arakoon', 'Etcd'],
+                                   question='Select the configuration management system',
+                                   default_value='Arakoon').lower()
+    if store == 'arakoon':
+        from source.tools.configuration.arakoonconfiguration import ArakoonConfiguration
+        file_location = ArakoonConfiguration.CACC_LOCATION
+        while not local_client.file_exists(file_location):
+            print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
+            Interactive.ask_continue()
+    bootstrap_location = Configuration.BOOTSTRAP_CONFIG_LOCATION
+    if not local_client.file_exists(bootstrap_location):
+        local_client.file_create(bootstrap_location)
+    local_client.file_write(bootstrap_location, json.dumps({'configuration_store': store}, indent=4))
     try:
-        alba_node_id = EtcdConfiguration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+        alba_node_id = Configuration.initialize(api_ip, api_port, asd_ips, asd_start_port)
     except:
-        print ''  # Spacing
-        print Interactive.boxed_message(['Could not connect to Etcd.',
-                                         'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
+        print ''
+        if store == 'arakoon':
+            print Interactive.boxed_message(['Could not connect to Arakoon'])
+        else:
+            print Interactive.boxed_message(['Could not connect to Etcd.',
+                                             'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
         sys.exit(1)
 
     ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
@@ -125,7 +144,7 @@ def setup():
     try:
         ServiceManager.start_service(service_name, local_client)
     except Exception as ex:
-        EtcdConfiguration.uninitialize(alba_node_id)
+        dConfiguration.uninitialize(alba_node_id)
         print Interactive.boxed_message(['Starting asd-manager failed with error:', str(ex)])
         sys.exit(1)
 
@@ -155,8 +174,35 @@ if __name__ == '__main__':
             wz_logger.addHandler(_logger.handler)
             wz_logger.propagate = False
 
+    def config_updating_loop():
+        _logger = LogHandler.get('asd-manager', name='config_updater')
+        while True:
+            try:
+                _logger.debug('Testing configuration store...')
+                from source.tools.configuration.configuration import Configuration
+                try:
+                    Configuration.list('/')
+                except Exception:
+                    _logger.exception('Error during configuration store test')
+                    sys.exit(1)
+                if Configuration.get_store() == 'arakoon':
+                    from source.tools.configuration.arakoonconfiguration import ArakoonConfiguration
+                    client = ArakoonConfiguration.get_client()
+                    contents = client.get(INTERNAL_CONFIG_KEY)
+                    with open(ArakoonConfiguration.CACC_LOCATION, 'w') as config_file:
+                        config_file.write(contents)
+                _logger.debug('Configuration store OK')
+            except:
+                _logger.exception('Error keeping config up-to-date')
+            finally:
+                time.sleep(30)
+
+    thread = Thread(target=config_updating_loop)
+    thread.start()
+
     app.debug = False
     app.run(host='0.0.0.0',
             port=int(sys.argv[1]),
             ssl_context=('server.crt', 'server.key'),
             threaded=True)
+    thread.join()

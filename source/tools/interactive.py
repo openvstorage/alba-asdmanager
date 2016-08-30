@@ -95,6 +95,13 @@ class Interactive(object):
         return choice_options[result - 1]
 
     @staticmethod
+    def ask_continue():
+        """
+        Wait for the user's confirmation to continue
+        """
+        raw_input('Press enter to continue')
+
+    @staticmethod
     def ask_string(message='', default_value=None, regex_info=None):
         """
         Asks the user a question
@@ -186,8 +193,11 @@ class Interactive(object):
         :param maxlength: Maximum length of a line
         :return:
         """
-        corrected_lines = []
+        split_lines = []
         for line in lines:
+            split_lines.extend(line.splitlines())
+        corrected_lines = []
+        for line in split_lines:
             if len(line) > maxlength:
                 linepart = ''
                 for word in line.split(' '):

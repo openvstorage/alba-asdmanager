@@ -262,7 +262,7 @@ class FleetCtl(object):
 
     @staticmethod
     def _create_unit(fleet_name, template_file):
-        from source.tools.configuration import EtcdConfiguration
+        from source.tools.configuration.configuration import Configuration
         start = time.time()
         while time.time() - start < 60:
             try:

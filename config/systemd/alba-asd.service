@@ -1,6 +1,6 @@
 [Unit]
 Description="alba asd"
-After=network.target local-fs.target
+After=asd-manager.service
 
 [Service]
 Group=alba
@@ -11,5 +11,5 @@ TimeoutStopSec=60
 Environment=PYTHONPATH=:/opt/asd-manager
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity
-ExecStart=/usr/bin/alba asd-start --config etcd://127.0.0.1:2379/ovs/alba/asds/<ASD>/config --log-sink <LOG_SINK>
+ExecStart=/usr/bin/alba asd-start --config <CONFIG_PATH> --log-sink <LOG_SINK>
 ExecStartPre=/bin/sh -c "if [ ! -d /opt/asd-manager/run ]; then mkdir /opt/asd-manager/run; chown alba:alba /opt/asd-manager/run; fi; echo `alba version --terse` > /opt/asd-manager/run/<SERVICE_NAME>.version"
