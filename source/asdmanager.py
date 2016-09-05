@@ -144,7 +144,7 @@ def setup():
     try:
         ServiceManager.start_service(watcher_name, local_client)
     except Exception as ex:
-        dConfiguration.uninitialize(alba_node_id)
+        Configuration.uninitialize(alba_node_id)
         print Interactive.boxed_message(['Starting watcher failed with error:', str(ex)])
         sys.exit(1)
 

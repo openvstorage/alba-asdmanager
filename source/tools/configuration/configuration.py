@@ -62,22 +62,6 @@ class Configuration(object):
     _store = None
     BOOTSTRAP_CONFIG_LOCATION = '/opt/asd-manager/config/framework.json'
 
-    base_config = {'cluster_id': None,
-                   'external_config': None,
-                   'plugins/installed': {'backends': [],
-                                         'generic': []},
-                   'paths': {'cfgdir': '/opt/OpenvStorage/config',
-                             'basedir': '/opt/OpenvStorage',
-                             'ovsdb': '/opt/OpenvStorage/db'},
-                   'support': {'enablesupport': False,
-                               'enabled': True,
-                               'interval': 60},
-                   'storagedriver': {'mds_safety': 2,
-                                     'mds_tlogs': 100,
-                                     'mds_maxload': 75},
-                   'webapps': {'html_endpoint': '/',
-                               'oauth2': {'mode': 'local'}}}
-
     def __init__(self):
         """
         Dummy init method
