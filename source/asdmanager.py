@@ -187,8 +187,9 @@ if __name__ == '__main__':
                     sys.exit(1)
                 if Configuration.get_store() == 'arakoon':
                     from source.tools.configuration.arakoon_config import ArakoonConfiguration
+                    from source.pyrakoon.compat import NoGuarantee
                     client = ArakoonConfiguration.get_client()
-                    contents = client.get(INTERNAL_CONFIG_KEY)
+                    contents = client.get(INTERNAL_CONFIG_KEY, consistency=NoGuarantee())
                     with open(ArakoonConfiguration.CACC_LOCATION, 'w') as config_file:
                         config_file.write(contents)
                 _logger.debug('Configuration store OK')
