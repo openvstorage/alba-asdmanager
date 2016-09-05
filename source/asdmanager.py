@@ -34,8 +34,6 @@ from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from subprocess import check_output
 
-INTERNAL_CONFIG_KEY = '__ovs_config'
-
 
 def setup():
     """
@@ -44,6 +42,7 @@ def setup():
     print Interactive.boxed_message(['ASD Manager setup'])
     local_client = LocalClient()
     service_name = 'asd-manager'
+    watcher_name = 'asd-watcher'
 
     print '- Verifying distribution'
     if ServiceManager.has_service(service_name, local_client):
@@ -140,12 +139,13 @@ def setup():
 
     ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
                                                                    'PORT_NUMBER': str(api_port)})
-    print '- Starting ASD manager service'
+    ServiceManager.add_service(watcher_name, local_client)
+    print '- Starting watcher service'
     try:
-        ServiceManager.start_service(service_name, local_client)
+        ServiceManager.start_service(watcher_name, local_client)
     except Exception as ex:
         dConfiguration.uninitialize(alba_node_id)
-        print Interactive.boxed_message(['Starting asd-manager failed with error:', str(ex)])
+        print Interactive.boxed_message(['Starting watcher failed with error:', str(ex)])
         sys.exit(1)
 
     print Interactive.boxed_message(['ASD Manager setup completed'])
@@ -174,36 +174,8 @@ if __name__ == '__main__':
             wz_logger.addHandler(_logger.handler)
             wz_logger.propagate = False
 
-    def config_updating_loop():
-        _logger = LogHandler.get('asd-manager', name='config_updater')
-        while True:
-            try:
-                _logger.debug('Testing configuration store...')
-                from source.tools.configuration.configuration import Configuration
-                try:
-                    Configuration.list('/')
-                except Exception:
-                    _logger.exception('Error during configuration store test')
-                    sys.exit(1)
-                if Configuration.get_store() == 'arakoon':
-                    from source.tools.configuration.arakoon_config import ArakoonConfiguration
-                    from source.pyrakoon.compat import NoGuarantee
-                    client = ArakoonConfiguration.get_client()
-                    contents = client.get(INTERNAL_CONFIG_KEY, consistency=NoGuarantee())
-                    with open(ArakoonConfiguration.CACC_LOCATION, 'w') as config_file:
-                        config_file.write(contents)
-                _logger.debug('Configuration store OK')
-            except:
-                _logger.exception('Error keeping config up-to-date')
-            finally:
-                time.sleep(30)
-
-    thread = Thread(target=config_updating_loop)
-    thread.start()
-
     app.debug = False
     app.run(host='0.0.0.0',
             port=int(sys.argv[1]),
             ssl_context=('server.crt', 'server.key'),
             threaded=True)
-    thread.join()

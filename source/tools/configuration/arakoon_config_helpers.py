@@ -76,7 +76,7 @@ class ArakoonClusterConfig(object):
     contains cluster config parameters
     """
     CONFIG_KEY = '/ovs/arakoon/{0}/config'
-    CONFIG_FILE = '/opt/OpenvStorage/config/arakoon_{0}.ini'
+    CONFIG_FILE = '/opt/asd-manager/config/arakoon_{0}.ini'
 
     def __init__(self, cluster_id, filesystem, plugins=None):
         """

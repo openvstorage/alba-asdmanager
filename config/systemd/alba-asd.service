@@ -1,6 +1,6 @@
 [Unit]
 Description="alba asd"
-After=asd-manager.service
+After=asd-manager.service asd-watcher.service
 
 [Service]
 Group=alba
