@@ -142,7 +142,7 @@ class ASDController(object):
                       'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
         if Configuration.get('/ovs/framework/rdma'):
             asd_config['rora_port'] = rora_port
-            asd_config['rora_transport'] = 'rdma' if Configuration.get('/ovs/framework/rdma') else 'tcp'
+            asd_config['rora_transport'] = 'rdma'
         if ips is not None and len(ips) > 0:
             asd_config['ips'] = ips
 
