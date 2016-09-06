@@ -115,9 +115,10 @@ def setup():
 
     if run_interactive is False:
         store = config['asdmanager'].get('store')
+        if store is not None:
+            store = store.lower()
         if store != 'arakoon' and store != 'etcd':
             raise RuntimeError('Invalid store in unattended config. Should be "arakoon" or "etcd"')
-        store = store.lower()
     else:
         store = Interactive.ask_choice(['Arakoon', 'Etcd'],
                                        question='Select the configuration management system',
