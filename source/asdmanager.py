@@ -113,9 +113,14 @@ def setup():
         print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
         sys.exit(1)
 
-    store = Interactive.ask_choice(['Arakoon', 'Etcd'],
-                                   question='Select the configuration management system',
-                                   default_value='Arakoon').lower()
+    if run_interactive is False:
+        store = config['asdmanager'].get('store')
+        if store != 'arakoon' and store != 'etcd':
+            raise RuntimeError('Invalid store in unattended config. Should be "arakoon" or "etcd"')
+    else:
+        store = Interactive.ask_choice(['Arakoon', 'Etcd'],
+                                       question='Select the configuration management system',
+                                       default_value='Arakoon').lower()
     if store == 'arakoon':
         from source.tools.configuration.arakoon_config import ArakoonConfiguration
         file_location = ArakoonConfiguration.CACC_LOCATION
