@@ -24,7 +24,7 @@ import random
 import signal
 import string
 from subprocess import check_output
-from source.tools.configuration import EtcdConfiguration
+from source.tools.configuration.configuration import Configuration
 from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
@@ -56,8 +56,8 @@ class ASDController(object):
         asds = {}
         try:
             for asd_id in os.listdir(mountpoint):
-                if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(ASDController.ASD_CONFIG.format(asd_id)):
-                    asds[asd_id] = EtcdConfiguration.get(ASDController.ASD_CONFIG.format(asd_id))
+                if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
+                    asds[asd_id] = Configuration.get(ASDController.ASD_CONFIG.format(asd_id))
                     output = check_output('ls {0}/{1}/ 2>&1 || true'.format(mountpoint, asd_id), shell=True)
                     if 'Input/output error' in output:
                         asds[asd_id].update({'state': 'error',
@@ -97,15 +97,15 @@ class ASDController(object):
         # Find out appropriate disk size
         asds = 1.0
         for asd_id in os.listdir(mountpoint):
-            if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(ASDController.ASD_CONFIG.format(asd_id)):
+            if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
                 asds += 1
         asd_size = int(math.floor(disk_size / asds))
         for asd_id in os.listdir(mountpoint):
-            if os.path.isdir('/'.join([mountpoint, asd_id])) and EtcdConfiguration.exists(ASDController.ASD_CONFIG.format(asd_id)):
-                config = json.loads(EtcdConfiguration.get(ASDController.ASD_CONFIG.format(asd_id), raw=True))
+            if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
+                config = json.loads(Configuration.get(ASDController.ASD_CONFIG.format(asd_id), raw=True))
                 config['capacity'] = asd_size
                 config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
-                EtcdConfiguration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(config, indent=4), raw=True)
+                Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(config, indent=4), raw=True)
                 try:
                     ServiceManager.send_signal(ASDController.ASD_SERVICE_PREFIX.format(asd_id),
                                                signal.SIGUSR1,
@@ -117,8 +117,8 @@ class ASDController(object):
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         ASDController._logger.info('Setting up service for disk {0}'.format(disk_id))
         homedir = '{0}/{1}'.format(mountpoint, asd_id)
-        base_port = EtcdConfiguration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
-        ips = EtcdConfiguration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
+        base_port = Configuration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
+        ips = Configuration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
         used_ports = []
         for asd in all_asds.itervalues():
             used_ports.append(asd['port'])
@@ -131,27 +131,30 @@ class ASDController(object):
         used_ports.append(asd_port)
         while rora_port in used_ports:
             rora_port += 1
+
         asd_config = {'home': homedir,
                       'node_id': ASDController.NODE_ID,
                       'asd_id': asd_id,
                       'capacity': asd_size,
                       'log_level': 'info',
                       'port': asd_port,
-                      'transport': 'rdma' if EtcdConfiguration.get('/ovs/framework/rdma') else 'tcp',
+                      'transport': 'tcp',
                       'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
-        if EtcdConfiguration.get('/ovs/framework/rdma'):
+        if Configuration.get('/ovs/framework/rdma'):
             asd_config['rora_port'] = rora_port
-
-        if EtcdConfiguration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
-            data = EtcdConfiguration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
-            asd_config.update(data)
-
+            asd_config['rora_transport'] = 'rdma' if Configuration.get('/ovs/framework/rdma') else 'tcp'
         if ips is not None and len(ips) > 0:
             asd_config['ips'] = ips
-        EtcdConfiguration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
+
+        if Configuration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
+            data = Configuration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
+            asd_config.update(data)
+
+        Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         params = {'ASD': asd_id,
+                  'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
                   'SERVICE_NAME': service_name,
                   'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
         os.mkdir(homedir)
@@ -173,7 +176,7 @@ class ASDController(object):
             ServiceManager.stop_service(service_name, ASDController._local_client)
             ServiceManager.remove_service(service_name, ASDController._local_client)
         ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
-        EtcdConfiguration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
+        Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod
     def start_asd(asd_id):
