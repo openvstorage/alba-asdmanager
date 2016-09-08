@@ -128,6 +128,7 @@ def setup():
         file_location = ArakoonConfiguration.CACC_LOCATION
         source_location = ArakoonConfiguration.CACC_SOURCE
         if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
+            # Try to copy automatically
             try:
                 check_output('cp {0} {1}'.format(source_location, file_location))
             except:
