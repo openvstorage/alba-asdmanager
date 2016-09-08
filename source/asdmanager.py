@@ -19,7 +19,6 @@
 """
 Module for ASD Manager SetupController
 """
-
 import os
 import sys
 import json
@@ -130,8 +129,8 @@ def setup():
         if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
             # Try to copy automatically
             try:
-                check_output('cp {0} {1}'.format(source_location, file_location))
-            except:
+                local_client.run('cp {0} {1}'.format(source_location, file_location))
+            except Exception:
                 pass
         while not local_client.file_exists(file_location):
             print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
