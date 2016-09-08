@@ -46,6 +46,7 @@ class ArakoonConfiguration(object):
     """
 
     CACC_LOCATION = '/opt/asd-manager/config/arakoon_cacc.ini'
+    CACC_SOURCE = '/opt/OpenvStorage/config/arakoon_cacc.ini'
     _client = None
     lock = Lock()
 
