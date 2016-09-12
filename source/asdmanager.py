@@ -19,7 +19,6 @@
 """
 Module for ASD Manager SetupController
 """
-
 import os
 import sys
 import json
@@ -126,6 +125,13 @@ def setup():
     if store == 'arakoon':
         from source.tools.configuration.arakoon_config import ArakoonConfiguration
         file_location = ArakoonConfiguration.CACC_LOCATION
+        source_location = ArakoonConfiguration.CACC_SOURCE
+        if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
+            # Try to copy automatically
+            try:
+                local_client.run('cp {0} {1}'.format(source_location, file_location))
+            except Exception:
+                pass
         while not local_client.file_exists(file_location):
             print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
             Interactive.ask_continue()
