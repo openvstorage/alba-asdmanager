@@ -215,4 +215,4 @@ class Systemd(object):
     @staticmethod
     def list_services(client):
         for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager'):
-            yield service_info.split(' ')[0].rtrim('.service')
+            yield service_info.split(' ')[0].rstrip('.service')
