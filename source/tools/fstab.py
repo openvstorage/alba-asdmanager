@@ -22,7 +22,7 @@ FSTAB related code
 class FSTab(object):
     filename = '/etc/fstab'
     separator = ('# BEGIN ALBA ASDs', '# END ALBA ASDs')  # Don't change, for backwards compatibility
-    line = '{0}  {1}  xfs  defaults,nobootwait,noatime,discard  0  2'
+    line = '{0}  {1}  xfs  defaults,nofail,noatime,discard  0  2'
 
     @staticmethod
     def add(disk, mountpoint):
