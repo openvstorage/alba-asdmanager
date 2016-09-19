@@ -46,12 +46,12 @@ class UpdateController(object):
     @staticmethod
     def get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files(UpdateController._local_client):
-            if file_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
-                file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
+        for service_name in ServiceManager.list_services(UpdateController._local_client):
+            if service_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
+                file_path = '/opt/asd-manager/run/{0}.version'.format(service_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
-                        services[file_name] = fp.read().strip()
+                        services[service_name] = fp.read().strip()
         return services
 
     @staticmethod

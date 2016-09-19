@@ -323,6 +323,5 @@ class Systemd(object):
         :return: List of all services which have been created on some point
         :rtype: generator
         """
-        for filename in client.dir_list('/lib/systemd/system/'):
-            if filename.endswith('.service'):
-                yield filename.replace('.service', '')
+        for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager'):
+            yield service_info.split(' ')[0].rstrip('.service')
