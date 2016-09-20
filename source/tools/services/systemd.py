@@ -47,11 +47,25 @@ class Systemd(object):
         name = 'ovs-{0}'.format(name)
         if Systemd._service_exists(name, client, path):
             return name
-        Systemd._logger.debug('Service {0} could not be found.'.format(name))
+        Systemd._logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
     @staticmethod
     def add_service(name, client, params=None, target_name=None, additional_dependencies=None):
+        """
+        Add a service
+        :param name: Name of the service to add
+        :type name: str
+        :param client: Client on which to add the service
+        :type client: SSHClient
+        :param params: Additional information about the service
+        :type params: dict
+        :param target_name: Overrule default name of the service with this name
+        :type target_name: str
+        :param additional_dependencies: Additional dependencies for this service
+        :type additional_dependencies: list
+        :return: None
+        """
         if params is None:
             params = {}
 
@@ -93,23 +107,34 @@ class Systemd(object):
             raise Exception('Add {0}.service failed, {1}'.format(name, output))
 
     @staticmethod
-    def get_service_status(name, client, return_output=False):
+    def get_service_status(name, client):
+        """
+        Retrieve the status of a service
+        :param name: Name of the service to retrieve the status of
+        :type name: str
+        :param client: Client on which to retrieve the status
+        :type client: SSHClient
+        :return: The status of the service and the output of the command
+        :rtype: tuple
+        """
         name = Systemd._get_name(name, client)
         output = client.run('systemctl is-active {0} || true'.format(name))
-        if 'active' == output:
-            if return_output is True:
-                return True, output
-            return True
-        if 'inactive' == output:
-            if return_output is True:
-                return False, output
-            return False
-        if return_output is True:
+        if output == 'active':
+            return True, output
+        elif output == 'inactive':
             return False, output
-        return False
+        return False, output
 
     @staticmethod
     def remove_service(name, client):
+        """
+        Remove a service
+        :param name: Name of the service to remove
+        :type name: str
+        :param client: Client on which to remove the service
+        :type client: SSHClient
+        :return: None
+        """
         # remove systemd.service file
         name = Systemd._get_name(name, client)
         client.file_delete('/lib/systemd/system/{0}.service'.format(name))
@@ -117,6 +142,14 @@ class Systemd(object):
 
     @staticmethod
     def disable_service(name, client):
+        """
+        Disable a service
+        :param name: Name of the service to disable
+        :type name: str
+        :param client: Client on which to disable the service
+        :type client: SSHClient
+        :return: None
+        """
         name = Systemd._get_name(name, client)
         try:
             client.run('systemctl disable {0}.service'.format(name))
@@ -127,6 +160,14 @@ class Systemd(object):
 
     @staticmethod
     def enable_service(name, client):
+        """
+        Enable a service
+        :param name: Name of the service to enable
+        :type name: str
+        :param client: Client on which to enable the service
+        :type client: SSHClient
+        :return: None
+        """
         name = Systemd._get_name(name, client)
         try:
             client.run('systemctl enable {0}.service'.format(name))
@@ -137,7 +178,16 @@ class Systemd(object):
 
     @staticmethod
     def start_service(name, client):
-        status, output = Systemd.get_service_status(name, client, True)
+        """
+        Start a service
+        :param name: Name of the service to start
+        :type name: str
+        :param client: Client on which to start the service
+        :type client: SSHClient
+        :return: The output of the start command
+        :rtype: str
+        """
+        status, output = Systemd.get_service_status(name, client)
         if status is True:
             return output
         try:
@@ -150,7 +200,16 @@ class Systemd(object):
 
     @staticmethod
     def stop_service(name, client):
-        status, output = Systemd.get_service_status(name, client, True)
+        """
+        Stop a service
+        :param name: Name of the service to stop
+        :type name: str
+        :param client: Client on which to stop the service
+        :type client: SSHClient
+        :return: The output of the stop command
+        :rtype: str
+        """
+        status, output = Systemd.get_service_status(name, client)
         if status is False:
             return output
         try:
@@ -163,6 +222,15 @@ class Systemd(object):
 
     @staticmethod
     def restart_service(name, client):
+        """
+        Restart a service
+        :param name: Name of the service to restart
+        :type name: str
+        :param client: Client on which to restart the service
+        :type client: SSHClient
+        :return: The output of the restart command
+        :rtype: str
+        """
         try:
             name = Systemd._get_name(name, client)
             output = client.run('systemctl restart {0}.service'.format(name))
@@ -173,6 +241,15 @@ class Systemd(object):
 
     @staticmethod
     def has_service(name, client):
+        """
+        Verify existence of a service
+        :param name: Name of the service to verify
+        :type name: str
+        :param client: Client on which to check for the service
+        :type client: SSHClient
+        :return: Whether the service exists
+        :rtype: bool
+        """
         try:
             Systemd._get_name(name, client)
             return True
@@ -181,6 +258,15 @@ class Systemd(object):
 
     @staticmethod
     def is_enabled(name, client):
+        """
+        Verify whether a service is enabled
+        :param name: Name of the service to verify if enabled
+        :type name: str
+        :param client: Client on which to verify whether the service is enabled
+        :type client: SSHClient
+        :return: Whether the service is enabled
+        :rtype: bool
+        """
         name = Systemd._get_name(name, client)
         output = client.run('systemctl is-enabled {0} || true'.format(name))
         if 'enabled' in output:
@@ -191,22 +277,38 @@ class Systemd(object):
 
     @staticmethod
     def get_service_pid(name, client):
+        """
+        Retrieve the PID of a service
+        :param name: Name of the service to retrieve the PID for
+        :type name: str
+        :param client: Client on which to retrieve the PID for the service
+        :type client: SSHClient
+        :return: The PID of the service or 0 if no PID found
+        :rtype: int
+        """
         pid = 0
         name = Systemd._get_name(name, client)
-        if Systemd.get_service_status(name, client):
-            output = client.run('systemctl status {0} || true'.format(name))
-            if output:
-                output = output.splitlines()
-                for line in output:
-                    if 'Main PID' in line:
-                        pid = line.split(' ')[3]
-                        if not pid.isdigit():
-                            pid = 0
-                        break
-        return pid
+        if Systemd.get_service_status(name, client)[0] is True:
+            output = client.run('systemctl show {0} --property=MainPID || true'.format(name)).split('=')
+            if len(output) == 2:
+                pid = output[1]
+                if not pid.isdigit():
+                    pid = 0
+        return int(pid)
 
     @staticmethod
     def send_signal(name, signal, client):
+        """
+        Remove a service
+        :param name: Name of the service to send a signal
+        :type name: str
+        :param signal: Signal to pass on to the service
+        :type signal: int
+        :param client: Client on which to send a signal to the service
+        :type client: SSHClient
+        :return: None
+        """
+        name = Systemd._get_name(name, client)
         pid = Systemd.get_service_pid(name, client)
         if pid == 0:
             raise RuntimeError('Could not determine PID to send signal to')
@@ -214,5 +316,12 @@ class Systemd(object):
 
     @staticmethod
     def list_services(client):
+        """
+        List all created services on a system
+        :param client: Client on which to list all the services
+        :type client: SSHClient
+        :return: List of all services which have been created on some point
+        :rtype: generator
+        """
         for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager'):
             yield service_info.split(' ')[0].rstrip('.service')

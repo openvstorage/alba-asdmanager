@@ -98,7 +98,7 @@ class UpdateController(object):
                 UpdateController._local_client.run('rm /tmp/update')
             return {'status': 'running'}
         else:
-            status = ServiceManager.get_service_status('asd-manager', UpdateController._local_client)
+            status, _ = ServiceManager.get_service_status('asd-manager', UpdateController._local_client)
             return {'status': 'done' if status is True else 'running'}
 
     @staticmethod
@@ -108,7 +108,7 @@ class UpdateController(object):
         result = {}
         for service, running_version in UpdateController.get_sdm_services().iteritems():
             if running_version != alba_package_info[1]:
-                status = ServiceManager.get_service_status(service, UpdateController._local_client)
+                status, _ = ServiceManager.get_service_status(service, UpdateController._local_client)
                 if status is False:
                     UpdateController._logger.info('Found stopped service {0}. Will not start it.'.format(service))
                     result[service] = 'stopped'

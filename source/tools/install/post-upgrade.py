@@ -49,13 +49,13 @@ if __name__ == '__main__':
 
         if version < CURRENT_VERSION:
             service_name = 'asd-manager'
-            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client) is True:
+            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is True:
                 _logger.info('Stopping asd-manager service')
                 ServiceManager.stop_service(service_name, client)
 
             # Migration
 
-            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client) is False:
+            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is False:
                 _logger.info('Starting asd-manager service')
                 ServiceManager.start_service(service_name, client)
 
