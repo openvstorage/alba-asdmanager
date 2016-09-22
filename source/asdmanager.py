@@ -33,6 +33,8 @@ from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from subprocess import check_output
 
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
+
 
 def setup():
     """
@@ -150,8 +152,10 @@ def setup():
                                              'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
         sys.exit(1)
 
-    ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
-                                                                   'PORT_NUMBER': str(api_port)})
+    with open(BOOTSTRAP_FILE, 'w') as bs_file:
+        json.dump({'node_id': alba_node_id}, bs_file)
+
+    ServiceManager.add_service(service_name, local_client, params={'PORT_NUMBER': str(api_port)})
     ServiceManager.add_service(watcher_name, local_client)
     print '- Starting watcher service'
     try:
@@ -172,6 +176,10 @@ if __name__ == '__main__':
         raise RuntimeError('Argument provided must be an integer (Port number for the ASD manager')
     if not 1024 < port <= 65535:
         raise RuntimeError('Port provided must be within range 1025 - 65535')
+
+    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
+        node_id = json.load(bootstrap_file)['node_id']
+    os.environ['ASD_NODE_ID'] = node_id
 
     from source.app import app
 
