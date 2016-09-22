@@ -34,7 +34,10 @@ if __name__ == '__main__':
     from source.tools.services.service import ServiceManager
     from source.tools.configuration.configuration import Configuration
 
-    NODE_ID = os.environ['ASD_NODE_ID']
+    with open('/opt/asd-manager/config/bootstrap.json', 'r') as bootstrap_file:
+        NODE_ID = json.load(bootstrap_file)['node_id']
+        os.environ['ASD_NODE_ID'] = NODE_ID
+
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
     CURRENT_VERSION = 0
 
