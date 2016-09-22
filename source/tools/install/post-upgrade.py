@@ -28,13 +28,14 @@ if __name__ == '__main__':
     import os
     import json
     import glob
+    from source.asdmanager import BOOTSTRAP_FILE
     from source.tools.filemutex import file_mutex
     from source.tools.localclient import LocalClient
     from source.tools.log_handler import LogHandler
     from source.tools.services.service import ServiceManager
     from source.tools.configuration.configuration import Configuration
 
-    with open('/opt/asd-manager/config/bootstrap.json', 'r') as bootstrap_file:
+    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
         NODE_ID = json.load(bootstrap_file)['node_id']
         os.environ['ASD_NODE_ID'] = NODE_ID
 
