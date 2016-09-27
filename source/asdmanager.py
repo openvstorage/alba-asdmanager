@@ -22,9 +22,7 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
-import time
 import logging
-from threading import Thread
 from source.tools.configuration.configuration import Configuration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox
@@ -185,6 +183,10 @@ if __name__ == '__main__':
 
     @app.before_first_request
     def setup_logging():
+        """
+        Configure logging
+        :return: None
+        """
         if app.debug is False:
             _logger = LogHandler.get('asd-manager', name='flask')
             app.logger.handlers = []
