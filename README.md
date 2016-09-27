@@ -1,5 +1,5 @@
 # ALBA ASD manager
-The ALBA ASD manager is a lightweight library exposing an API for easy setup and configurration management of the ALBA ASD's. It is not in the data path towards the disks, it's main purpose is to provide an easy way to:
+The ALBA ASD manager is a lightweight library exposing an API for easy setup and configuration management of the ALBA ASD's. It is not in the data path towards the disks, it's main purpose is to provide an easy way to:
 * list the block devices in your node
 * initialize them as an ASD (Alba Storage device)
 * get the ip addresses of your storage node
