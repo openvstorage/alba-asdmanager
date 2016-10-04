@@ -27,7 +27,7 @@ import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
-from source.tools.configuration import EtcdConfiguration
+from source.tools.configuration.configuration import Configuration
 
 NODE_ID = os.environ['ASD_NODE_ID']
 
@@ -104,7 +104,7 @@ def _authorized():
     """
     Indicates whether a call is authenticated
     """
-    username = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|username'.format(NODE_ID))
-    password = EtcdConfiguration.get('/ovs/alba/asdnodes/{0}/config/main|password'.format(NODE_ID))
+    username = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|username'.format(NODE_ID))
+    password = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|password'.format(NODE_ID))
     auth = request.authorization
     return auth and auth.username == username and auth.password == password

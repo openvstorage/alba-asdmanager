@@ -18,7 +18,7 @@
 This module contains the maintenance controller (maintenance service logic)
 """
 import json
-from source.tools.configuration import EtcdConfiguration
+from source.tools.configuration.configuration import Configuration
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from source.tools.services.service import ServiceManager
@@ -54,12 +54,12 @@ class MaintenanceController(object):
                 ServiceManager.enable_service(name, MaintenanceController._local_client)
         else:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
-            alba_config = 'etcd://127.0.0.1:2379{0}'.format(config_location)
+            alba_config = Configuration.get_configuration_path(config_location)
             params = {'ALBA_CONFIG': alba_config,
                       'LOG_SINK': LogHandler.get_sink_path('alba_maintenance')}
-            EtcdConfiguration.set(config_location, json.dumps({
+            Configuration.set(config_location, json.dumps({
                 'log_level': 'info',
-                'albamgr_cfg_url': 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(abm_name)
+                'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name))
             }, indent=4), raw=True)
 
             ServiceManager.add_service(name='alba-maintenance', client=MaintenanceController._local_client,

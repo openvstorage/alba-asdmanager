@@ -46,12 +46,12 @@ class UpdateController(object):
     @staticmethod
     def get_sdm_services():
         services = {}
-        for file_name in ServiceManager.list_service_files(UpdateController._local_client):
-            if file_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
-                file_path = '/opt/asd-manager/run/{0}.version'.format(file_name)
+        for service_name in ServiceManager.list_services(UpdateController._local_client):
+            if service_name.startswith(UpdateController.ASD_SERVICE_PREFIX):
+                file_path = '/opt/asd-manager/run/{0}.version'.format(service_name)
                 if os.path.isfile(file_path):
                     with open(file_path) as fp:
-                        services[file_name] = fp.read().strip()
+                        services[service_name] = fp.read().strip()
         return services
 
     @staticmethod
@@ -98,7 +98,7 @@ class UpdateController(object):
                 UpdateController._local_client.run('rm /tmp/update')
             return {'status': 'running'}
         else:
-            status = ServiceManager.get_service_status('asd-manager', UpdateController._local_client)
+            status, _ = ServiceManager.get_service_status('asd-manager', UpdateController._local_client)
             return {'status': 'done' if status is True else 'running'}
 
     @staticmethod
@@ -108,7 +108,7 @@ class UpdateController(object):
         result = {}
         for service, running_version in UpdateController.get_sdm_services().iteritems():
             if running_version != alba_package_info[1]:
-                status = ServiceManager.get_service_status(service, UpdateController._local_client)
+                status, _ = ServiceManager.get_service_status(service, UpdateController._local_client)
                 if status is False:
                     UpdateController._logger.info('Found stopped service {0}. Will not start it.'.format(service))
                     result[service] = 'stopped'

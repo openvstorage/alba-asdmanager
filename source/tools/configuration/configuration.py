@@ -15,56 +15,52 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Generic module for managing configuration in Etcd
+Generic module for managing configuration somewhere
 """
 import os
-import etcd
+import copy
 import json
 import random
 import string
-from itertools import groupby
-try:
-    from requests.packages.urllib3 import disable_warnings
-except ImportError:
-    import requests
-    try:
-        reload(requests)  # Required for 2.6 > 2.7 upgrade (new requests.packages module)
-    except ImportError:
-        pass  # So, this reload fails because of some FileNodeWarning that can't be found. But it did reload. Yay.
-    from requests.packages.urllib3 import disable_warnings
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.packages.urllib3.exceptions import SNIMissingWarning
 
 
-class EtcdConfiguration(object):
+class NotFoundException(Exception):
+    """Not found exception."""
+    pass
+
+
+class ConnectionException(Exception):
+    """Connection exception."""
+    pass
+
+
+class Configuration(object):
     """
-    Configuration class using Etcd.
+    Configuration wrapper.
 
-    Uses a special key format to specify the path within etcd, and specify a path inside the json data
-    object that might be stored inside the etcd key.
-    key  = <etcd path>[|<json path>]
-    etcd path = slash-delimited path
+    Uses a special key format to specify the path within the configuration store, and specify a path inside the json data
+    object that might be stored inside the key.
+    key  = <main path>[|<json path>]
+    main path = slash-delimited path
     json path = dot-delimited path
 
     Examples:
-        > EtcdConfiguration.set('/foo', 1)
-        > print EtcdConfiguration.get('/foo')
+        > Configuration.set('/foo', 1)
+        > print Configuration.get('/foo')
         < 1
-        > EtcdConfiguration.set('/foo', {'bar': 1})
-        > print EtcdConfiguration.get('/foo')
+        > Configuration.set('/foo', {'bar': 1})
+        > print Configuration.get('/foo')
         < {u'bar': 1}
-        > print EtcdConfiguration.get('/foo|bar')
+        > print Configuration.get('/foo|bar')
         < 1
-        > EtcdConfiguration.set('/bar|a.b', 'test')
-        > print EtcdConfiguration.get('/bar')
+        > Configuration.set('/bar|a.b', 'test')
+        > print Configuration.get('/bar')
         < {u'a': {u'b': u'test'}}
     """
-    _unittest_data = {}
 
-    disable_warnings(InsecurePlatformWarning)
-    disable_warnings(InsecureRequestWarning)
-    disable_warnings(SNIMissingWarning)
+    _unittest_data = {}
+    _store = None
+    BOOTSTRAP_CONFIG_LOCATION = '/opt/asd-manager/config/framework.json'
 
     def __init__(self):
         """
@@ -73,26 +69,44 @@ class EtcdConfiguration(object):
         _ = self
 
     @staticmethod
+    def get_configuration_path(key):
+        """
+        Retrieve the configuration path
+        For etcd: 'etcd://127.0.0.1:2379{0}'.format(key)
+        For arakoon: 'arakoon:///opt/OpenvStorage/config/arakoon_cacc.ini:{0}'.format(key)
+        :param key: Key to retrieve the full configuration path for
+        :type key: str
+        :return: Configuration path
+        :rtype: str
+        """
+        # _ = Configuration.get(key)
+        return Configuration._passthrough(method='get_configuration_path',
+                                          key=key)
+
+    @staticmethod
     def get(key, raw=False):
         """
-        Get value from etcd
+        Get value from the configuration store
         :param key: Key to get
         :param raw: Raw data if True else json format
         :return: Value for key
         """
         key_entries = key.split('|')
-        data = EtcdConfiguration._get(key_entries[0], raw)
+        data = Configuration._get(key_entries[0], raw)
         if len(key_entries) == 1:
             return data
-        temp_data = data
-        for entry in key_entries[1].split('.'):
-            temp_data = temp_data[entry]
-        return temp_data
+        try:
+            temp_data = data
+            for entry in key_entries[1].split('.'):
+                temp_data = temp_data[entry]
+            return temp_data
+        except KeyError as ex:
+            raise NotFoundException(ex.message)
 
     @staticmethod
     def set(key, value, raw=False):
         """
-        Set value in etcd
+        Set value in the configuration store
         :param key: Key to store
         :param value: Value to store
         :param raw: Raw data if True else json format
@@ -100,11 +114,11 @@ class EtcdConfiguration(object):
         """
         key_entries = key.split('|')
         if len(key_entries) == 1:
-            EtcdConfiguration._set(key_entries[0], value, raw)
+            Configuration._set(key_entries[0], value, raw)
             return
         try:
-            data = EtcdConfiguration._get(key_entries[0], raw)
-        except etcd.EtcdKeyNotFound:
+            data = Configuration._get(key_entries[0], raw)
+        except NotFoundException:
             data = {}
         temp_config = data
         entries = key_entries[1].split('.')
@@ -115,12 +129,12 @@ class EtcdConfiguration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = value
-        EtcdConfiguration._set(key_entries[0], data, raw)
+        Configuration._set(key_entries[0], data, raw)
 
     @staticmethod
     def delete(key, remove_root=False, raw=False):
         """
-        Delete key - value from etcd
+        Delete key - value from the configuration store
         :param key: Key to delete
         :param remove_root: Remove root
         :param raw: Raw data if True else json format
@@ -128,9 +142,9 @@ class EtcdConfiguration(object):
         """
         key_entries = key.split('|')
         if len(key_entries) == 1:
-            EtcdConfiguration._delete(key_entries[0], recursive=True)
+            Configuration._delete(key_entries[0], recursive=True)
             return
-        data = EtcdConfiguration._get(key_entries[0], raw)
+        data = Configuration._get(key_entries[0], raw)
         temp_config = data
         entries = key_entries[1].split('.')
         if len(entries) > 1:
@@ -143,39 +157,39 @@ class EtcdConfiguration(object):
             del temp_config[entries[-1]]
         if len(entries) == 1 and remove_root is True:
             del data[entries[0]]
-        EtcdConfiguration._set(key_entries[0], data, raw)
+        Configuration._set(key_entries[0], data, raw)
 
     @staticmethod
     def exists(key, raw=False):
         """
-        Check if key exists in etcd
+        Check if key exists in the configuration store
         :param key: Key to check
         :param raw: Process raw data
         :return: True if exists
         """
         try:
-            EtcdConfiguration.get(key, raw)
+            Configuration.get(key, raw)
             return True
-        except (KeyError, etcd.EtcdKeyNotFound):
+        except NotFoundException:
             return False
 
     @staticmethod
     def dir_exists(key):
         """
-        Check if directory exists in etcd
+        Check if directory exists in the configuration store
         :param key: Directory to check
         :return: True if exists
         """
-        return EtcdConfiguration._dir_exists(key)
+        return Configuration._dir_exists(key)
 
     @staticmethod
     def list(key):
         """
-        List all keys in tree
+        List all keys in tree in the configuration store
         :param key: Key to list
         :return: Generator object
         """
-        return EtcdConfiguration._list(key)
+        return Configuration._list(key)
 
     @staticmethod
     def initialize(api_ip, api_port, asd_ips, asd_starter_port):
@@ -189,139 +203,121 @@ class EtcdConfiguration(object):
         """
         node_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        base_config = {'/config/main': {'node_id': node_id,
-                                        'password': password,
-                                        'username': 'root',
-                                        'ip': api_ip,
-                                        'port': api_port,
-                                        'version': 0},
-                       '/config/network': {'ips': asd_ips,
-                                           'port': asd_starter_port}}
+        base_config = {'config/main': {'node_id': node_id,
+                                       'password': password,
+                                       'username': 'root',
+                                       'ip': api_ip,
+                                       'port': api_port,
+                                       'version': 0},
+                       'config/network': {'ips': asd_ips,
+                                          'port': asd_starter_port}}
         for key, value in base_config.iteritems():
-            EtcdConfiguration._set('/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key), value, raw=False)
+            Configuration._set('/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key), value, raw=False)
         return node_id
 
     @staticmethod
     def uninitialize(node_id):
         """
-        Remove initially stored values from etcd
+        Remove initially stored values from configuration store
         :param node_id: Un-initialize this node
         """
-        if EtcdConfiguration.dir_exists('/ovs/alba/asdnodes/{0}'.format(node_id)):
-            EtcdConfiguration.delete('/ovs/alba/asdnodes/{0}'.format(node_id))
+        if Configuration.dir_exists('/ovs/alba/asdnodes/{0}'.format(node_id)):
+            Configuration.delete('/ovs/alba/asdnodes/{0}'.format(node_id))
 
     @staticmethod
     def _dir_exists(key):
-        key = EtcdConfiguration._coalesce_dashes(key=key)
-
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            current_dict = EtcdConfiguration._unittest_data
+            current_dict = Configuration._unittest_data
             for part in stripped_key.split('/'):
                 if part not in current_dict or not isinstance(current_dict[part], dict):
                     return False
                 current_dict = current_dict[part]
             return True
-
-        # Real implementation
-        try:
-            client = EtcdConfiguration._get_client()
-            return client.get(key).dir
-        except (KeyError, etcd.EtcdKeyNotFound):
-            return False
+        # Forward call to used configuration store
+        return Configuration._passthrough(method='dir_exists',
+                                          key=key)
 
     @staticmethod
     def _list(key):
-        key = EtcdConfiguration._coalesce_dashes(key=key)
-
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            data = EtcdConfiguration._unittest_data
+            entries = []
+            data = Configuration._unittest_data
             ends_with_dash = key.endswith('/')
             starts_with_dash = key.startswith('/')
             stripped_key = key.strip('/')
             for part in stripped_key.split('/'):
                 if part not in data:
-                    raise etcd.EtcdKeyNotFound('Key not found: {0}'.format(key))
+                    raise NotFoundException(key)
                 data = data[part]
             if data:
                 for sub_key in data:
                     if ends_with_dash is True:
-                        yield '/{0}/{1}'.format(stripped_key, sub_key)
+                        entries.append('/{0}/{1}'.format(stripped_key, sub_key))
                     else:
-                        yield sub_key if starts_with_dash is True else '/{0}'.format(sub_key)
+                        entries.append(sub_key if starts_with_dash is True else '/{0}'.format(sub_key))
             elif starts_with_dash is False or ends_with_dash is True:
-                yield '/{0}'.format(stripped_key)
-            return
-
-        # Real implementation
-        client = EtcdConfiguration._get_client()
-        for child in client.get(key).children:
-            if child.key is not None and child.key != key:
-                yield child.key.replace('{0}/'.format(key), '')
+                entries.append('/{0}'.format(stripped_key))
+            return entries
+        # Forward call to used configuration store
+        return Configuration._passthrough(method='list',
+                                          key=key)
 
     @staticmethod
     def _delete(key, recursive):
-        key = EtcdConfiguration._coalesce_dashes(key=key)
-
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            data = EtcdConfiguration._unittest_data
+            data = Configuration._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in data:
-                    raise etcd.EtcdKeyNotFound('Key not found : {0}'.format(key))
+                    raise NotFoundException(key)
                 data = data[part]
             key_to_remove = stripped_key.split('/')[-1]
             if key_to_remove in data:
                 del data[key_to_remove]
             return
-
-        # Real implementation
-        client = EtcdConfiguration._get_client()
-        client.delete(key, recursive=recursive)
+        # Forward call to used configuration store
+        return Configuration._passthrough(method='delete',
+                                          key=key, recursive=recursive)
 
     @staticmethod
     def _get(key, raw):
-        key = EtcdConfiguration._coalesce_dashes(key=key)
-
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             if key in ['', '/']:
                 return
             stripped_key = key.strip('/')
-            data = EtcdConfiguration._unittest_data
+            data = Configuration._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in data:
-                    raise etcd.EtcdKeyNotFound('Key not found : {0}'.format(key))
+                    raise NotFoundException(key)
                 data = data[part]
             last_part = stripped_key.split('/')[-1]
             if last_part not in data:
-                raise etcd.EtcdKeyNotFound('Key not found : {0}'.format(key))
+                raise NotFoundException(key)
             data = data[last_part]
             if isinstance(data, dict):
                 data = None
         else:
-            # Real implementation
-            client = EtcdConfiguration._get_client()
-            data = client.read(key).value
-
+            # Forward call to used configuration store
+            data = Configuration._passthrough(method='get',
+                                              key=key)
         if raw is True:
             return data
         return json.loads(data)
 
     @staticmethod
     def _set(key, value, raw):
-        key = EtcdConfiguration._coalesce_dashes(key=key)
         data = value
         if raw is False:
             data = json.dumps(value)
-
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            ut_data = EtcdConfiguration._unittest_data
+            ut_data = Configuration._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in ut_data:
                     ut_data[part] = {}
@@ -329,23 +325,41 @@ class EtcdConfiguration(object):
 
             ut_data[stripped_key.split('/')[-1]] = data
             return
-
-        # Real implementation
-        client = EtcdConfiguration._get_client()
-        client.write(key, data)
-
-    @staticmethod
-    def _get_client():
-        return etcd.Client(port=2379, use_proxies=True)
+        # Forward call to used configuration store
+        return Configuration._passthrough(method='set',
+                                          key=key,
+                                          value=data)
 
     @staticmethod
-    def _coalesce_dashes(key):
+    def _passthrough(method, *args, **kwargs):
+        store = Configuration.get_store()
+        if store == 'etcd':
+            import etcd
+            from source.tools.configuration.etcd_config import EtcdConfiguration
+            try:
+                return getattr(EtcdConfiguration, method)(*args, **kwargs)
+            except etcd.EtcdKeyNotFound as ex:
+                raise NotFoundException(ex.message)
+            except (etcd.EtcdConnectionFailed, etcd.EtcdException) as ex:
+                raise ConnectionException(ex.message)
+        if store == 'arakoon':
+            from source.tools.configuration.arakoon_config import ArakoonConfiguration
+            from source.tools.pyrakoon.pyrakoon.compat import ArakoonNotFound
+            try:
+                return getattr(ArakoonConfiguration, method)(*args, **kwargs)
+            except ArakoonNotFound as ex:
+                raise NotFoundException(ex.message)
+        raise NotImplementedError('Store {0} is not implemented'.format(store))
+
+    @staticmethod
+    def get_store():
         """
-        Remove multiple dashes, eg: //ovs//framework/ becomes /ovs/framework/
-        :param key: Key to convert
-        :type key: str
-
-        :return: Key without multiple dashes after one another
+        Retrieve the configuration store method. This can either be 'etcd' or 'arakoon'
+        :return: Store method
         :rtype: str
         """
-        return ''.join(k if k == '/' else ''.join(group) for k, group in groupby(key))
+        if Configuration._store is None:
+            with open(Configuration.BOOTSTRAP_CONFIG_LOCATION) as config_file:
+                contents = json.load(config_file)
+                Configuration._store = contents['configuration_store']
+        return Configuration._store

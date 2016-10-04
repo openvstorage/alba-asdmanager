@@ -27,7 +27,7 @@ from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import UpdateController
-from source.tools.configuration import EtcdConfiguration
+from source.tools.configuration.configuration import Configuration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
 from source.tools.log_handler import LogHandler
@@ -62,7 +62,7 @@ class API(object):
     def set_net():
         """ Set IP information """
         API._logger.info('Setting network information')
-        EtcdConfiguration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
+        Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/disks')

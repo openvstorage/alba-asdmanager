@@ -19,18 +19,19 @@
 """
 Module for ASD Manager SetupController
 """
-
 import os
 import sys
 import json
 import logging
-from source.tools.configuration import EtcdConfiguration
+from source.tools.configuration.configuration import Configuration
 from source.tools.interactive import Interactive
 from source.tools.toolbox import Toolbox
 from source.tools.services.service import ServiceManager
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from subprocess import check_output
+
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 
 
 def setup():
@@ -40,6 +41,7 @@ def setup():
     print Interactive.boxed_message(['ASD Manager setup'])
     local_client = LocalClient()
     service_name = 'asd-manager'
+    watcher_name = 'asd-watcher'
 
     print '- Verifying distribution'
     if ServiceManager.has_service(service_name, local_client):
@@ -110,23 +112,55 @@ def setup():
         print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
         sys.exit(1)
 
-    print '- Initializing etcd'
+    if run_interactive is False:
+        store = config['asdmanager'].get('store')
+        if store is not None:
+            store = store.lower()
+        if store != 'arakoon' and store != 'etcd':
+            raise RuntimeError('Invalid store in unattended config. Should be "arakoon" or "etcd"')
+    else:
+        store = Interactive.ask_choice(['Arakoon', 'Etcd'],
+                                       question='Select the configuration management system',
+                                       default_value='Arakoon').lower()
+    if store == 'arakoon':
+        from source.tools.configuration.arakoon_config import ArakoonConfiguration
+        file_location = ArakoonConfiguration.CACC_LOCATION
+        source_location = ArakoonConfiguration.CACC_SOURCE
+        if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
+            # Try to copy automatically
+            try:
+                local_client.run('cp {0} {1}'.format(source_location, file_location))
+            except Exception:
+                pass
+        while not local_client.file_exists(file_location):
+            print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
+            Interactive.ask_continue()
+    bootstrap_location = Configuration.BOOTSTRAP_CONFIG_LOCATION
+    if not local_client.file_exists(bootstrap_location):
+        local_client.file_create(bootstrap_location)
+    local_client.file_write(bootstrap_location, json.dumps({'configuration_store': store}, indent=4))
     try:
-        alba_node_id = EtcdConfiguration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+        alba_node_id = Configuration.initialize(api_ip, api_port, asd_ips, asd_start_port)
     except:
-        print ''  # Spacing
-        print Interactive.boxed_message(['Could not connect to Etcd.',
-                                         'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
+        print ''
+        if store == 'arakoon':
+            print Interactive.boxed_message(['Could not connect to Arakoon'])
+        else:
+            print Interactive.boxed_message(['Could not connect to Etcd.',
+                                             'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
         sys.exit(1)
 
-    ServiceManager.add_service(service_name, local_client, params={'ASD_NODE_ID': alba_node_id,
-                                                                   'PORT_NUMBER': str(api_port)})
-    print '- Starting ASD manager service'
+    with open(BOOTSTRAP_FILE, 'w') as bs_file:
+        json.dump({'node_id': alba_node_id}, bs_file)
+
+    ServiceManager.add_service(service_name, local_client, params={'PORT_NUMBER': str(api_port)})
+    ServiceManager.add_service(watcher_name, local_client)
+    print '- Starting watcher service'
     try:
-        ServiceManager.start_service(service_name, local_client)
+        ServiceManager.start_service(watcher_name, local_client)
     except Exception as ex:
-        EtcdConfiguration.uninitialize(alba_node_id)
-        print Interactive.boxed_message(['Starting asd-manager failed with error:', str(ex)])
+        Configuration.uninitialize(alba_node_id)
+        print Interactive.boxed_message(['Starting watcher failed with error:', str(ex)])
         sys.exit(1)
 
     print Interactive.boxed_message(['ASD Manager setup completed'])
@@ -141,10 +175,18 @@ if __name__ == '__main__':
     if not 1024 < port <= 65535:
         raise RuntimeError('Port provided must be within range 1025 - 65535')
 
+    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
+        node_id = json.load(bootstrap_file)['node_id']
+    os.environ['ASD_NODE_ID'] = node_id
+
     from source.app import app
 
     @app.before_first_request
     def setup_logging():
+        """
+        Configure logging
+        :return: None
+        """
         if app.debug is False:
             _logger = LogHandler.get('asd-manager', name='flask')
             app.logger.handlers = []
