@@ -41,7 +41,7 @@ if __name__ == '__main__':
     _logger = LogHandler.get('asd-manager', name='post-upgrade')
 
     _logger.info('Executing post-upgrade logic of package openvstorage-sdm')
-    with file_mutex('package_update'):
+    with file_mutex('package_update_po'):
         client = LocalClient('127.0.0.1', username='root')
 
         key = '{0}/versions'.format(CONFIG_ROOT)
