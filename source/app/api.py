@@ -204,7 +204,7 @@ class API(object):
         Gets an ASD
         :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
         :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: WDCztMxmRqi6Hx21, found under /mnt/alba-asd/)
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
         :type asd_id: str
         :return: ASD information
         :rtype: dict
@@ -226,7 +226,7 @@ class API(object):
         Restart an ASD
         :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
         :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: WDCztMxmRqi6Hx21, found under /mnt/alba-asd/)
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
         :type asd_id: str
         :return: None
         """
@@ -241,7 +241,7 @@ class API(object):
         Deletes an ASD on a given disk
         :param disk_id: Identifier of the Disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
         :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: WDCztMxmRqi6Hx21, found under /mnt/alba-asd/)
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
         :type asd_id: str
         :return: None
         """
