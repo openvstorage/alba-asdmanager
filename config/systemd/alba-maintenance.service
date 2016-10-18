@@ -9,6 +9,7 @@ Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
 Environment=LD_LIBRARY_PATH=/usr/lib/alba
+Environment=ALBA_LWT_ENGINE=libev
 LimitMEMLOCK=infinity
 
 ExecStart=/usr/bin/alba maintenance --config <ALBA_CONFIG> --log-sink <LOG_SINK>
