@@ -89,19 +89,19 @@ class DiskController(object):
             if dev_type == 'rom':
                 continue
 
+            link = DiskController._local_client.file_read_link(path='/sys/block/{0}'.format(name))
             friendly_path = '/dev/{0}'.format(name)
             system_aliases = sorted(name_alias_mapping.get(friendly_path, [friendly_path]))
-            DiskController._logger.info('Investigating device {0}'.format(friendly_path))
-
-            link = DiskController._local_client.file_read_link(path='/sys/block/{0}'.format(name))
             device_is_also_partition = False
             if link is not None:  # If this returns, it means its a device and not a partition
+                DiskController._logger.info('Investigating device {0}'.format(friendly_path))
                 device_is_also_partition = mount_point != ''  # LVM, RAID1, ... have the tendency to be a device with a partition on it, but the partition is not reported by 'lsblk'
                 parsed_devices.append(name)
                 configuration[name] = {'name': name,
                                        'aliases': system_aliases,
                                        'partitions': []}
             if link is None or device_is_also_partition is True:
+                DiskController._logger.info('Investigating partition {0}'.format(friendly_path))
                 current_device = None
                 if device_is_also_partition is True:
                     current_device = name
@@ -220,7 +220,7 @@ class DiskController(object):
         counter = 0
         partition_aliases = []
         while True:
-            disk_info = DiskController._get_disk_data_by_alias(device_alias=device_alias)
+            disk_info = DiskController.get_disk_data_by_alias(device_alias=device_alias)
             if disk_info.get('partition_amount', 0) == 1:
                 partition_aliases = disk_info['partition_aliases']
                 try:
@@ -251,7 +251,7 @@ class DiskController(object):
         :type mountpoint: str
         :return: None
         """
-        disk_info = DiskController._get_disk_data_by_alias(device_alias=device_alias)
+        disk_info = DiskController.get_disk_data_by_alias(device_alias=device_alias)
         DiskController._logger.info('Cleaning disk {0}'.format(device_alias))
         FSTab.remove(disk_info['partition_aliases'])
 
@@ -327,7 +327,7 @@ class DiskController(object):
                     check_output('storcli64 {0} {1} locate'.format(location, 'start' if start is True else 'stop'), shell=True)
 
     @staticmethod
-    def _get_disk_data_by_alias(device_alias):
+    def get_disk_data_by_alias(device_alias):
         """
         Retrieve disk information
         :param device_alias: Alias of the device  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
@@ -335,7 +335,23 @@ class DiskController(object):
         :return: Disk data
         :rtype: dict
         """
-        disk_data = DiskController.list_disks().get(device_alias)
+        disk_data = None
+        all_disks = DiskController.list_disks()
+        if not device_alias.startswith('/dev/disk/by-'):
+            for disk_info in all_disks.values():
+                for alias in disk_info.get('aliases', []):
+                    if alias.endswith(device_alias):
+                        disk_data = disk_info
+                        break
+                if disk_data is not None:
+                    break
+        else:
+            disk_data = all_disks.get(device_alias)
+            if disk_data is None:  # Crap implementation for FIO devices, once a partition has been created, then the original by-path alias for the device starts pointing to the partition
+                for data in all_disks.itervalues():
+                    if device_alias in data['partition_aliases']:
+                        disk_data = data
+                        break
         if disk_data is None:
             raise RuntimeError('Disk with alias {0} not available'.format(device_alias))
         if len(disk_data.get('aliases', [])) == 0:
