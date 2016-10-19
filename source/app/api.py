@@ -82,7 +82,7 @@ class API(object):
         :rtype: dict
         """
         API._logger.info('Listing disk {0}'.format(disk_id))
-        return API._get_disk_data_by_alias(device_alias=disk_id)
+        return DiskController.get_disk_data_by_alias(device_alias=disk_id)
 
     @staticmethod
     @post('/disks/<disk_id>/add')
@@ -94,14 +94,14 @@ class API(object):
         :return: Disk information about the newly added disk
         :rtype: dict
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         if disk_data['available'] is False:
             raise BadRequest('Disk already configured')
         alias = disk_data['aliases'][0]
         API._logger.info('Add disk {0}'.format(alias))
         with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
             DiskController.prepare_disk(device_alias=alias)
-        return API._get_disk_data_by_alias(device_alias=alias)
+        return DiskController.get_disk_data_by_alias(device_alias=alias)
 
     @staticmethod
     @post('/disks/<disk_id>/delete')
@@ -112,7 +112,7 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         if disk_data['available'] is True:
             raise BadRequest('Disk not yet configured')
         alias = disk_data['aliases'][0]
@@ -138,7 +138,7 @@ class API(object):
         :return: None
         """
         API._logger.info('Restarting disk {0}'.format(disk_id))
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         alias = disk_data['aliases'][0]
         with file_mutex('disk_{0}'.format(disk_id)):
             API._logger.info('Got lock for restarting disk {0}'.format(alias))
@@ -174,7 +174,7 @@ class API(object):
         :return: ASD information for the specified disk
         :rtype: dict
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         for partition_alias, mountpoint in FSTab.read().iteritems():
             if partition_alias in disk_data['partition_aliases']:
                 return ASDController.list_asds(mountpoint=mountpoint)
@@ -189,7 +189,7 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         for partition_alias, mountpoint in FSTab.read().iteritems():
             if partition_alias in disk_data['partition_aliases']:
                 with file_mutex('add_asd'):
@@ -209,7 +209,7 @@ class API(object):
         :return: ASD information
         :rtype: dict
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         alias = disk_data['aliases'][0]
         for partition_alias, mountpoint in FSTab.read().iteritems():
             if partition_alias in disk_data['partition_aliases']:
@@ -245,7 +245,7 @@ class API(object):
         :type asd_id: str
         :return: None
         """
-        disk_data = API._get_disk_data_by_alias(device_alias=disk_id)
+        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
         alias = disk_data['aliases'][0]
         API._logger.info('Removing services for disk {0}'.format(alias))
         for partition_alias, mountpoint in FSTab.read().iteritems():
@@ -312,30 +312,3 @@ class API(object):
         :type name: str
         """
         MaintenanceController.remove_maintenance_service(name)
-
-    @staticmethod
-    def _get_disk_data_by_alias(device_alias):
-        """
-        Retrieve disk information
-        :param device_alias: Alias of the device  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type device_alias: str
-        :return: Disk data
-        :rtype: dict
-        """
-        disk_data = None
-        all_disks = DiskController.list_disks()
-        if not device_alias.startswith('/dev/disk/by-'):
-            for disk_info in all_disks.values():
-                for alias in disk_info.get('aliases', []):
-                    if alias.endswith(device_alias):
-                        disk_data = disk_info
-                        break
-                if disk_data is not None:
-                    break
-        else:
-            disk_data = all_disks.get(device_alias)
-        if disk_data is None:
-            raise RuntimeError('Disk with alias {0} not available'.format(device_alias))
-        if len(disk_data.get('aliases', [])) == 0:
-            raise RuntimeError('No aliases found for device {0}'.format(device_alias))
-        return disk_data
