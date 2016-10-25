@@ -95,6 +95,7 @@ def _build_function(f, authenticate):
         data['_duration'] = time.time() - start
         return Response(json.dumps(data), content_type='application/json', status=status)
 
+    new_function.original = f
     new_function.__name__ = f.__name__
     new_function.__module__ = f.__module__
     return new_function

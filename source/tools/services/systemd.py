@@ -141,42 +141,6 @@ class Systemd(object):
         client.run('systemctl daemon-reload')
 
     @staticmethod
-    def disable_service(name, client):
-        """
-        Disable a service
-        :param name: Name of the service to disable
-        :type name: str
-        :param client: Client on which to disable the service
-        :type client: SSHClient
-        :return: None
-        """
-        name = Systemd._get_name(name, client)
-        try:
-            client.run('systemctl disable {0}.service'.format(name))
-        except CalledProcessError as cpe:
-            output = cpe.output
-            Systemd._logger.exception('Disable {0} failed, {1}'.format(name, output))
-            raise Exception('Disable {0} failed, {1}'.format(name, output))
-
-    @staticmethod
-    def enable_service(name, client):
-        """
-        Enable a service
-        :param name: Name of the service to enable
-        :type name: str
-        :param client: Client on which to enable the service
-        :type client: SSHClient
-        :return: None
-        """
-        name = Systemd._get_name(name, client)
-        try:
-            client.run('systemctl enable {0}.service'.format(name))
-        except CalledProcessError as cpe:
-            output = cpe.output
-            Systemd._logger.exception('Enable {0} failed, {1}'.format(name, output))
-            raise Exception('Enable {0} failed, {1}'.format(name, output))
-
-    @staticmethod
     def start_service(name, client):
         """
         Start a service
@@ -257,25 +221,6 @@ class Systemd(object):
             return False
 
     @staticmethod
-    def is_enabled(name, client):
-        """
-        Verify whether a service is enabled
-        :param name: Name of the service to verify if enabled
-        :type name: str
-        :param client: Client on which to verify whether the service is enabled
-        :type client: SSHClient
-        :return: Whether the service is enabled
-        :rtype: bool
-        """
-        name = Systemd._get_name(name, client)
-        output = client.run('systemctl is-enabled {0} || true'.format(name))
-        if 'enabled' in output:
-            return True
-        if 'disabled' in output:
-            return False
-        return False
-
-    @staticmethod
     def get_service_pid(name, client):
         """
         Retrieve the PID of a service
@@ -299,7 +244,7 @@ class Systemd(object):
     @staticmethod
     def send_signal(name, signal, client):
         """
-        Remove a service
+        Send a signal to a service
         :param name: Name of the service to send a signal
         :type name: str
         :param signal: Signal to pass on to the service
