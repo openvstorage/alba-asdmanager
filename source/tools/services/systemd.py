@@ -137,7 +137,10 @@ class Systemd(object):
         """
         # remove systemd.service file
         name = Systemd._get_name(name, client)
-        client.run('systemctl disable {0}.service')
+        try:
+            client.run('systemctl disable {0}.service')
+        except CalledProcessError:
+            pass  # Service already disabled
         client.file_delete('/lib/systemd/system/{0}.service'.format(name))
         client.run('systemctl daemon-reload')
 
