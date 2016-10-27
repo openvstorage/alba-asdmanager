@@ -212,7 +212,7 @@ class DiskController(object):
         check_output('umount {0} || true'.format(mountpoint), shell=True)
         check_output('parted {0} -s mklabel gpt'.format(device_alias), shell=True)
         check_output('parted {0} -s mkpart {1} 2MB 100%'.format(device_alias, device_alias.split('/')[-1]), shell=True)
-        check_output('partprobe {0} || true'.format(device_alias), shell=True)
+        check_output('udevadm settle', shell=True)  # Waits for all udev rules to have finished
 
         # Wait for partition to be ready by attempting to add filesystem
         counter = 0
