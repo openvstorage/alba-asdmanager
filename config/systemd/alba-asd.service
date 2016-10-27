@@ -9,6 +9,7 @@ Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
 Environment=PYTHONPATH=:/opt/asd-manager
+Environment=ALBA_LWT_ENGINE=libev
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity
 ExecStart=/usr/bin/alba asd-start --config <CONFIG_PATH> --log-sink <LOG_SINK>
