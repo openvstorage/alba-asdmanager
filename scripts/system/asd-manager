@@ -41,9 +41,11 @@ if [ "$1" = "monitor" ] ; then
         service_manager=`cat /proc/1/comm`
         if test "$service_manager" = "systemd"
         then
-            watch -n 1 'echo "\nASD Manager running processes:\n";systemctl -l| grep alba | grep "loaded active" | sort;echo "\nASD Manager non-running processes:\n";systemctl -l | grep alba | grep -v "loaded active" | sort'
+            watch -tn 1 'echo "ASD Manager running processes:\n";systemctl -a | egrep "^\s+(alba-|asd-).*\.service\s+loaded\s+active\s+running\s.*" | sed "s/ \{60\}/ /g" | sort;
+                         echo "\n\nASD Manager non-running processes:\n";systemctl -a | egrep "^\s+(alba-|asd-).*\.service\s+" | grep -v running | sed "s/ \{60\}/ /g" | sort;'
         else
-            watch -n 1 'echo "\nASD Manager running processes:\n";initctl list | grep alba | grep start/running | sort;echo "\nASD Manager non-running processes:\n";initctl list | grep alba | grep -v start/running | sort'
+            watch -tn 1 'echo "ASD Manager running processes:\n";initctl list | egrep "^(alba-|asd-).*\s{1}start/running" | sort;
+                         echo "\n\nASD Manager non-running processes:\n";initctl list | egrep "^(alba-|asd-).*\s{1}" | grep -v start/running | sort;'
         fi
     else
         show_help
