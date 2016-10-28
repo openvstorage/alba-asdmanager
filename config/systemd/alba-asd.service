@@ -1,5 +1,5 @@
 [Unit]
-Description="alba asd"
+Description=ALBA ASD
 After=asd-manager.service asd-watcher.service
 
 [Service]

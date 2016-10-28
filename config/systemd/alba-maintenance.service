@@ -1,5 +1,5 @@
 [Unit]
-Description="alba maintenance"
+Description=ALBA Maintenance
 After=network.target local-fs.target
 
 [Service]

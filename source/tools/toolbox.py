@@ -135,3 +135,15 @@ class Toolbox(object):
                     error_messages.append('{0} param "{1}" with value "{2}" does not match regex "{3}"'.format(mandatory_or_optional, required_key, actual_value, expected_value.pattern))
         if error_messages:
             raise RuntimeError('\n' + '\n'.join(error_messages))
+
+    @staticmethod
+    def remove_prefix(string, prefix):
+        """
+        Removes a prefix from the beginning of a string
+        :param string: The string to clean
+        :param prefix: The prefix to remove
+        :return: The cleaned string
+        """
+        if string.startswith(prefix):
+            return string[len(prefix):]
+        return string

@@ -1,5 +1,5 @@
 [Unit]
-Description="asd-manager"
+Description=ASD Manager
 After=network.target local-fs.target
 
 [Service]
