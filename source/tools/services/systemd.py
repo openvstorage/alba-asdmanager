@@ -269,8 +269,8 @@ class Systemd(object):
         List all created services on a system
         :param client: Client on which to list all the services
         :type client: SSHClient
-        :return: List of all services which have been created on some point
+        :return: List of all services which have been created at some point
         :rtype: generator
         """
-        for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager'):
-            yield service_info.split(' ')[0].rstrip('.service')
+        for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager').splitlines():
+            yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
