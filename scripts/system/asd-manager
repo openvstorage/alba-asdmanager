@@ -38,7 +38,7 @@ function show_help {
 
 if [ "$1" = "monitor" ] ; then
     if [ "$2" = "services" ] ; then
-        python -c "from source.asdmanager import monitor_services; monitor_services()"
+        python -c "from source.tools.services.service import ServiceManager; ServiceManager.monitor_services()"
     else
         show_help
     fi
