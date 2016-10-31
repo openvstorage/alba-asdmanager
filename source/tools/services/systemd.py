@@ -17,7 +17,8 @@
 """
 Systemd module
 """
-from subprocess import CalledProcessError
+import time
+from subprocess import CalledProcessError, check_output
 from source.tools.log_handler import LogHandler
 
 
@@ -274,3 +275,52 @@ class Systemd(object):
         """
         for service_info in client.run('systemctl list-unit-files --type=service --no-legend --no-pager').splitlines():
             yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
+
+    @staticmethod
+    def monitor_services():
+        """
+        Monitor the local ASD services
+        :return: None
+        """
+        try:
+            previous_output = None
+            while True:
+                # Gather service states
+                running_services = {}
+                non_running_services = {}
+                longest_service_name = 0
+                for service_name in check_output('systemctl list-unit-files --type=service --no-legend --no-pager | egrep "alba-|asd-" | tr -s " " | cut -d " " -f 1', shell=True).splitlines():
+                    try:
+                        service_state = check_output('systemctl is-active {0}'.format(service_name), shell=True).strip()
+                    except CalledProcessError as cpe:
+                        service_state = cpe.output
+
+                    service_name = service_name.replace('.service', '')
+                    if service_state == 'active':
+                        running_services[service_name] = service_state
+                    else:
+                        non_running_services[service_name] = service_state
+
+                    if len(service_name) > longest_service_name:
+                        longest_service_name = len(service_name)
+
+                # Put service states in list
+                output = ['ASD Manager running processes',
+                          '=============================\n']
+                for service_name in sorted(running_services):
+                    output.append('{0} {1} {2}'.format(service_name, ' ' * (longest_service_name - len(service_name)), running_services[service_name]))
+
+                output.extend(['\n\nASD Manager non-running processes',
+                               '=================================\n'])
+                for service_name in sorted(non_running_services):
+                    output.append('{0} {1} {2}'.format(service_name, ' ' * (longest_service_name - len(service_name)), non_running_services[service_name]))
+
+                # Print service states (only if changes)
+                if previous_output != output:
+                    print '\x1b[2J\x1b[H'
+                    for line in output:
+                        print line
+                    previous_output = list(output)
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass

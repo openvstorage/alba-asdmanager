@@ -38,15 +38,7 @@ function show_help {
 
 if [ "$1" = "monitor" ] ; then
     if [ "$2" = "services" ] ; then
-        service_manager=`cat /proc/1/comm`
-        if test "$service_manager" = "systemd"
-        then
-            watch -tn 1 'echo "ASD Manager running processes:\n";systemctl -a | egrep "^\s+(alba-|asd-).*\.service\s+loaded\s+active\s+running\s.*" | sed "s/ \{60\}/ /g" | sort;
-                         echo "\n\nASD Manager non-running processes:\n";systemctl -a | egrep "^\s+(alba-|asd-).*\.service\s+" | grep -v running | sed "s/ \{60\}/ /g" | sort;'
-        else
-            watch -tn 1 'echo "ASD Manager running processes:\n";initctl list | egrep "^(alba-|asd-).*\s{1}start/running" | sort;
-                         echo "\n\nASD Manager non-running processes:\n";initctl list | egrep "^(alba-|asd-).*\s{1}" | grep -v start/running | sort;'
-        fi
+        python -c "from source.tools.services.service import ServiceManager; ServiceManager.monitor_services()"
     else
         show_help
     fi
