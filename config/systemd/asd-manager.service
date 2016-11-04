@@ -1,5 +1,5 @@
 [Unit]
-Description="asd-manager"
+Description=ASD Manager
 After=network.target local-fs.target
 
 [Service]
@@ -8,7 +8,7 @@ User=root
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
-Environment=PYTHONPATH=:/opt/asd-manager
+Environment=PYTHONPATH=/opt/asd-manager
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity
-ExecStart=/usr/bin/python asdmanager.py <PORT_NUMBER>
+ExecStart=/usr/bin/python asdmanager.py

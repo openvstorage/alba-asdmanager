@@ -136,6 +136,11 @@ class ArakoonConfiguration(object):
 
     @staticmethod
     def get_client():
+        """
+        Retrieve an Arakoon client
+        :return: Pyrakoon client
+        :rtype: PyrakoonClient
+        """
         if ArakoonConfiguration.client is None:
             parser = RawConfigParser()
             with open(ArakoonConfiguration.CACC_LOCATION) as config_file:

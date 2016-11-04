@@ -25,6 +25,9 @@ from source.tools.services.service import ServiceManager
 
 
 class MaintenanceController(object):
+    """
+    Maintenance controller class
+    """
     MAINTENANCE_PREFIX = 'alba-maintenance'
     _local_client = LocalClient()
 
@@ -49,10 +52,7 @@ class MaintenanceController(object):
         :param abm_name: Name of the ABM cluster
         :type abm_name: str
         """
-        if ServiceManager.has_service(name, MaintenanceController._local_client):
-            if not ServiceManager.is_enabled(name, MaintenanceController._local_client):
-                ServiceManager.enable_service(name, MaintenanceController._local_client)
-        else:
+        if ServiceManager.has_service(name, MaintenanceController._local_client) is False:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
             alba_config = Configuration.get_configuration_path(config_location)
             params = {'ALBA_CONFIG': alba_config,
