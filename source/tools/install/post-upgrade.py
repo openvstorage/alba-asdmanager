@@ -40,7 +40,7 @@ if __name__ == '__main__':
         os.environ['ASD_NODE_ID'] = NODE_ID
 
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-    CURRENT_VERSION = 0
+    CURRENT_VERSION = 1
 
     _logger = LogHandler.get('asd-manager', name='post-upgrade')
 
@@ -51,18 +51,18 @@ if __name__ == '__main__':
         key = '{0}/versions'.format(CONFIG_ROOT)
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
+        service_name = 'asd-manager'
+        if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is True:
+            _logger.info('Stopping asd-manager service')
+            ServiceManager.stop_service(service_name, client)
+
         if version < CURRENT_VERSION:
-            service_name = 'asd-manager'
-            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is True:
-                _logger.info('Stopping asd-manager service')
-                ServiceManager.stop_service(service_name, client)
-
             # Migration
-
-            if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is False:
-                _logger.info('Starting asd-manager service')
-                ServiceManager.start_service(service_name, client)
-
+            pass
         Configuration.set(key, CURRENT_VERSION)
+
+        if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is False:
+            _logger.info('Starting asd-manager service')
+            ServiceManager.start_service(service_name, client)
 
     _logger.info('Post-upgrade logic executed')
