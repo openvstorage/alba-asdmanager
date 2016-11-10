@@ -53,14 +53,14 @@ class LocalClient(object):
         from subprocess import check_output
         if isinstance(endpoint, basestring):
             ip = endpoint
-            if not re.findall(SSHClient.IP_REGEX, ip):
+            if not re.findall(LocalClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
             raise ValueError('The endpoint parameter should be an ip address')
 
         self.ip = ip
         self.local_ips = [lip.strip() for lip in check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()]
-        if slf.ip not in self.local_ips:
+        if self.ip not in self.local_ips:
             raise ValueError('The client can only connect to the local host')
         self.password = password
 
@@ -101,7 +101,6 @@ class LocalClient(object):
             LocalClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
-    @connected()
     def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False):
         """
         Executes a shell command
@@ -316,7 +315,6 @@ class LocalClient(object):
         with open(filename, 'r') as the_file:
             return the_file.read()
 
-    @connected()
     def file_write(self, filename, contents, mode='w'):
         """
         Writes into a file to the remote end
@@ -328,7 +326,6 @@ class LocalClient(object):
         with open(filename, mode) as the_file:
             the_file.write(contents)
 
-    @connected()
     def file_upload(self, remote_filename, local_filename):
         """
         Uploads a file to a remote end
