@@ -70,7 +70,7 @@ class DiskController(object):
 
         # Parse 'lsblk' output
         # --exclude 1 for RAM devices, 2 for floppy devices, 11 for CD-ROM devices (See https://www.kernel.org/doc/Documentation/devices.txt)
-        devices = DiskController._local_client.run(command='lsblk --pairs --bytes --noheadings --exclude 1,2,11 --output=KNAME,FSTYPE,TYPE,MOUNTPOINT').splitlines()
+        devices = DiskController._local_client.run(['lsblk', '--pairs', '--bytes', '--noheadings', '--exclude', '1,2,11', '--output=KNAME,FSTYPE,TYPE,MOUNTPOINT']).splitlines()
         device_regex = re.compile('^KNAME="(?P<name>.*)" FSTYPE="(?P<fstype>.*)" TYPE="(?P<type>.*)" MOUNTPOINT="(?P<mtpt>.*)"$')
         configuration = {}
         parsed_devices = []

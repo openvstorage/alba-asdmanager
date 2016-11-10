@@ -64,7 +64,7 @@ class RpmPackage(object):
         while counter < max_counter:
             counter += 1
             try:
-                client.run('yum update -y {0}'.format(package_name))
+                client.run(['yum', 'update', '-y', package_name])
                 break
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
@@ -78,7 +78,7 @@ class RpmPackage(object):
     @staticmethod
     def update(client):
         try:
-            client.run('yum check-update')
+            client.run(['yum', 'check-update'])
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
@@ -94,7 +94,7 @@ class RpmPackage(object):
         for package_name in packages:
             installed = None
             candidate = None
-            for line in client.run("yum list {0}".format(package_name)).splitlines():
+            for line in client.run(['yum', 'list', package_name]).splitlines():
                 if line.startswith(package_name):
                     version = line.split()
                     if len(version) > 1:
