@@ -23,7 +23,7 @@ import json
 import time
 import random
 import string
-from subprocess import check_output, CalledProcessError
+from subprocess import CalledProcessError
 from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
