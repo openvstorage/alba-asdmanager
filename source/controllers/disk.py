@@ -147,7 +147,8 @@ class DiskController(object):
                 state_detail = ''
                 if availability is False:
                     # Check partition usage information
-                    df_info = check_output('df -B 1 --output=size,used,avail {0} | tail -1 || true'.format(partition_mtpt), shell=True).strip().splitlines()
+                    df_info = DiskController._local_client.run("df -B 1 --output=size,used,avail '{0}' | tail -1 || true".format(partition_mtpt.replace(r"'", r"'\''")),
+                                                               allow_insecure=True).strip().splitlines()
                     if len(df_info) != 1:
                         DiskController._logger.warning('Verifying usage information for mountpoint {0} failed. Information retrieved: {1}'.format(partition_mtpt, df_info))
                         continue
@@ -157,7 +158,8 @@ class DiskController(object):
                              'available': int(available)}
 
                     # Check mountpoint validation
-                    output = check_output('ls {0}/ 2>&1 || true'.format(partition_mtpt), shell=True)
+                    output, error = DiskController._local_client.run(['ls', '{0}/'.format(partition_mtpt)], allow_nonzero=True)
+                    output += error
                     if 'Input/output error' in output:
                         state = 'error'
                         state_detail = 'io_error'
@@ -209,10 +211,11 @@ class DiskController(object):
         DiskController._logger.info('Preparing disk {0}'.format(device_alias))
         mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
         DiskController._locate(device_alias=device_alias, start=False)
-        check_output('umount {0} || true'.format(mountpoint), shell=True)
-        check_output('parted {0} -s mklabel gpt'.format(device_alias), shell=True)
-        check_output('parted {0} -s mkpart {1} 2MB 100%'.format(device_alias, device_alias.split('/')[-1]), shell=True)
-        check_output('udevadm settle', shell=True)  # Waits for all udev rules to have finished
+        DiskController._local_client.run(['umount', mountpoint], allow_nonzero=True)
+        DiskController._local_client.run(['parted', device_alias, '-s', 'mklabel', 'gpt'])
+        DiskController._local_client.run(['parted', device_alias, '-s', 'mkpart',
+                                          device_alias.split('/')[-1], '2MB', '100%'])
+        DiskController._local_client.run(['udevadm', 'settle'])  # Waits for all udev rules to have finished
 
         # Wait for partition to be ready by attempting to add filesystem
         counter = 0
@@ -222,7 +225,7 @@ class DiskController(object):
             if disk_info.get('partition_amount', 0) == 1:
                 partition_aliases = disk_info['partition_aliases']
                 try:
-                    check_output('mkfs.xfs -qf {0}'.format(partition_aliases[0]), shell=True)
+                    DiskController._local_client.run(['mkfs.xfs', '-qf', partition_aliases[0]])
                     break
                 except CalledProcessError:
                     pass
@@ -233,10 +236,10 @@ class DiskController(object):
                 raise RuntimeError('Partition for disk {0} not ready in 2 seconds'.format(device_alias))
 
         # Create mountpoint and mount
-        check_output('mkdir -p {0}'.format(mountpoint), shell=True)
+        DiskController._local_client.run(['mkdir', '-p', mountpoint])
         FSTab.add(partition_aliases=partition_aliases, mountpoint=mountpoint)
-        check_output('mount {0}'.format(mountpoint), shell=True)
-        check_output('chown -R alba:alba {0}'.format(mountpoint), shell=True)
+        DiskController._local_client.run(['mount', mountpoint])
+        DiskController._local_client.run(['chown', '-R', 'alba:alba', mountpoint])
         DiskController._logger.info('Prepare disk {0} complete'.format(device_alias))
 
     @staticmethod
@@ -254,13 +257,13 @@ class DiskController(object):
         FSTab.remove(disk_info['partition_aliases'])
 
         try:
-            check_output('umount {0}'.format(mountpoint), shell=True)
+            DiskController._local_client.run(['umount', mountpoint])
             DiskController._local_client.dir_delete(mountpoint)
         except Exception:
             DiskController._logger.exception('Failure to umount or delete the mountpoint')
             raise
         try:
-            check_output('parted {0} -s mklabel gpt'.format(device_alias), shell=True)
+            DiskController._local_client.run(['parted', device_alias, '-s', 'mklabel', 'gpt'])
         except CalledProcessError:
             # Wiping the partition is a nice-to-have and might fail when a disk is e.g. unavailable
             pass
@@ -278,8 +281,8 @@ class DiskController(object):
         :return: None
         """
         DiskController._logger.info('Remounting disk {0}'.format(device_alias))
-        check_output('umount {0} || true'.format(mountpoint), shell=True)
-        check_output('mount {0} || true'.format(mountpoint), shell=True)
+        DiskController._local_client.run(['umount', mountpoint], allow_nonzero=True)
+        DiskController._local_client.run(['mount', mountpoint], allow_nonzero=True)
         DiskController._logger.info('Remounting disk {0} complete'.format(device_alias))
 
     @staticmethod
@@ -290,9 +293,9 @@ class DiskController(object):
         """
         DiskController._logger.info('Scanning controllers')
         controllers = {}
-        has_storecli = check_output('which storcli64 || true', shell=True).strip() != ''
+        has_storecli = DiskController._local_client.run(['which', 'storcli64'], allow_nonzero=True).strip() != ''
         if has_storecli is True:
-            controller_info = json.loads(check_output('storcli64 /call/eall/sall show all J', shell=True))
+            controller_info = json.loads(DiskController._local_client.run(['storcli64', '/call/eall/sall', 'show', 'all', 'J']))
             for controller in controller_info['Controllers']:
                 if controller['Command Status']['Status'] == 'Failure':
                     continue
@@ -322,7 +325,7 @@ class DiskController(object):
                 controller_type, location = DiskController.controllers[wwn]
                 if controller_type == 'storcli64':
                     DiskController._logger.info('Location {0} for {1}'.format('start' if start is True else 'stop', location))
-                    check_output('storcli64 {0} {1} locate'.format(location, 'start' if start is True else 'stop'), shell=True)
+                    DiskController._local_client.run(['storcli64', location, 'start' if start is True else 'stop', 'locate'])
 
     @staticmethod
     def get_disk_data_by_alias(device_alias):

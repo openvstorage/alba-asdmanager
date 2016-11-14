@@ -35,7 +35,7 @@ class DebianPackage(object):
 
     @staticmethod
     def _get_version(package_name):
-        return check_output("dpkg -s {0} | grep Version | cut -d ' ' -f 2".format(package_name), shell=True).strip()
+        return check_output("dpkg -s '{0}' | grep Version | cut -d ' ' -f 2".format(package_name.replace(r"'", r"'\''")), shell=True).strip()
 
     @staticmethod
     def get_installed_candidate_version(package_name, client):

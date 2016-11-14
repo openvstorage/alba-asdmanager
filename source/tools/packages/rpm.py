@@ -34,7 +34,7 @@ class RpmPackage(object):
     def get_installed_candidate_version(package_name, client):
         installed = RpmPackage._get_version(package_name)
         candidate = None
-        output = check_output('yum list {0} --showduplicates'.format(package_name), shell=True).splitlines()
+        output = check_output("yum list '{0}' --showduplicates".format(package_name.replace(r"'", r"'\''")), shell=True).splitlines()
         for line in output:
             if line.startswith('Available Packages'):
                 candidate_line = output[-1]
@@ -45,7 +45,7 @@ class RpmPackage(object):
 
     @staticmethod
     def _get_version(package_name):
-        return check_output("yum info {0} | grep Version | cut -d ':' -f 2 || true".format(package_name), shell=True).strip()
+        return check_output("yum info '{0}' | grep Version | cut -d ':' -f 2 || true".format(package_name.replace(r"'", r"'\''")), shell=True).strip()
 
     @staticmethod
     def get_versions():
