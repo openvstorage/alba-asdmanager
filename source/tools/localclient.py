@@ -24,13 +24,7 @@ import re
 import grp
 import pwd
 import glob
-import json
-import time
-import types
 import select
-import socket
-import logging
-import tempfile
 from subprocess import CalledProcessError, PIPE, Popen
 from source.tools.log_handler import LogHandler
 
@@ -108,13 +102,13 @@ class LocalClient(object):
         :param command: Command to execute
         :param debug: Extended logging and stderr output returned
         :param allow_nonzero: Allow non-zero exit code
-        :param allow_insecure: Allow string commands (which might be inproper escaped)
+        :param allow_insecure: Allow string commands (which might be improperly escaped)
         """
 
         if not isinstance(command, list) and not allow_insecure:
             raise RuntimeError('The given command must be a list, or the allow_insecure flag must be set')
         if isinstance(command, list):
-            command = [str(sub_command) for sub_command in command]
+            command = ' '.join([self.shell_safe(str(entry)) for entry in command])
         stderr = None
         try:
             try:
