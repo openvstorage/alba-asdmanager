@@ -316,8 +316,10 @@ class LocalClient(object):
         :param filename: File to write
         :param contents: Contents to write to the file
         """
-        _ = self
         temp_filename = '{0}~'.format(filename)
+        if os.path.isfile(filename):
+            # Use .run([cp -pf ...]) here, to make sure owner and other rights are preserved
+            self.run(['cp', '-pf', filename, temp_filename])
         with open(temp_filename, 'w') as the_file:
             the_file.write(contents)
             the_file.flush()
