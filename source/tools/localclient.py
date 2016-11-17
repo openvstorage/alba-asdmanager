@@ -315,16 +315,15 @@ class LocalClient(object):
         with open(filename, 'r') as the_file:
             return the_file.read()
 
-    def file_write(self, filename, contents, mode='w'):
+    def file_write(self, filename, contents):
         """
         Writes into a file to the remote end
         :param filename: File to write
         :param contents: Contents to write to the file
-        :param mode: Mode to write to the file, can be a, a+, w, w+
         """
         _ = self
         temp_filename = '{0}~'.format(filename)
-        with open(temp_filename, mode) as the_file:
+        with open(temp_filename, 'w') as the_file:
             the_file.write(contents)
             the_file.flush()
             os.fsync(the_file)
