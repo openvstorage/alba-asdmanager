@@ -80,19 +80,22 @@ class LocalClient(object):
             text = '\n'.join(line.rstrip() for line in text)
         try:
             # This strip is absolutely necessary. Without it, channel.communicate() is never executed (odd but true)
-            if isinstance(text, unicode):
-                cleaned = text.strip()
-            else:
-                cleaned = text.strip().decode('utf-8', 'replace')
+            cleaned = text.strip()
+            # I ? unicode
+            if not isinstance(text, unicode):
+                cleaned = unicode(cleaned.decode('utf-8', 'replace'))
             for old, new in {u'\u2018': "'",
+                             u'\u2019': "'",
                              u'\u201a': "'",
                              u'\u201e': '"',
                              u'\u201c': '"',
                              u'\u25cf': '*'}.iteritems():
                 cleaned = cleaned.replace(old, new)
+            cleaned = unicodedata.normalize('NFKD', cleaned)
+            cleaned = cleaned.encode('ascii', 'ignore')
             return cleaned
         except UnicodeDecodeError:
-            LocalClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
+            SSHClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
     def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False):
