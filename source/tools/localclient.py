@@ -96,7 +96,7 @@ class LocalClient(object):
             cleaned = cleaned.encode('ascii', 'ignore')
             return cleaned
         except UnicodeDecodeError:
-            SSHClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
+            LocalClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
     def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False):
