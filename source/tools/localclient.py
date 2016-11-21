@@ -25,6 +25,7 @@ import grp
 import pwd
 import glob
 import select
+import unicodedata
 from subprocess import CalledProcessError, PIPE, Popen
 from source.tools.log_handler import LogHandler
 
