@@ -1,6 +1,6 @@
 [Unit]
 Description=Watcher for the configuration cluster
-Wants=nginx.service asd-manager.service
+After=local-fs.target network-online.target
 
 [Service]
 Type=simple
