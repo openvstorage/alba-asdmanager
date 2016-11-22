@@ -1,6 +1,6 @@
 [Unit]
 Description=ALBA ASD
-After=asd-manager.service asd-watcher.service
+After=asd-watcher.service
 
 [Service]
 Group=alba
