@@ -27,7 +27,6 @@ sys.path.append('/opt/asd-manager')
 if __name__ == '__main__':
     import os
     import json
-    import glob
     from source.asdmanager import BOOTSTRAP_FILE
     from source.tools.filemutex import file_mutex
     from source.tools.localclient import LocalClient
@@ -42,9 +41,9 @@ if __name__ == '__main__':
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
     CURRENT_VERSION = 1
 
-    _logger = LogHandler.get('asd-manager', name='post-upgrade')
+    _logger = LogHandler.get('asd-manager', name='post-update')
 
-    _logger.info('Executing post-upgrade logic of package openvstorage-sdm')
+    _logger.info('Executing post-update logic of package openvstorage-sdm')
     with file_mutex('package_update_pu'):
         client = LocalClient('127.0.0.1', username='root')
 
@@ -65,4 +64,4 @@ if __name__ == '__main__':
             _logger.info('Starting asd-manager service')
             ServiceManager.start_service(service_name, client)
 
-    _logger.info('Post-upgrade logic executed')
+    _logger.info('Post-update logic executed')

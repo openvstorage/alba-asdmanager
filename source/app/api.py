@@ -26,7 +26,7 @@ from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
-from source.controllers.update import UpdateController
+from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
@@ -165,6 +165,13 @@ class API(object):
         return dict((partition_alias, ASDController.list_asds(mountpoint=mountpoint)) for partition_alias, mountpoint in FSTab.read().iteritems())
 
     @staticmethod
+    @get('/asds/services')
+    def list_asd_services():
+        """ List all ASD service names """
+        API._logger.info('Listing ASD services')
+        return {'services': list(ASDController.list_asd_services())}
+
+    @staticmethod
     @get('/disks/<disk_id>/asds')
     def list_asds_disk(disk_id):
         """
@@ -258,38 +265,35 @@ class API(object):
         raise BadRequest('Disk {0} is not yet initialized'.format(alias))
 
     @staticmethod
-    @get('/update/information')
-    def get_update_information():
+    @get('/update/package_information')
+    def get_package_information():
         """ Retrieve update information """
         with file_mutex('package_update'):
             API._logger.info('Locking in place for package update')
-            return UpdateController.get_update_information()
+            return SDMUpdateController.get_package_information()
 
     @staticmethod
-    @post('/update/execute/<status>')
-    def execute_update(status):
+    @post('/update/execute')
+    def update():
         """
         Execute an update
-        :param status: Current status of the update
-        :type status: str
         """
         with file_mutex('package_update'):
-            return UpdateController.execute_update(status)
+            return SDMUpdateController.update()
 
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
         """ Restart services """
         with file_mutex('package_update'):
-            return UpdateController.restart_services()
+            return SDMUpdateController.restart_services()
 
     @staticmethod
     @get('/maintenance')
     def list_maintenance_services():
         """ List all maintenance information """
         API._logger.info('Listing maintenance services')
-        data = MaintenanceController.get_services()
-        return {'services': list(data)}
+        return {'services': list(MaintenanceController.get_services())}
 
     @staticmethod
     @post('/maintenance/<name>/add')

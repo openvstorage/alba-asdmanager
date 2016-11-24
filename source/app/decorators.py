@@ -86,7 +86,7 @@ def _build_function(f, authenticate):
             except subprocess.CalledProcessError as ex:
                 print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
-                                '_error': ex.output}, 500
+                                '_error': ex.output if ex.output != '' else str(ex)}, 500
             except Exception as ex:
                 print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
                 data, status = {'_success': False,
