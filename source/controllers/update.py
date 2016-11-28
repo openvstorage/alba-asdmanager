@@ -18,6 +18,7 @@
 This module contains logic related to updates
 """
 import os
+import copy
 from subprocess import CalledProcessError
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
@@ -41,49 +42,60 @@ class SDMUpdateController(object):
     @staticmethod
     def get_package_information():
         """
-        Retrieve the installed and candidate for install versions for the specified package_name
-        :return: Currently installed and candidate for installation version
-        :rtype: tuple
+        Retrieve information about the currently installed versions of the core packages
+        Retrieve information about the versions to which each package can potentially be upgraded
+        If installed version is different from candidate version --> store this information in model
+
+        Additionally if installed version is identical to candidate version, check the services with a 'run' file
+        Verify whether the running version is identical to the candidate version
+        If different --> store this information in the model
+
+        Result: Every package with updates or which requires services to be restarted is stored in the model
+
+        :return: Package information
+        :rtype: dict
         """
-        package_info = {}
-        installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client,
-                                                          package_names=PackageManager.SDM_PACKAGE_NAMES)
-        candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client,
-                                                          package_names=PackageManager.SDM_PACKAGE_NAMES)
+        installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
+        candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         if set(installed.keys()) != set(PackageManager.SDM_PACKAGE_NAMES) or set(candidate.keys()) != set(PackageManager.SDM_PACKAGE_NAMES):
             raise RuntimeError('Failed to retrieve the installed and candidate versions for packages: {0}'.format(', '.join(PackageManager.SDM_PACKAGE_NAMES)))
 
-        asd_services = ASDController.list_asd_services()
-        maintenance_services = MaintenanceController.get_services()
-
-        for component, info in {'alba': {'alba': [name for name in asd_services] + [name for name in maintenance_services],
+        package_info = {}
+        default_entry = {'candidate': None,
+                         'installed': None,
+                         'services_to_restart': []}
+        #                     component: package_name: services_with_run_file
+        for component, info in {'alba': {'alba': list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
                                          'openvstorage-sdm': []}}.iteritems():
-            packages = []
+            component_info = {}
             for package_name, services in info.iteritems():
-                old = installed[package_name]
-                new = candidate[package_name]
-                if old != new:
-                    packages.append({'name': package_name,
-                                     'installed': old,
-                                     'candidate': new,
-                                     'namespace': 'alba',  # Namespace refers to json translation file: alba.json
-                                     'services_to_restart': []})
-                else:
-                    services_to_restart = []
-                    for service in services:
-                        asd_version_file = '/opt/asd-manager/run/{0}.version'.format(service)
-                        if SDMUpdateController._local_client.file_exists(asd_version_file):
-                            running_version = SDMUpdateController._local_client.file_read(asd_version_file).strip()
-                            if running_version != new:
-                                old = running_version
-                                services_to_restart.append(service)
-                    if len(services_to_restart) > 0:
-                        packages.append({'name': package_name,
-                                         'installed': old,
-                                         'candidate': new,
-                                         'namespace': 'alba',
-                                         'services_to_restart': services_to_restart})
-            package_info[component] = packages
+                for service in services:
+                    version_file = '/opt/asd-manager/run/{0}.version'.format(service)
+                    if not SDMUpdateController._local_client.file_exists(version_file):
+                        SDMUpdateController._logger.warning('Failed to find a version file in /opt/asd-manager/run for service {0}'.format(service))
+                        continue
+                    running_versions = SDMUpdateController._local_client.file_read(version_file).strip()
+                    for version in running_versions.split(';'):
+                        if '=' in version:
+                            package_name = version.split('=')[0]
+                            running_version = version.split('=')[1]
+                            if package_name not in PackageManager.SDM_PACKAGE_NAMES:
+                                raise ValueError('Unknown package dependency found in {0}'.format(version_file))
+                        else:
+                            running_version = version
+                        if running_version != candidate[package_name]:
+                            if package_name not in component_info:
+                                component_info[package_name] = copy.deepcopy(default_entry)
+                            component_info[package_name]['installed'] = running_version
+                            component_info[package_name]['candidate'] = candidate[package_name]
+                            component_info[package_name]['services_to_restart'].append(service)
+
+                if installed[package_name] != candidate[package_name] and package_name not in component_info:
+                    component_info[package_name] = copy.deepcopy(default_entry)
+                    component_info[package_name]['installed'] = installed[package_name]
+                    component_info[package_name]['candidate'] = candidate[package_name]
+            if component_info:
+                package_info[component] = component_info
         return package_info
 
     @staticmethod

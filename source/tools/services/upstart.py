@@ -22,13 +22,13 @@ import re
 import time
 from subprocess import CalledProcessError, check_output
 from source.tools.log_handler import LogHandler
+from source.tools.toolbox import Toolbox
 
 
 class Upstart(object):
     """
     Contains all logic related to Upstart services
     """
-
     _logger = LogHandler.get('asd-manager', name='upstart')
 
     @staticmethod
@@ -86,7 +86,7 @@ class Upstart(object):
             template_file = template_file.replace('<{0}>'.format(key), value)
         if '<SERVICE_NAME>' in template_file:
             service_name = name if target_name is None else target_name
-            template_file = template_file.replace('<SERVICE_NAME>', service_name.lstrip('ovs-'))
+            template_file = template_file.replace('<SERVICE_NAME>', Toolbox.remove_prefix(service_name, 'ovs-'))
 
         dependency = ''
         if startup_dependency:
@@ -137,6 +137,9 @@ class Upstart(object):
         :return: None
         """
         name = Upstart._get_name(name, client)
+        run_file_name = '/opt/asd-manager/run/{0}.version'.format(name)
+        if client.file_exists(run_file_name):
+            client.file_delete(run_file_name)
         client.file_delete('/etc/init/{0}.conf'.format(name))
 
     @staticmethod
