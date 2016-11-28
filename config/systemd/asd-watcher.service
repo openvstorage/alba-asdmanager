@@ -1,6 +1,6 @@
 [Unit]
 Description=Watcher for the configuration cluster
-Wants=nginx.service asd-manager.service
+After=local-fs.target network-online.target
 
 [Service]
 Type=simple
@@ -11,8 +11,6 @@ ExecStartPre=/usr/bin/python /opt/asd-manager/source/tools/watcher.py config wai
 ExecStart=/usr/bin/python /opt/asd-manager/source/tools/watcher.py config check
 Restart=on-failure
 TimeoutStopSec=3600
-StandardOutput=null
-StandardError=null
 
 [Install]
 WantedBy=multi-user.target

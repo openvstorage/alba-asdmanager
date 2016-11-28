@@ -23,7 +23,6 @@ import math
 import random
 import signal
 import string
-from subprocess import check_output
 from source.tools.configuration.configuration import Configuration
 from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
@@ -59,7 +58,8 @@ class ASDController(object):
             for asd_id in os.listdir(mountpoint):
                 if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
                     asds[asd_id] = Configuration.get(ASDController.ASD_CONFIG.format(asd_id))
-                    output = check_output('ls {0}/{1}/ 2>&1 || true'.format(mountpoint, asd_id), shell=True)
+                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], debug=True, allow_nonzero=True)
+                    output += error
                     if 'Input/output error' in output:
                         asds[asd_id].update({'state': 'error',
                                              'state_detail': 'io_error'})
@@ -96,7 +96,7 @@ class ASDController(object):
             raise RuntimeError('Failed to retrieve the mountpoint for partition with alias: {0}'.format(partition_alias))
 
         # Fetch disk information
-        disk_size = int(check_output('df -B 1 --output=size {0}'.format(mountpoint), shell=True).splitlines()[1])
+        disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', mountpoint]).splitlines()[1])
 
         # Find out appropriate disk size
         asds = 1.0
@@ -162,7 +162,7 @@ class ASDController(object):
                   'SERVICE_NAME': service_name,
                   'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
         os.mkdir(homedir)
-        check_output('chown -R alba:alba {0}'.format(homedir), shell=True)
+        ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
         ServiceManager.add_service('alba-asd', ASDController._local_client, params, service_name)
         ASDController.start_asd(asd_id)
 

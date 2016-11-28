@@ -112,7 +112,7 @@ def setup():
         if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
             # Try to copy automatically
             try:
-                local_client.run('cp {0} {1}'.format(source_location, file_location))
+                local_client.file_upload(file_location, source_location)
             except Exception:
                 pass
         while not local_client.file_exists(file_location):

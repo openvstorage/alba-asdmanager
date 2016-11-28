@@ -19,10 +19,13 @@
 Watcher module for config cluster
 """
 
+import os
 import sys
 import time
 import uuid
 import logging
+from ConfigParser import RawConfigParser
+from StringIO import StringIO
 from source.tools.log_handler import LogHandler
 
 
@@ -68,10 +71,19 @@ class Watcher(object):
                     client = ArakoonConfiguration.get_client()
                     contents = client.get(Watcher.INTERNAL_CONFIG_KEY, consistency=NoGuarantee())
                     if Watcher.LOG_CONTENTS != contents:
-                        with open(ArakoonConfiguration.CACC_LOCATION, 'w') as config_file:
+                        try:
+                            # Validate whether the contents are not corrupt
+                            parser = RawConfigParser()
+                            parser.readfp(StringIO(contents))
+                        except Exception as ex:
+                            self.log_message(target, '  Configuration stored in configuration store seems to be corrupt: {0}'.format(ex), 2)
+                            return False
+                        temp_filename = '{0}~'.format(ArakoonConfiguration.CACC_LOCATION)
+                        with open(temp_filename, 'w') as config_file:
                             config_file.write(contents)
-                        if Watcher.LOG_CONTENTS is not None:
-                            sys.exit(1)
+                            config_file.flush()
+                            os.fsync(config_file)
+                        os.rename(temp_filename, ArakoonConfiguration.CACC_LOCATION)
                         Watcher.LOG_CONTENTS = contents
                 self.log_message(target, '  Configuration store OK', 0)
                 return True

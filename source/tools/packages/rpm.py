@@ -34,7 +34,7 @@ class RpmPackage(object):
     def get_installed_candidate_version(package_name, client):
         installed = RpmPackage._get_version(package_name)
         candidate = None
-        output = check_output('yum list {0} --showduplicates'.format(package_name), shell=True).splitlines()
+        output = check_output("yum list '{0}' --showduplicates".format(package_name.replace(r"'", r"'\''")), shell=True).splitlines()
         for line in output:
             if line.startswith('Available Packages'):
                 candidate_line = output[-1]
@@ -45,7 +45,7 @@ class RpmPackage(object):
 
     @staticmethod
     def _get_version(package_name):
-        return check_output("yum info {0} | grep Version | cut -d ':' -f 2 || true".format(package_name), shell=True).strip()
+        return check_output("yum info '{0}' | grep Version | cut -d ':' -f 2 || true".format(package_name.replace(r"'", r"'\''")), shell=True).strip()
 
     @staticmethod
     def get_versions():
@@ -64,7 +64,7 @@ class RpmPackage(object):
         while counter < max_counter:
             counter += 1
             try:
-                client.run('yum update -y {0}'.format(package_name))
+                client.run(['yum', 'update', '-y', package_name])
                 break
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
@@ -78,7 +78,7 @@ class RpmPackage(object):
     @staticmethod
     def update(client):
         try:
-            client.run('yum check-update')
+            client.run(['yum', 'check-update'])
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
@@ -94,7 +94,7 @@ class RpmPackage(object):
         for package_name in packages:
             installed = None
             candidate = None
-            for line in client.run("yum list {0}".format(package_name)).splitlines():
+            for line in client.run(['yum', 'list', package_name]).splitlines():
                 if line.startswith(package_name):
                     version = line.split()
                     if len(version) > 1:
