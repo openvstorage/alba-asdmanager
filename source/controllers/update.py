@@ -94,7 +94,7 @@ class UpdateController(object):
             if status == 'started':
                 UpdateController._logger.info('Updating package {0}'.format(UpdateController.PACKAGE_NAME))
                 UpdateController._local_client.run('echo "ASD_NODE_ID={0} python {1} >> /var/log/upgrade-openvstorage-sdm.log 2>&1" > /tmp/update'.format(UpdateController.NODE_ID, UpdateController.INSTALL_SCRIPT), allow_insecure=True)
-                UpdateController._local_client.run(['at', '-f', '/tmp/update now'])
+                UpdateController._local_client.run(['at', '-f', '/tmp/update', 'now'])
                 UpdateController._local_client.run(['rm', '/tmp/update'])
             return {'status': 'running'}
         else:
