@@ -274,13 +274,13 @@ class API(object):
             return SDMUpdateController.get_package_information()
 
     @staticmethod
-    @post('/update/execute')
-    def update():
+    @post('/update/execute/<package_name>')
+    def update(package_name):
         """
-        Execute an update
+        Install the specified package
         """
         with file_mutex('package_update'):
-            return SDMUpdateController.update()
+            return SDMUpdateController.update(package_name=package_name)
 
     @staticmethod
     @post('/update/restart_services')

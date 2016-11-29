@@ -64,6 +64,7 @@ class SDMUpdateController(object):
         default_entry = {'candidate': None,
                          'installed': None,
                          'services_to_restart': []}
+
         #                     component: package_name: services_with_run_file
         for component, info in {'alba': {'alba': list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
                                          'openvstorage-sdm': []}}.iteritems():
@@ -99,12 +100,13 @@ class SDMUpdateController(object):
         return package_info
 
     @staticmethod
-    def update():
+    def update(package_name):
         """
-        Execute an update on the local node
+        Update the package on the local node
         """
-        for package_name in PackageManager.SDM_PACKAGE_NAMES:
-            PackageManager.install(package_name=package_name, client=SDMUpdateController._local_client)
+        SDMUpdateController._logger.debug('Installing package {0}'.format(package_name))
+        PackageManager.install(package_name=package_name, client=SDMUpdateController._local_client)
+        SDMUpdateController._logger.debug('Installed package {0}'.format(package_name))
 
     @staticmethod
     def restart_services():
@@ -117,11 +119,11 @@ class SDMUpdateController(object):
         for service_name in service_names:
             status, _ = ServiceManager.get_service_status(service_name, SDMUpdateController._local_client)
             if status is False:
-                SDMUpdateController._logger.info('Found stopped service {0}. Will not start it.'.format(service_name))
+                SDMUpdateController._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue
 
-            SDMUpdateController._logger.info('Restarting service {0}'.format(service_name))
+            SDMUpdateController._logger.debug('Restarting service {0}'.format(service_name))
             try:
                 ServiceManager.restart_service(service_name, SDMUpdateController._local_client)
             except CalledProcessError as cpe:
-                SDMUpdateController._logger.info('Failed to restart service {0} {1}'.format(service_name, cpe))
+                SDMUpdateController._logger.debug('Failed to restart service {0} {1}'.format(service_name, cpe))
