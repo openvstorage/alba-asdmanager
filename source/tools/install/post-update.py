@@ -17,7 +17,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Post upgrade script for package openvstorage-sdm
+Post update script for package openvstorage-sdm
 """
 
 import sys
