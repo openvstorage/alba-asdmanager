@@ -20,7 +20,6 @@ API views
 
 import os
 import json
-import time
 from flask import request
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
@@ -285,7 +284,7 @@ class API(object):
         This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
         Old code tries to call /update/information and expects data formatted in the old style
         """
-        return_value = {}
+        return_value = {'version': '', 'installed': ''}
         with file_mutex('package_update'):
             API._logger.info('Locking in place for package update')
             update_info = SDMUpdateController.get_package_information().get('alba', {})
