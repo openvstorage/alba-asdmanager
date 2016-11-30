@@ -290,10 +290,10 @@ class API(object):
             API._logger.info('Locking in place for package update')
             update_info = SDMUpdateController.get_package_information().get('alba', {})
             if 'openvstorage-sdm' in update_info:
-                return_value['candidate'] = update_info['openvstorage-sdm']['candidate']
+                return_value['version'] = update_info['openvstorage-sdm']['candidate']
                 return_value['installed'] = update_info['openvstorage-sdm']['installed']
             elif 'alba' in update_info:
-                return_value['candidate'] = update_info['alba']['candidate']
+                return_value['version'] = update_info['alba']['candidate']
                 return_value['installed'] = update_info['alba']['installed']
         return return_value
 
@@ -318,7 +318,8 @@ class API(object):
         _ = status
         with file_mutex('package_update'):
             SDMUpdateController.update(package_name='alba')
-            return SDMUpdateController.update(package_name='openvstorage-sdm')
+            SDMUpdateController.update(package_name='openvstorage-sdm')
+            return {'status': 'done'}
 
     @staticmethod
     @post('/update/restart_services')
