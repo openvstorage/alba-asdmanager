@@ -43,7 +43,7 @@ class SDMUpdateController(object):
     def get_package_information():
         """
         Retrieve information about the currently installed versions of the core packages
-        Retrieve information about the versions to which each package can potentially be upgraded
+        Retrieve information about the versions to which each package can potentially be updated
         If installed version is different from candidate version --> store this information in model
 
         Additionally if installed version is identical to candidate version, check the services with a 'run' file
