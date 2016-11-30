@@ -267,20 +267,58 @@ class API(object):
 
     @staticmethod
     @get('/update/package_information')
-    def get_package_information():
-        """ Retrieve update information """
+    def get_package_information_new():
+        """
+        Retrieve update information
+        This call is used by the new framework code (as off 30 Nov 2016)
+        In case framework has new code, but SDM runs old code, the asdmanager.py plugin will adjust the old format to the new format
+        """
         with file_mutex('package_update'):
             API._logger.info('Locking in place for package update')
             return SDMUpdateController.get_package_information()
 
     @staticmethod
-    @post('/update/execute/<package_name>')
+    @get('/update/information')
+    def get_package_information_old():
+        """
+        Retrieve update information
+        This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
+        Old code tries to call /update/information and expects data formatted in the old style
+        """
+        return_value = {}
+        with file_mutex('package_update'):
+            API._logger.info('Locking in place for package update')
+            update_info = SDMUpdateController.get_package_information().get('alba', {})
+            if 'openvstorage-sdm' in update_info:
+                return_value['candidate'] = update_info['openvstorage-sdm']['candidate']
+                return_value['installed'] = update_info['openvstorage-sdm']['installed']
+            elif 'alba' in update_info:
+                return_value['candidate'] = update_info['alba']['candidate']
+                return_value['installed'] = update_info['alba']['installed']
+        return return_value
+
+    @staticmethod
+    @post('/update/install/<package_name>')
     def update(package_name):
         """
         Install the specified package
         """
         with file_mutex('package_update'):
             return SDMUpdateController.update(package_name=package_name)
+
+    @staticmethod
+    @post('/update/execute/<status>')
+    def execute_update(status):
+        """
+        This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
+        Old code tries to initiate update providing a status, while new code no longer requires this status
+        :param status: Unused
+        :type status: str
+        """
+        _ = status
+        with file_mutex('package_update'):
+            SDMUpdateController.update(package_name='alba')
+            return SDMUpdateController.update(package_name='openvstorage-sdm')
 
     @staticmethod
     @post('/update/restart_services')
