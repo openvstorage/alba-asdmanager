@@ -26,7 +26,7 @@ from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
-from source.controllers.update import UpdateController
+from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
@@ -165,6 +165,13 @@ class API(object):
         return dict((partition_alias, ASDController.list_asds(mountpoint=mountpoint)) for partition_alias, mountpoint in FSTab.read().iteritems())
 
     @staticmethod
+    @get('/asds/services')
+    def list_asd_services():
+        """ List all ASD service names """
+        API._logger.info('Listing ASD services')
+        return {'services': list(ASDController.list_asd_services())}
+
+    @staticmethod
     @get('/disks/<disk_id>/asds')
     def list_asds_disk(disk_id):
         """
@@ -258,38 +265,74 @@ class API(object):
         raise BadRequest('Disk {0} is not yet initialized'.format(alias))
 
     @staticmethod
-    @get('/update/information')
-    def get_update_information():
-        """ Retrieve update information """
+    @get('/update/package_information')
+    def get_package_information_new():
+        """
+        Retrieve update information
+        This call is used by the new framework code (as off 30 Nov 2016)
+        In case framework has new code, but SDM runs old code, the asdmanager.py plugin will adjust the old format to the new format
+        """
         with file_mutex('package_update'):
             API._logger.info('Locking in place for package update')
-            return UpdateController.get_update_information()
+            return SDMUpdateController.get_package_information()
+
+    @staticmethod
+    @get('/update/information')
+    def get_package_information_old():
+        """
+        Retrieve update information
+        This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
+        Old code tries to call /update/information and expects data formatted in the old style
+        """
+        return_value = {'version': '', 'installed': ''}
+        with file_mutex('package_update'):
+            API._logger.info('Locking in place for package update')
+            update_info = SDMUpdateController.get_package_information().get('alba', {})
+            if 'openvstorage-sdm' in update_info:
+                return_value['version'] = update_info['openvstorage-sdm']['candidate']
+                return_value['installed'] = update_info['openvstorage-sdm']['installed']
+            elif 'alba' in update_info:
+                return_value['version'] = update_info['alba']['candidate']
+                return_value['installed'] = update_info['alba']['installed']
+        return return_value
+
+    @staticmethod
+    @post('/update/install/<package_name>')
+    def update(package_name):
+        """
+        Install the specified package
+        """
+        with file_mutex('package_update'):
+            return SDMUpdateController.update(package_name=package_name)
 
     @staticmethod
     @post('/update/execute/<status>')
     def execute_update(status):
         """
-        Execute an update
-        :param status: Current status of the update
+        This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
+        Old code tries to initiate update providing a status, while new code no longer requires this status
+        :param status: Unused
         :type status: str
         """
+        _ = status
         with file_mutex('package_update'):
-            return UpdateController.execute_update(status)
+            SDMUpdateController.update(package_name='alba')
+            SDMUpdateController.update(package_name='openvstorage-sdm')
+            return {'status': 'done'}
 
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
         """ Restart services """
         with file_mutex('package_update'):
-            return UpdateController.restart_services()
+            return SDMUpdateController.restart_services()
 
     @staticmethod
     @get('/maintenance')
     def list_maintenance_services():
         """ List all maintenance information """
         API._logger.info('Listing maintenance services')
-        data = MaintenanceController.get_services()
-        return {'services': list(data)}
+        return {'services': list(MaintenanceController.get_services())}
 
     @staticmethod
     @post('/maintenance/<name>/add')

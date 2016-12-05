@@ -218,3 +218,13 @@ class ASDController(object):
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.restart_service(service_name, ASDController._local_client)
+
+    @staticmethod
+    def list_asd_services():
+        """
+        Retrieve all ASD services
+        :return: generator
+        """
+        for service_name in ServiceManager.list_services(ASDController._local_client):
+            if service_name.startswith(ASDController.ASD_SERVICE_PREFIX.format('')):
+                yield service_name

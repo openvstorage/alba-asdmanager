@@ -20,6 +20,7 @@ Systemd module
 import time
 from subprocess import CalledProcessError, check_output
 from source.tools.log_handler import LogHandler
+from source.tools.toolbox import Toolbox
 
 
 class Systemd(object):
@@ -84,7 +85,7 @@ class Systemd(object):
             template_file = template_file.replace('<{0}>'.format(key), value)
         if '<SERVICE_NAME>' in template_file:
             service_name = name if target_name is None else target_name
-            template_file = template_file.replace('<SERVICE_NAME>', service_name.lstrip('ovs-'))
+            template_file = template_file.replace('<SERVICE_NAME>', Toolbox.remove_prefix(service_name, 'ovs-'))
 
         dependency = ''
         if startup_dependency:
@@ -135,6 +136,9 @@ class Systemd(object):
         :return: None
         """
         name = Systemd._get_name(name, client)
+        run_file_name = '/opt/asd-manager/run/{0}.version'.format(name)
+        if client.file_exists(run_file_name):
+            client.file_delete(run_file_name)
         try:
             client.run(['systemctl', 'disable', '{0}.service'.format(name)])
         except CalledProcessError:
@@ -156,6 +160,11 @@ class Systemd(object):
         status, output = Systemd.get_service_status(name, client)
         if status is True:
             return output
+        try:
+            # When service files have been adjusted, a reload is required for these changes to take effect
+            client.run(['systemctl', 'daemon-reload'])
+        except CalledProcessError:
+            pass
         try:
             name = Systemd._get_name(name, client)
             output = client.run(['systemctl', 'start', '{0}.service'.format(name)])
@@ -197,6 +206,11 @@ class Systemd(object):
         :return: The output of the restart command
         :rtype: str
         """
+        try:
+            # When service files have been adjusted, a reload is required for these changes to take effect
+            client.run(['systemctl', 'daemon-reload'])
+        except CalledProcessError:
+            pass
         try:
             name = Systemd._get_name(name, client)
             output = client.run(['systemctl', 'restart', '{0}.service'.format(name)])
