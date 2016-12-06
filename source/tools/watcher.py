@@ -84,6 +84,9 @@ class Watcher(object):
                             config_file.flush()
                             os.fsync(config_file)
                         os.rename(temp_filename, ArakoonConfiguration.CACC_LOCATION)
+                        if Watcher.LOG_CONTENTS is not None:
+                            self.log_message(target, '  Configuration changed, trigger restart', 1)
+                            sys.exit(1)
                         Watcher.LOG_CONTENTS = contents
                 self.log_message(target, '  Configuration store OK', 0)
                 return True

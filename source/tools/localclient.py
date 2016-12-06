@@ -99,14 +99,15 @@ class LocalClient(object):
             LocalClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
-    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False):
+    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False, return_stderr=False):
         """
         Executes a shell command
         :param suppress_logging: Do not log anything
         :param command: Command to execute
-        :param debug: Extended logging and stderr output returned
+        :param debug: Extended logging
         :param allow_nonzero: Allow non-zero exit code
         :param allow_insecure: Allow string commands (which might be improperly escaped)
+        :param return_stderr: Return stderr
         """
 
         if not isinstance(command, list) and not allow_insecure:
@@ -128,9 +129,10 @@ class LocalClient(object):
             exit_code = channel.returncode
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                 raise CalledProcessError(exit_code, command, stdout)
-            if debug:
+            if debug is True:
                 LocalClient._logger.debug('stdout: {0}'.format(stdout))
                 LocalClient._logger.debug('stderr: {0}'.format(stderr))
+            if return_stderr is True:
                 return stdout, stderr
             else:
                 return stdout

@@ -58,7 +58,7 @@ class ASDController(object):
             for asd_id in os.listdir(mountpoint):
                 if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
                     asds[asd_id] = Configuration.get(ASDController.ASD_CONFIG.format(asd_id))
-                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], debug=True, allow_nonzero=True)
+                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], allow_nonzero=True, return_stderr=True)
                     output += error
                     if 'Input/output error' in output:
                         asds[asd_id].update({'state': 'error',
