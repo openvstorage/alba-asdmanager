@@ -158,7 +158,7 @@ class DiskController(object):
                              'available': int(available)}
 
                     # Check mountpoint validation
-                    output, error = DiskController._local_client.run(['ls', '{0}/'.format(partition_mtpt)], debug=True, allow_nonzero=True)
+                    output, error = DiskController._local_client.run(['ls', '{0}/'.format(partition_mtpt)], allow_nonzero=True, return_stderr=True)
                     output += error
                     if 'Input/output error' in output:
                         state = 'error'
