@@ -31,7 +31,6 @@ from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from subprocess import check_output
 
-BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
@@ -134,7 +133,7 @@ def setup():
                                              'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
         sys.exit(1)
 
-    with open(BOOTSTRAP_FILE, 'w') as bs_file:
+    with open(Toolbox.BOOTSTRAP_FILE, 'w') as bs_file:
         json.dump({'node_id': alba_node_id}, bs_file)
 
     ServiceManager.add_service(MANAGER_SERVICE, local_client)
@@ -164,7 +163,7 @@ def remove(silent=None):
     # VALIDATION #
     ##############
     local_client = LocalClient()
-    if not local_client.file_exists(filename=BOOTSTRAP_FILE):
+    if not local_client.file_exists(filename=Toolbox.BOOTSTRAP_FILE):
         print '\n' + Interactive.boxed_message(['The ASD Manager has already been removed'])
         sys.exit(1)
 
@@ -175,11 +174,11 @@ def remove(silent=None):
         sys.exit(1)
 
     print '  - Validating node ID'
-    with open(BOOTSTRAP_FILE, 'r') as bs_file:
+    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
         try:
             alba_node_id = json.loads(bs_file.read())['node_id']
         except:
-            print '\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(BOOTSTRAP_FILE)])
+            print '\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(Toolbox.BOOTSTRAP_FILE)])
             sys.exit(1)
 
     print '  - Validating configuration management'
@@ -251,7 +250,7 @@ def remove(silent=None):
     if store == 'arakoon':
         from source.tools.configuration.arakoon_config import ArakoonConfiguration
         local_client.file_delete(filenames=ArakoonConfiguration.CACC_LOCATION)
-    local_client.file_delete(filenames=BOOTSTRAP_FILE)
+    local_client.file_delete(filenames=Toolbox.BOOTSTRAP_FILE)
     print '\n' + Interactive.boxed_message(['ASD Manager removal completed'])
 
 
@@ -303,7 +302,7 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
-    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
+    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
 
