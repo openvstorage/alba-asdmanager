@@ -28,7 +28,10 @@ class PackageManager(object):
     Factory class returning specialized classes
     """
     ImplementationClass = None
+
+    GET_VERSION_ALBA = 'alba version --terse'
     SDM_PACKAGE_NAMES = ['alba', 'openvstorage-sdm']
+    SDM_PACKAGES_WITH_BINARIES = ['alba']
 
     class MetaClass(type):
         """
@@ -56,7 +59,9 @@ class PackageManager(object):
                     PackageManager.ImplementationClass = RpmPackage
                 else:
                     raise RuntimeError('There is no handler for Distributor ID: {0}'.format(distributor))
+            PackageManager.ImplementationClass.GET_VERSION_ALBA = PackageManager.GET_VERSION_ALBA
             PackageManager.ImplementationClass.SDM_PACKAGE_NAMES = PackageManager.SDM_PACKAGE_NAMES
+            PackageManager.ImplementationClass.SDM_PACKAGES_WITH_BINARIES = PackageManager.SDM_PACKAGES_WITH_BINARIES
             return getattr(PackageManager.ImplementationClass, item)
 
     __metaclass__ = MetaClass
