@@ -56,8 +56,11 @@ if __name__ == '__main__':
             ServiceManager.stop_service(service_name, client)
 
         if version < CURRENT_VERSION:
-            # Migration
-            pass
+            try:
+                # Put migration code here
+                pass
+            except:
+                pass
         Configuration.set(key, CURRENT_VERSION)
 
         if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is False:

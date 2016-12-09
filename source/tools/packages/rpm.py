@@ -33,7 +33,7 @@ class RpmPackage(object):
         """
         Retrieve currently installed versions of all packages
         :param client: Client on which to check the installed versions
-        :type client: SSHClient
+        :type client: source.tools.localclient.LocalClient
         :param package_names: Name of the packages to check
         :type package_names: list
         :return: Package installed versions
@@ -57,7 +57,7 @@ class RpmPackage(object):
         """
         Retrieve the versions candidate for installation of all packages
         :param client: Root client on which to check the candidate versions
-        :type client: SSHClient
+        :type client: source.tools.localclient.LocalClient
         :param package_names: Name of the packages to check
         :type package_names: list
         :return: Package candidate versions
@@ -81,13 +81,32 @@ class RpmPackage(object):
         return versions
 
     @staticmethod
+    def get_binary_versions(client, package_names):
+        """
+        Retrieve the versions for the binaries related to the package_names
+        :param client: Root client on which to retrieve the binary versions
+        :type client: source.tools.localclient.LocalClient
+        :param package_names: Names of the packages
+        :type package_names: list
+        :return: Binary versions
+        :rtype: dict
+        """
+        versions = {}
+        for package_name in package_names:
+            if package_name == 'alba':
+                versions[package_name] = client.run(RpmPackage.GET_VERSION_ALBA, allow_insecure=True)
+            else:
+                raise ValueError('Only the following packages in the ALBA ASD-manager repository have a binary file: "{0}"'.format('", "'.join(RpmPackage.SDM_PACKAGES_WITH_BINARIES)))
+        return versions
+
+    @staticmethod
     def install(package_name, client):
         """
         Install the specified package
         :param package_name: Name of the package to install
         :type package_name: str
         :param client: Root client on which to execute the installation of the package
-        :type client: SSHClient
+        :type client: source.tools.localclient.LocalClient
         :return: None
         """
         if client.username != 'root':
@@ -114,7 +133,7 @@ class RpmPackage(object):
         """
         Run the 'yum check-update' command on the specified node to update the package information
         :param client: Root client on which to update the package information
-        :type client: SSHClient
+        :type client: source.tools.localclient.LocalClient
         :return: None
         """
         if client.username != 'root':

@@ -17,7 +17,6 @@
 """
 This module contains logic related to updates
 """
-import os
 import copy
 from subprocess import CalledProcessError
 from source.controllers.asd import ASDController
@@ -32,10 +31,6 @@ class SDMUpdateController(object):
     """
     Update Controller class for SDM package
     """
-    NODE_ID = os.environ['ASD_NODE_ID']
-    PACKAGE_NAME = 'openvstorage-sdm'
-    ASD_SERVICE_PREFIX = 'alba-asd-'
-
     _local_client = LocalClient()
     _logger = LogHandler.get('asd-manager', name='update')
 
@@ -55,6 +50,7 @@ class SDMUpdateController(object):
         :return: Package information
         :rtype: dict
         """
+        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=['alba'])
         installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         if set(installed.keys()) != set(PackageManager.SDM_PACKAGE_NAMES) or set(candidate.keys()) != set(PackageManager.SDM_PACKAGE_NAMES):
@@ -80,11 +76,15 @@ class SDMUpdateController(object):
                         if '=' in version:
                             package_name = version.split('=')[0]
                             running_version = version.split('=')[1]
-                            if package_name not in PackageManager.SDM_PACKAGE_NAMES:
-                                raise ValueError('Unknown package dependency found in {0}'.format(version_file))
                         else:
                             running_version = version
-                        if running_version != candidate[package_name]:
+
+                        if package_name not in PackageManager.SDM_PACKAGE_NAMES:
+                            raise ValueError('Unknown package dependency found in {0}'.format(version_file))
+                        if package_name not in binaries:
+                            raise RuntimeError('Binary version for package {0} was not retrieved'.format(package_name))
+
+                        if running_version != binaries[package_name]:
                             if package_name not in component_info:
                                 component_info[package_name] = copy.deepcopy(default_entry)
                             component_info[package_name]['installed'] = running_version
