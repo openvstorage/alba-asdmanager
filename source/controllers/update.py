@@ -65,12 +65,13 @@ class SDMUpdateController(object):
         for component, info in {'alba': {'alba': list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
                                          'openvstorage-sdm': []}}.iteritems():
             component_info = {}
-            for package_name, services in info.iteritems():
+            for package, services in info.iteritems():
                 for service in services:
                     version_file = '/opt/asd-manager/run/{0}.version'.format(service)
                     if not SDMUpdateController._local_client.file_exists(version_file):
                         SDMUpdateController._logger.warning('Failed to find a version file in /opt/asd-manager/run for service {0}'.format(service))
                         continue
+                    package_name = package
                     running_versions = SDMUpdateController._local_client.file_read(version_file).strip()
                     for version in running_versions.split(';'):
                         if '=' in version:
@@ -88,13 +89,13 @@ class SDMUpdateController(object):
                             if package_name not in component_info:
                                 component_info[package_name] = copy.deepcopy(default_entry)
                             component_info[package_name]['installed'] = running_version
-                            component_info[package_name]['candidate'] = candidate[package_name]
+                            component_info[package_name]['candidate'] = binaries[package_name]
                             component_info[package_name]['services_to_restart'].append(service)
 
-                if installed[package_name] != candidate[package_name] and package_name not in component_info:
-                    component_info[package_name] = copy.deepcopy(default_entry)
-                    component_info[package_name]['installed'] = installed[package_name]
-                    component_info[package_name]['candidate'] = candidate[package_name]
+                if installed[package] != candidate[package] and package not in component_info:
+                    component_info[package] = copy.deepcopy(default_entry)
+                    component_info[package]['installed'] = installed[package]
+                    component_info[package]['candidate'] = candidate[package]
             if component_info:
                 package_info[component] = component_info
         return package_info
