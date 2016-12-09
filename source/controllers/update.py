@@ -89,7 +89,7 @@ class SDMUpdateController(object):
                             if package_name not in component_info:
                                 component_info[package_name] = copy.deepcopy(default_entry)
                             component_info[package_name]['installed'] = running_version
-                            component_info[package_name]['candidate'] = candidate[package_name]
+                            component_info[package_name]['candidate'] = binaries[package_name]
                             component_info[package_name]['services_to_restart'].append(service)
 
                 if installed[package] != candidate[package] and package not in component_info:
