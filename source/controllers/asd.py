@@ -180,7 +180,10 @@ class ASDController(object):
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
             ServiceManager.remove_service(service_name, ASDController._local_client)
-        ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+        try:
+            ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+        except Exception as ex:
+            ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
         Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod

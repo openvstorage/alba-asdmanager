@@ -43,7 +43,7 @@ class DiskController(object):
     def list_disks():
         """
         List the disks
-        CHANGES MADE TO THIS CODE SHOULD BE REFLECTED IN THE FRAMEWORK sync_with_reality CALL TOO!!!!!!!!!!!!!!!!!!!!
+        CHANGES MADE TO THIS CODE SHOULD BE REFLECTED IN THE FRAMEWORK sync_with_reality CALL TOO.
 
         :return: Information about the disks
         :rtype: dict
@@ -182,21 +182,7 @@ class DiskController(object):
                 if partition_alias in device_info['partition_aliases']:
                     fstab_disks.pop(partition_alias)
 
-        # Add FSTab entries which are not present in disks as 'missing'
-        for partition_alias, mountpoint in fstab_disks.iteritems():
-            partition_name = alias_name_mapping.get(partition_alias)
-            device_name = partition_device_map.get(partition_name)
-            if device_name is not None and device_name in name_alias_mapping:
-                aliases = name_alias_mapping[device_name]
-                disks[aliases[0]] = {'usage': {},
-                                     'state': 'error',
-                                     'device': '/dev/{0}'.format(device_name),
-                                     'aliases': aliases,
-                                     'node_id': DiskController.NODE_ID,
-                                     'available': False,
-                                     'mountpoint': mountpoint,
-                                     'state_detail': 'missing',
-                                     'partition_aliases': name_alias_mapping.get(partition_name, [])}
+        # FSTab entries which are not present in disks (missing disks) are not returned.
         return disks
 
     @staticmethod
