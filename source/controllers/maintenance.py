@@ -65,8 +65,10 @@ class MaintenanceController(object):
                 'read_preference': [] if node_id is None else [node_id]
             }, indent=4), raw=True)
 
-            ServiceManager.add_service(name='alba-maintenance', client=MaintenanceController._local_client,
-                                       params=params, target_name=name)
+            ServiceManager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
+                                       client=MaintenanceController._local_client,
+                                       params=params,
+                                       target_name=name)
         ServiceManager.start_service(name, MaintenanceController._local_client)
 
     @staticmethod

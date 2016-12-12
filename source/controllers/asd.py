@@ -157,8 +157,7 @@ class ASDController(object):
         Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        params = {'ASD': asd_id,
-                  'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
+        params = {'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
                   'SERVICE_NAME': service_name,
                   'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
         os.mkdir(homedir)
