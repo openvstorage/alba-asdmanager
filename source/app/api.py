@@ -24,7 +24,7 @@ from flask import request
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
-from source.controllers.disk import DiskController
+from source.controllers.disk import DiskController, DiskNotFoundError
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
@@ -112,21 +112,41 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        if disk_data['available'] is True:
+        try:
+            disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
+        except DiskNotFoundError:
+            API._logger.warning('Disk with ID {0} is no longer detected on the filesystem'.format(disk_id))
+            disk_data = {}
+
+        if disk_data.get('available') is True:
             raise BadRequest('Disk not yet configured')
-        alias = disk_data['aliases'][0]
-        API._logger.info('Deleting disk {0}'.format(alias))
-        with file_mutex('disk_{0}'.format(disk_id)):
-            for partition_alias, mountpoint in FSTab.read().iteritems():
-                if partition_alias in disk_data['partition_aliases']:
-                    asds = ASDController.list_asds(mountpoint=mountpoint)
-                    for asd_id in asds:
-                        ASDController.remove_asd(asd_id=asd_id,
-                                                 mountpoint=mountpoint)
-                    DiskController.clean_disk(device_alias=alias,
-                                              mountpoint=mountpoint)
+
+        if disk_data:
+            alias = disk_data['aliases'][0]
+            mountpoint = disk_data['mountpoint'] or None
+            partition_aliases = disk_data['partition_aliases']
+            API._logger.info('Deleting disk {0}'.format(alias))
+        else:  # Disk is most likely missing from filesystem
+            alias = None
+            mountpoint = None
+            partition_aliases = json.loads(request.form['partition_aliases'])
+            API._logger.info('Deleting unknown disk with partition aliases "{0}"'.format('", "'.join(partition_aliases)))
+
+        if mountpoint is None:  # 'lsblk' did not return mountpoint for the device, but perhaps it's still mounted according to FSTab
+            for partition_alias, mtpt in FSTab.read().iteritems():
+                if partition_alias in partition_aliases:
+                    API._logger.warning('Disk with ID {0} is still mounted on {1} according to FSTab'.format(disk_id, mountpoint))
+                    mountpoint = mtpt
                     break
+
+        with file_mutex('disk_{0}'.format(disk_id)):
+            if mountpoint is not None:
+                for asd_id in ASDController.list_asds(mountpoint=mountpoint):
+                    ASDController.remove_asd(asd_id=asd_id,
+                                             mountpoint=mountpoint)
+            DiskController.clean_disk(device_alias=alias,
+                                      mountpoint=mountpoint,
+                                      partition_aliases=partition_aliases)
 
     @staticmethod
     @post('/disks/<disk_id>/restart')

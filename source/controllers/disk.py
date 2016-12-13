@@ -29,6 +29,13 @@ from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 
 
+class DiskNotFoundError(RuntimeError):
+    """
+    Error raised when a disk is no longer found on the system
+    """
+    pass
+
+
 class DiskController(object):
     """
     Disk helper methods
@@ -199,12 +206,12 @@ class DiskController(object):
         DiskController._locate(device_alias=device_alias, start=False)
         DiskController._local_client.run(['umount', mountpoint], allow_nonzero=True)
         DiskController._local_client.run(['parted', device_alias, '-s', 'mklabel', 'gpt'])
-        DiskController._local_client.run(['parted', device_alias, '-s', 'mkpart',
-                                          device_alias.split('/')[-1], '2MB', '100%'])
+        DiskController._local_client.run(['parted', device_alias, '-s', 'mkpart', device_alias.split('/')[-1], '2MB', '100%'])
         DiskController._local_client.run(['udevadm', 'settle'])  # Waits for all udev rules to have finished
 
         # Wait for partition to be ready by attempting to add filesystem
         counter = 0
+        already_mounted = False
         partition_aliases = []
         while True:
             disk_info = DiskController.get_disk_data_by_alias(device_alias=device_alias)
@@ -214,7 +221,13 @@ class DiskController(object):
                     DiskController._local_client.run(['mkfs.xfs', '-qf', partition_aliases[0]])
                     break
                 except CalledProcessError:
-                    pass
+                    if disk_info['mountpoint'] and disk_info['mountpoint'] in DiskController._local_client.run(['mount']):
+                        mountpoint = disk_info['mountpoint']
+                        DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
+                        already_mounted = True
+                        # Some OSes have auto-mount functionality making mkfs.xfs to fail when the mountpoint has already been mounted
+                        # This can occur when the exact same partition gets created on the device
+                        break
             DiskController._logger.info('Partition for disk {0} not ready yet'.format(device_alias))
             time.sleep(0.2)
             counter += 1
@@ -224,30 +237,41 @@ class DiskController(object):
         # Create mountpoint and mount
         DiskController._local_client.run(['mkdir', '-p', mountpoint])
         FSTab.add(partition_aliases=partition_aliases, mountpoint=mountpoint)
-        DiskController._local_client.run(['mount', mountpoint])
+        if already_mounted is False:
+            DiskController._local_client.run(['mount', mountpoint])
         DiskController._local_client.run(['chown', '-R', 'alba:alba', mountpoint])
         DiskController._logger.info('Prepare disk {0} complete'.format(device_alias))
 
     @staticmethod
-    def clean_disk(device_alias, mountpoint):
+    def clean_disk(device_alias, mountpoint, partition_aliases):
         """
         Removes the given disk
         :param device_alias: Alias for the device  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
         :type device_alias: str
         :param mountpoint: Mountpoint of the disk
         :type mountpoint: str
+        :param partition_aliases: Aliases of the partition of the device
+        :type partition_aliases: list
         :return: None
         """
-        disk_info = DiskController.get_disk_data_by_alias(device_alias=device_alias)
-        DiskController._logger.info('Cleaning disk {0}'.format(device_alias))
-        FSTab.remove(disk_info['partition_aliases'])
+        if device_alias is None:
+            DiskController._logger.warning('Deleting unknown disk with partition aliases {0}'.format(partition_aliases))
+        else:
+            DiskController._logger.info('Cleaning disk {0}'.format(device_alias))
 
-        try:
-            DiskController._local_client.run(['umount', mountpoint])
-            DiskController._local_client.dir_delete(mountpoint)
-        except Exception:
-            DiskController._logger.exception('Failure to umount or delete the mountpoint')
-            raise
+        FSTab.remove(partition_aliases)
+
+        if mountpoint is not None:
+            if device_alias is None:
+                umount_cmd = ['umount', '-l', mountpoint]
+            else:
+                umount_cmd = ['umount', mountpoint]
+            try:
+                DiskController._local_client.run(umount_cmd)
+                DiskController._local_client.dir_delete(mountpoint)
+            except Exception:
+                DiskController._logger.exception('Failure to umount or delete the mountpoint')
+                raise
         try:
             DiskController._local_client.run(['parted', device_alias, '-s', 'mklabel', 'gpt'])
         except CalledProcessError:
@@ -307,7 +331,7 @@ class DiskController(object):
         if DiskController.controllers == {}:
             DiskController.scan_controllers()
         for wwn in DiskController.controllers:
-            if device_alias.endswith(wwn):
+            if device_alias and device_alias.endswith(wwn):
                 controller_type, location = DiskController.controllers[wwn]
                 if controller_type == 'storcli64':
                     DiskController._logger.info('Location {0} for {1}'.format('start' if start is True else 'stop', location))
@@ -340,7 +364,7 @@ class DiskController(object):
                         disk_data = data
                         break
         if disk_data is None:
-            raise RuntimeError('Disk with alias {0} not available'.format(device_alias))
+            raise DiskNotFoundError('Disk with alias {0} not available'.format(device_alias))
         if len(disk_data.get('aliases', [])) == 0:
             raise RuntimeError('No aliases found for device {0}'.format(device_alias))
         return disk_data
