@@ -58,7 +58,7 @@ class FSTab(object):
         """
         Remove an entry for each alias in partition_aliases that's present in fstab
         :param partition_aliases: Aliases of the partition to remove from fstab
-        :type partition_aliases: str
+        :type partition_aliases: list
         :return: None
         """
         lines = FSTab._read()
