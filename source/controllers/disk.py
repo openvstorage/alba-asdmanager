@@ -222,11 +222,13 @@ class DiskController(object):
                     break
                 except CalledProcessError:
                     if disk_info['mountpoint'] and disk_info['mountpoint'] in DiskController._local_client.run(['mount']):
-                        mountpoint = disk_info['mountpoint']
-                        DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
-                        already_mounted = True
                         # Some OSes have auto-mount functionality making mkfs.xfs to fail when the mountpoint has already been mounted
                         # This can occur when the exact same partition gets created on the device
+                        mountpoint = disk_info['mountpoint']
+                        already_mounted = True
+                        if mountpoint.startswith('/mnt/alba-asd'):
+                            DiskController._local_client.run('rm -rf {0}/*'.format(mountpoint), allow_insecure=True)
+                        DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
                         break
             DiskController._logger.info('Partition for disk {0} not ready yet'.format(device_alias))
             time.sleep(0.2)
