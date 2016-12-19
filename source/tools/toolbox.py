@@ -25,12 +25,11 @@ class Toolbox(object):
     """
     Generic class for various methods
     """
-
+    BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
     regex_ip = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
     regex_guid = re.compile('^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$')
     regex_vpool = re.compile('^[0-9a-z][\-a-z0-9]{1,20}[a-z0-9]$')
-    regex_preset = re.compile('^[0-9a-zA-Z][a-zA-Z0-9]{1,18}[a-zA-Z0-9]$')
-    regex_mountpoint = re.compile('^(/[a-zA-Z0-9\-_\.]+)+/?$')
+    regex_preset = re.compile('^[0-9a-zA-Z][a-zA-Z0-9-_]{1,18}[a-zA-Z0-9]$')
     compiled_regex_type = type(re.compile('some_regex'))
 
     @staticmethod

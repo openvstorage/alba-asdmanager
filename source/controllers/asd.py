@@ -58,7 +58,7 @@ class ASDController(object):
             for asd_id in os.listdir(mountpoint):
                 if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
                     asds[asd_id] = Configuration.get(ASDController.ASD_CONFIG.format(asd_id))
-                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], debug=True, allow_nonzero=True)
+                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], allow_nonzero=True, return_stderr=True)
                     output += error
                     if 'Input/output error' in output:
                         asds[asd_id].update({'state': 'error',
@@ -157,8 +157,7 @@ class ASDController(object):
         Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
 
         service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        params = {'ASD': asd_id,
-                  'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
+        params = {'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
                   'SERVICE_NAME': service_name,
                   'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
         os.mkdir(homedir)
@@ -180,7 +179,10 @@ class ASDController(object):
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
             ServiceManager.remove_service(service_name, ASDController._local_client)
-        ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+        try:
+            ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+        except Exception as ex:
+            ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
         Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
 
     @staticmethod

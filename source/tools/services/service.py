@@ -17,8 +17,7 @@
 """
 Service Factory module
 """
-import time
-from subprocess import check_output, CalledProcessError
+from subprocess import check_output
 from source.tools.log_handler import LogHandler
 from source.tools.services.upstart import Upstart
 from source.tools.services.systemd import Systemd
@@ -28,9 +27,8 @@ class ServiceManager(object):
     """
     Factory class returning specialized classes
     """
-    ImplementationClass = None
-
     _logger = LogHandler.get('asd-manager', name='service')
+    ImplementationClass = None
 
     class MetaClass(type):
         """
@@ -65,4 +63,8 @@ class ServiceManager(object):
 
     @staticmethod
     def reload():
+        """
+        Reset the ImplementationClass
+        :return: None
+        """
         ServiceManager.ImplementationClass = None

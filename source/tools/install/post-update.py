@@ -27,14 +27,14 @@ sys.path.append('/opt/asd-manager')
 if __name__ == '__main__':
     import os
     import json
-    from source.asdmanager import BOOTSTRAP_FILE
+    from source.tools.configuration.configuration import Configuration
     from source.tools.filemutex import file_mutex
     from source.tools.localclient import LocalClient
     from source.tools.log_handler import LogHandler
     from source.tools.services.service import ServiceManager
-    from source.tools.configuration.configuration import Configuration
+    from source.tools.toolbox import Toolbox
 
-    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
+    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bootstrap_file:
         NODE_ID = json.load(bootstrap_file)['node_id']
         os.environ['ASD_NODE_ID'] = NODE_ID
 
@@ -56,8 +56,11 @@ if __name__ == '__main__':
             ServiceManager.stop_service(service_name, client)
 
         if version < CURRENT_VERSION:
-            # Migration
-            pass
+            try:
+                # Put migration code here
+                pass
+            except:
+                pass
         Configuration.set(key, CURRENT_VERSION)
 
         if ServiceManager.has_service(service_name, client) and ServiceManager.get_service_status(service_name, client)[0] is False:
