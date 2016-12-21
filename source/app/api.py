@@ -30,7 +30,9 @@ from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
 from source.tools.filemutex import file_mutex
 from source.tools.fstab import FSTab
+from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
+from source.tools.services.service import ServiceManager
 from subprocess import check_output
 
 
@@ -41,6 +43,9 @@ class API(object):
 
     _logger = LogHandler.get('asd-manager', name='api')
 
+    ###########
+    # GENERIC #
+    ###########
     @staticmethod
     @get('/')
     def index():
@@ -64,6 +69,9 @@ class API(object):
         API._logger.info('Setting network information')
         Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
 
+    #########
+    # DISKS #
+    #########
     @staticmethod
     @get('/disks')
     def list_disks():
@@ -174,6 +182,9 @@ class API(object):
                         ASDController.start_asd(asd_id=asd_id)
                     break
 
+    ########
+    # ASDS #
+    ########
     @staticmethod
     @get('/asds')
     def list_asds():
@@ -284,6 +295,9 @@ class API(object):
                 return
         raise BadRequest('Disk {0} is not yet initialized'.format(alias))
 
+    ##########
+    # UPDATE #
+    ##########
     @staticmethod
     @get('/update/package_information')
     def get_package_information_new():
@@ -340,6 +354,9 @@ class API(object):
             SDMUpdateController.update(package_name='openvstorage-sdm')
             return {'status': 'done'}
 
+    ####################
+    # GENERIC SERVICES #
+    ####################
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
@@ -347,6 +364,24 @@ class API(object):
         with file_mutex('package_update'):
             return SDMUpdateController.restart_services()
 
+    @staticmethod
+    @get('/service_status/<name>')
+    def get_service_status(name):
+        """
+        Retrieve the status of the service specified
+        :param name: Name of the service to check
+        :type name: str
+        :return: Status of the service
+        :rtype: str
+        """
+        client = LocalClient()
+        if ServiceManager.has_service(name=name, client=client):
+            return {'status': ServiceManager.get_service_status(name=name, client=client)}
+        return {'status': None}
+
+    ########################
+    # MAINTENANCE SERVICES #
+    ########################
     @staticmethod
     @get('/maintenance')
     def list_maintenance_services():
