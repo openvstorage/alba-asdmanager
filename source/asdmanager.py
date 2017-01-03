@@ -40,6 +40,7 @@ def setup():
     """
     Interactive setup part for initial asd manager configuration
     """
+
     print Interactive.boxed_message(['ASD Manager setup'])
     print '- Verifying distribution'
     local_client = LocalClient()
