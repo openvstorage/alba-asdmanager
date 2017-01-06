@@ -27,7 +27,6 @@ sys.path.append('/opt/asd-manager')
 if __name__ == '__main__':
     import os
     import json
-    from source.controllers.asd import ASDController
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration.configuration import Configuration
     from source.tools.filemutex import file_mutex
@@ -48,6 +47,8 @@ if __name__ == '__main__':
 
     _logger.info('Executing post-update logic of package openvstorage-sdm')
     with file_mutex('package_update_pu'):
+        from source.controllers.asd import ASDController
+
         client = LocalClient('127.0.0.1', username='root')
 
         key = '{0}/versions'.format(CONFIG_ROOT)
@@ -106,7 +107,7 @@ if __name__ == '__main__':
                                     client.file_chown(filenames=[run_file], user='alba', group='alba')
                     client.run(['systemctl', 'daemon-reload'])
             except:
-                pass
+                _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
 
         if ServiceManager.has_service(asd_manager_service_name, client) and ServiceManager.get_service_status(asd_manager_service_name, client)[0] is False:
