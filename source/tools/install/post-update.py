@@ -83,7 +83,7 @@ if __name__ == '__main__':
                             continue
 
                         configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
-                        if Configuration.exists(configuration_key) and ServiceManager.has_service(name=service_name, client=client):
+                        if Configuration.exists(configuration_key):
                             # Rewrite the service file
                             service_params = Configuration.get(configuration_key)
                             ServiceManager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
