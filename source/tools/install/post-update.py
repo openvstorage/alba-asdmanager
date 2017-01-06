@@ -86,26 +86,16 @@ if __name__ == '__main__':
                         configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
-                            service_params = Configuration.get(configuration_key)
                             ServiceManager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
                                                        client=client,
-                                                       params=service_params,
+                                                       params=Configuration.get(configuration_key),
                                                        target_name=service_name)
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
-                            run_file = '/opt/asd-manager/run/{0}.version'.format(service_name)
-                            if client.file_exists(filename=run_file):
-                                contents = client.file_read(run_file).strip()
-                                if '-reboot' not in contents:
-                                    if '=' in contents:
-                                        contents = ';'.join(['{0}-reboot'.format(part) for part in contents.split(';') if 'alba' in part])
-                                    else:
-                                        contents = '{0}-reboot'.format(contents)
-                                    # Add something to the version, which makes sure it no longer matches the actually installed version
-                                    client.file_write(filename=run_file, contents=contents)
-                                    client.file_chown(filenames=[run_file], user='alba', group='alba')
-                    client.run(['systemctl', 'daemon-reload'])
+                            Toolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
+                    if service_manager == 'systemd':
+                        client.run(['systemctl', 'daemon-reload'])
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
