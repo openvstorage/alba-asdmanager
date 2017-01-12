@@ -49,16 +49,18 @@ elif [ "$1" = "remove" ] ; then
     python -c "from source.asdmanager import remove; remove('$2')"
 elif [ "$1" = "collect" ] ; then
     if [ "$2" = "logs" ] ; then
-        LOGFILE=/tmp/asdmanager-`hostname`-`date "+%Y%m%d%H%M%S"`-logs.tar
+        FILENAME=asdmanager-`hostname`-`date "+%Y%m%d%H%M%S"`-logs.tar
+        LOGFILE=/opt/asd-manager/downloads/${FILENAME}
         rm -f ${LOGFILE}
         rm -f ${LOGFILE}.gz
         touch ${LOGFILE}
         journalctl -u asd-* -u alba-* --no-pager > /var/log/journald.log 2>&1 || true
-        tar uvf ${LOGFILE} /var/log/upstart* > /dev/null 2>&1
+        tar uvf ${LOGFILE} /var/log/upstart/alba-* > /dev/null 2>&1
+        tar uvf ${LOGFILE} /var/log/upstart/asd-* > /dev/null 2>&1
         tar uvf ${LOGFILE} /var/log/*log > /dev/null 2>&1
         tar uvf ${LOGFILE} /var/log/dmesg* > /dev/null 2>&1
         gzip ${LOGFILE} > /dev/null
-        echo ${LOGFILE}.gz
+        echo ${FILENAME}.gz
     else
         show_help
     fi

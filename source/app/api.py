@@ -20,7 +20,8 @@ API views
 
 import os
 import json
-from flask import request
+from flask import request, send_from_directory
+from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
@@ -75,7 +76,15 @@ class API(object):
     def collect_logs():
         """ Collect the logs """
         API._logger.info('Collecting logs')
-        return {'url': GenericController.collect_logs()}
+        return {'filename': GenericController.collect_logs()}
+
+    @staticmethod
+    @app.route('/downloads/<filename>')
+    def download_logs(filename):
+        """ Download the tgz containing the logs """
+        filename = filename.split('/')[-1]
+        API._logger.info('Downloading file {0}'.format(filename))
+        return send_from_directory(directory='/opt/asd-manager/downloads', filename=filename)
 
     #########
     # DISKS #

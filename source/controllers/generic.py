@@ -27,7 +27,8 @@ class GenericController(object):
     @staticmethod
     def collect_logs():
         """
-        Retrieve all configured maintenance service running on this node for each backend
-        :return: generator
+        Retrieve the ALBA and ASD related logs on this node
+        :return: The name of the local tar file containing the logs
+        :rtype: str
         """
         return check_output('asd-manager collect logs', shell=True).strip()
