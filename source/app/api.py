@@ -25,6 +25,7 @@ from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController, DiskNotFoundError
+from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
@@ -68,6 +69,13 @@ class API(object):
         """ Set IP information """
         API._logger.info('Setting network information')
         Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
+
+    @staticmethod
+    @get('/collect_logs')
+    def collect_logs():
+        """ Collect the logs """
+        API._logger.info('Collecting logs')
+        return {'url': GenericController.collect_logs()}
 
     #########
     # DISKS #

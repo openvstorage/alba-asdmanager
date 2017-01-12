@@ -109,7 +109,6 @@ class SDMUpdateController(object):
         PackageManager.install(package_name=package_name, client=SDMUpdateController._local_client)
         SDMUpdateController._logger.debug('Installed package {0}'.format(package_name))
 
-
     @staticmethod
     def restart_services():
         """

@@ -18,7 +18,6 @@
 Generic module for managing configuration somewhere
 """
 import os
-import copy
 import json
 import random
 import string
