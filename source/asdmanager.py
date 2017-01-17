@@ -95,8 +95,7 @@ def setup():
 
     # Make sure to always have the information stored
     with open(PRECONFIG_FILE, 'w') as preconfig:
-        preconfig.write(json.dumps({'asdmanager': {'store': 'arakoon',
-                                                   'api_ip': api_ip,
+        preconfig.write(json.dumps({'asdmanager': {'api_ip': api_ip,
                                                    'asd_ips': asd_ips,
                                                    'api_port': api_port,
                                                    'asd_start_port': asd_start_port}}, indent=4))
@@ -161,12 +160,12 @@ def remove(silent=None):
 
     print '  - Validating configuration file'
     config = _validate_and_retrieve_pre_config()
-    if config is None or 'store' not in config:
+    if config is None:
         print '\n' + Interactive.boxed_message(['Cannot remove the ASD manager because not all information could be retrieved from the pre-configuration file'])
         sys.exit(1)
 
     print '  - Validating node ID'
-    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
+    with open(Toolbox.BOOTSTRAP_FILE) as bs_file:
         try:
             alba_node_id = json.loads(bs_file.read())['node_id']
         except:
@@ -248,7 +247,7 @@ def _validate_and_retrieve_pre_config():
     if not os.path.exists(PRECONFIG_FILE):
         return
 
-    with open(PRECONFIG_FILE, 'r') as pre_config:
+    with open(PRECONFIG_FILE) as pre_config:
         try:
             config = json.loads(pre_config.read())
         except Exception as ex:
@@ -262,7 +261,7 @@ def _validate_and_retrieve_pre_config():
     errors = []
     config = config['asdmanager']
     actual_keys = config.keys()
-    expected_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'store']
+    expected_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port']
     for key in actual_keys:
         if key not in expected_keys:
             errors.append('Key {0} is not supported by the ASD manager'.format(key))
@@ -276,8 +275,7 @@ def _validate_and_retrieve_pre_config():
 
     try:
         Toolbox.verify_required_params(actual_params=config,
-                                       required_params={'store': (str, ['arakoon'], False),
-                                                        'api_ip': (str, Toolbox.regex_ip, True),
+                                       required_params={'api_ip': (str, Toolbox.regex_ip, True),
                                                         'asd_ips': (list, Toolbox.regex_ip, False),
                                                         'api_port': (int, {'min': 1025, 'max': 65535}, False),
                                                         'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)})
@@ -288,7 +286,7 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
-    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bootstrap_file:
+    with open(Toolbox.BOOTSTRAP_FILE) as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
 
