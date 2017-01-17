@@ -71,7 +71,6 @@ class Configuration(object):
     def get_configuration_path(key):
         """
         Retrieve the configuration path
-        For etcd: 'etcd://127.0.0.1:2379{0}'.format(key)
         For arakoon: 'arakoon:///opt/OpenvStorage/config/arakoon_cacc.ini:{0}'.format(key)
         :param key: Key to retrieve the full configuration path for
         :type key: str
@@ -332,15 +331,6 @@ class Configuration(object):
     @staticmethod
     def _passthrough(method, *args, **kwargs):
         store = Configuration.get_store()
-        if store == 'etcd':
-            import etcd
-            from source.tools.configuration.etcd_config import EtcdConfiguration
-            try:
-                return getattr(EtcdConfiguration, method)(*args, **kwargs)
-            except etcd.EtcdKeyNotFound as ex:
-                raise NotFoundException(ex.message)
-            except (etcd.EtcdConnectionFailed, etcd.EtcdException) as ex:
-                raise ConnectionException(ex.message)
         if store == 'arakoon':
             from source.tools.configuration.arakoon_config import ArakoonConfiguration
             from source.tools.pyrakoon.pyrakoon.compat import ArakoonNotFound
@@ -353,7 +343,7 @@ class Configuration(object):
     @staticmethod
     def get_store():
         """
-        Retrieve the configuration store method. This can either be 'etcd' or 'arakoon'
+        Retrieve the configuration store method. This can currently only be 'arakoon'
         :return: Store method
         :rtype: str
         """

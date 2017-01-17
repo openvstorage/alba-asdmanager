@@ -31,8 +31,7 @@ Select an IP address or all IP addresses to be used for the ASDs. Make a selecti
   Select Nr:  [2]: 1
 Do you want to add another IP? (y/n): n
 Select the port to be used for the ASDs [8600]: 
-- Initializing etcd
-- Starting ASD manager service
+- Starting watcher service
 +++++++++++++++++++++++++++++++++++++
 +++  ASD Manager setup completed  +++
 +++++++++++++++++++++++++++++++++++++
