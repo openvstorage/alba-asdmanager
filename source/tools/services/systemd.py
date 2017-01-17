@@ -111,11 +111,11 @@ class Systemd(object):
         :param name: Template name of the service to regenerate
         :type name: str
         :param client: Client on which to regenerate the service
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: source.tools.localclient.LocalClient
         :param target_name: The current service name eg ovs-volumedriver_flash01.service
         :type target_name: str
         :return: None
-        :rtype NoneType
+        :rtype: NoneType
         """
         with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
             node_id = json.load(bs_file)['node_id']
@@ -131,7 +131,7 @@ class Systemd(object):
         else:
             startup_dependency = '.'.join(
                 startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
-        output = Upstart.add_service(name=name,
+        output = Systemd.add_service(name=name,
                                      client=client,
                                      params=service_params,
                                      target_name=target_name,
