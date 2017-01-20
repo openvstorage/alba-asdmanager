@@ -65,7 +65,7 @@ def setup():
         while add_ips:
             current_ips = ' - Current selected IPs: {0}'.format(asd_ips)
             new_asd_ip = Interactive.ask_choice(ipaddresses,
-                                                'Select an IP address or all IP addresses to be used for the ASDs{0}'.format(current_ips if len(asd_ips) > 0 else ''),
+                                                "Select an IP address to be used for the ASDs or 'All' (All current and future interfaces: 0.0.0.0){0}".format(current_ips if len(asd_ips) > 0 else ''),
                                                 default_value='All')
             if new_asd_ip == 'All':
                 ipaddresses.remove('All')
