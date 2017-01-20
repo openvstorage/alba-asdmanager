@@ -19,12 +19,9 @@ ArakoonNodeConfig class
 ArakoonClusterConfig class
 """
 
-import os
-import json
 from ConfigParser import RawConfigParser
 from source.tools.configuration.configuration import Configuration
-from source.tools.localclient import CalledProcessError, LocalClient
-from source.tools.log_handler import LogHandler
+from source.tools.localclient import LocalClient
 from StringIO import StringIO
 
 

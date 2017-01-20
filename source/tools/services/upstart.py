@@ -31,6 +31,7 @@ class Upstart(object):
     Contains all logic related to Upstart services
     """
     _logger = LogHandler.get('asd-manager', name='upstart')
+    SERVICE_CONFIG_KEY = '/ovs/alba/asdnodes/{0}/services/{1}'
 
     @staticmethod
     def _service_exists(name, client, path):
@@ -96,6 +97,42 @@ class Upstart(object):
         if delay_registration is False:
             Upstart.register_service(service_metadata=params, node_name='')
         return params
+
+    @staticmethod
+    def regenerate_service(name, client, target_name):
+        """
+        Regenerates the service files of a service.
+        :param name: Template name of the service to regenerate
+        :type name: str
+        :param client: Client on which to regenerate the service
+        :type client: source.tools.localclient.LocalClient
+        :param target_name: The current service name eg ovs-volumedriver_flash01.service
+        :type target_name: str
+        :return: None
+        :rtype: NoneType
+        """
+        with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
+            node_id = json.load(bs_file)['node_id']
+            configuration_key = Upstart.SERVICE_CONFIG_KEY.format(node_id, Toolbox.remove_prefix(target_name, 'ovs-'))
+        # If the entry is stored in arakoon, it means the service file was previously made
+        if not Configuration.exists(configuration_key):
+            raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
+        # Rewrite the service file
+        service_params = Configuration.get(configuration_key)
+        startup_dependency = service_params['STARTUP_DEPENDENCY']
+        if startup_dependency == '':
+            startup_dependency = None
+        else:
+            startup_dependency = '.'.join(
+                startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
+        output = Upstart.add_service(name=name,
+                                     client=client,
+                                     params=service_params,
+                                     target_name=target_name,
+                                     startup_dependency=startup_dependency,
+                                     delay_registration=True)
+        if output is None:
+            raise RuntimeError('Regenerating files for service {0} has failed'.format(target_name))
 
     @staticmethod
     def get_service_status(name, client):
@@ -309,6 +346,16 @@ class Upstart(object):
         Monitor the local ASD services
         :return: None
         """
+        def _advanced_sort(name1, name2):
+            counter1 = name1.split('_')[-1]
+            counter2 = name2.split('_')[-1]
+            if counter1.isdigit() and counter2.isdigit():
+                name1 = '_'.join(name1.split('_')[:-1])
+                name2 = '_'.join(name2.split('_')[:-1])
+                if name1 == name2:
+                    return -1 if int(counter1) < int(counter2) else 1
+            return -1 if name1 < name2 else 1
+
         try:
             previous_output = None
             while True:
@@ -333,12 +380,12 @@ class Upstart(object):
                 # Put service states in list
                 output = ['ASD Manager running processes',
                           '=============================\n']
-                for service_name in sorted(running_services):
+                for service_name in sorted(running_services, cmp=_advanced_sort):
                     output.append('{0} {1} {2}'.format(service_name, ' ' * (longest_service_name - len(service_name)), running_services[service_name]))
 
                 output.extend(['\n\nASD Manager non-running processes',
                                '=================================\n'])
-                for service_name in sorted(non_running_services):
+                for service_name in sorted(non_running_services, cmp=_advanced_sort):
                     output.append('{0} {1} {2}'.format(service_name, ' ' * (longest_service_name - len(service_name)), non_running_services[service_name]))
 
                 # Print service states (only if changes)
@@ -365,7 +412,7 @@ class Upstart(object):
         service_name = service_metadata['SERVICE_NAME']
         with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
             node_id = json.load(bs_file)['node_id']
-            Configuration.set(key='/ovs/alba/asdnodes/{0}/services/{1}'.format(node_id, Toolbox.remove_prefix(service_name, 'ovs-')),
+            Configuration.set(key=Upstart.SERVICE_CONFIG_KEY.format(node_id, Toolbox.remove_prefix(service_name, 'ovs-')),
                               value=service_metadata)
 
     @staticmethod
@@ -381,4 +428,4 @@ class Upstart(object):
         _ = node_name
         with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
             node_id = json.load(bs_file)['node_id']
-            Configuration.delete(key='/ovs/alba/asdnodes/{0}/services/{1}'.format(node_id, Toolbox.remove_prefix(service_name, 'ovs-')))
+            Configuration.delete(key=Upstart.SERVICE_CONFIG_KEY.format(node_id, Toolbox.remove_prefix(service_name, 'ovs-')))

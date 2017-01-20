@@ -40,6 +40,7 @@ def setup():
     """
     Interactive setup part for initial asd manager configuration
     """
+
     print Interactive.boxed_message(['ASD Manager setup'])
     print '- Verifying distribution'
     local_client = LocalClient()
@@ -75,11 +76,7 @@ def setup():
                 ipaddresses.remove(new_asd_ip)
                 add_ips = Interactive.ask_yesno("Do you want to add another IP?")
         asd_start_port = Interactive.ask_integer("Select the port to be used for the ASDs", 1025, 65435, 8600)
-        store = Interactive.ask_choice(['Arakoon', 'Etcd'],
-                                       question='Select the configuration management system',
-                                       default_value='Arakoon').lower()
     else:
-        store = config.get('store', 'arakoon')
         api_ip = config['api_ip']
         api_port = config.get('api_port', 8500)
         asd_ips = config.get('asd_ips', [])
@@ -98,39 +95,33 @@ def setup():
 
     # Make sure to always have the information stored
     with open(PRECONFIG_FILE, 'w') as preconfig:
-        preconfig.write(json.dumps({'asdmanager': {'store': store,
-                                                   'api_ip': api_ip,
+        preconfig.write(json.dumps({'asdmanager': {'api_ip': api_ip,
                                                    'asd_ips': asd_ips,
                                                    'api_port': api_port,
                                                    'asd_start_port': asd_start_port}}, indent=4))
 
-    if store == 'arakoon':
-        from source.tools.configuration.arakoon_config import ArakoonConfiguration
-        file_location = ArakoonConfiguration.CACC_LOCATION
-        source_location = ArakoonConfiguration.CACC_SOURCE
-        if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
-            # Try to copy automatically
-            try:
-                local_client.file_upload(file_location, source_location)
-            except Exception:
-                pass
-        while not local_client.file_exists(file_location):
-            print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
-            Interactive.ask_continue()
+    from source.tools.configuration.arakoon_config import ArakoonConfiguration
+    file_location = ArakoonConfiguration.CACC_LOCATION
+    source_location = ArakoonConfiguration.CACC_SOURCE
+    if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
+        # Try to copy automatically
+        try:
+            local_client.file_upload(file_location, source_location)
+        except Exception:
+            pass
+    while not local_client.file_exists(file_location):
+        print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
+        Interactive.ask_continue()
     bootstrap_location = Configuration.BOOTSTRAP_CONFIG_LOCATION
     if not local_client.file_exists(bootstrap_location):
         local_client.file_create(bootstrap_location)
-    local_client.file_write(bootstrap_location, json.dumps({'configuration_store': store}, indent=4))
+    local_client.file_write(bootstrap_location, json.dumps({'configuration_store': 'arakoon'}, indent=4))
 
     try:
         alba_node_id = Configuration.initialize(api_ip, api_port, asd_ips, asd_start_port)
     except:
         print ''
-        if store == 'arakoon':
-            print Interactive.boxed_message(['Could not connect to Arakoon'])
-        else:
-            print Interactive.boxed_message(['Could not connect to Etcd.',
-                                             'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
+        print Interactive.boxed_message(['Could not connect to Arakoon'])
         sys.exit(1)
 
     with open(Toolbox.BOOTSTRAP_FILE, 'w') as bs_file:
@@ -169,12 +160,12 @@ def remove(silent=None):
 
     print '  - Validating configuration file'
     config = _validate_and_retrieve_pre_config()
-    if config is None or 'store' not in config:
+    if config is None:
         print '\n' + Interactive.boxed_message(['Cannot remove the ASD manager because not all information could be retrieved from the pre-configuration file'])
         sys.exit(1)
 
     print '  - Validating node ID'
-    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
+    with open(Toolbox.BOOTSTRAP_FILE) as bs_file:
         try:
             alba_node_id = json.loads(bs_file.read())['node_id']
         except:
@@ -182,15 +173,10 @@ def remove(silent=None):
             sys.exit(1)
 
     print '  - Validating configuration management'
-    store = config['store']
     try:
         Configuration.list(key='ovs')
     except:
-        if store == 'arakoon':
-            print '\n' + Interactive.boxed_message(['Could not connect to Arakoon'])
-        else:
-            print '\n' + Interactive.boxed_message(['Could not connect to Etcd.',
-                                                    'Please make sure an Etcd proxy is available, pointing towards an OpenvStorage cluster.'])
+        print '\n' + Interactive.boxed_message(['Could not connect to Arakoon'])
         sys.exit(1)
 
     ################
@@ -247,9 +233,8 @@ def remove(silent=None):
             ServiceManager.stop_service(name=service_name, client=local_client)
             ServiceManager.remove_service(name=service_name, client=local_client)
 
-    if store == 'arakoon':
-        from source.tools.configuration.arakoon_config import ArakoonConfiguration
-        local_client.file_delete(filenames=ArakoonConfiguration.CACC_LOCATION)
+    from source.tools.configuration.arakoon_config import ArakoonConfiguration
+    local_client.file_delete(filenames=ArakoonConfiguration.CACC_LOCATION)
     local_client.file_delete(filenames=Toolbox.BOOTSTRAP_FILE)
     print '\n' + Interactive.boxed_message(['ASD Manager removal completed'])
 
@@ -262,7 +247,7 @@ def _validate_and_retrieve_pre_config():
     if not os.path.exists(PRECONFIG_FILE):
         return
 
-    with open(PRECONFIG_FILE, 'r') as pre_config:
+    with open(PRECONFIG_FILE) as pre_config:
         try:
             config = json.loads(pre_config.read())
         except Exception as ex:
@@ -276,7 +261,7 @@ def _validate_and_retrieve_pre_config():
     errors = []
     config = config['asdmanager']
     actual_keys = config.keys()
-    expected_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'store']
+    expected_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port']
     for key in actual_keys:
         if key not in expected_keys:
             errors.append('Key {0} is not supported by the ASD manager'.format(key))
@@ -290,8 +275,7 @@ def _validate_and_retrieve_pre_config():
 
     try:
         Toolbox.verify_required_params(actual_params=config,
-                                       required_params={'store': (str, ['arakoon', 'etcd'], False),
-                                                        'api_ip': (str, Toolbox.regex_ip, True),
+                                       required_params={'api_ip': (str, Toolbox.regex_ip, True),
                                                         'asd_ips': (list, Toolbox.regex_ip, False),
                                                         'api_port': (int, {'min': 1025, 'max': 65535}, False),
                                                         'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)})
@@ -302,7 +286,7 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
-    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bootstrap_file:
+    with open(Toolbox.BOOTSTRAP_FILE) as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
 

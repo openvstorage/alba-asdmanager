@@ -20,11 +20,13 @@ API views
 
 import os
 import json
-from flask import request
+from flask import request, send_from_directory
+from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController, DiskNotFoundError
+from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.tools.configuration.configuration import Configuration
@@ -68,6 +70,21 @@ class API(object):
         """ Set IP information """
         API._logger.info('Setting network information')
         Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
+
+    @staticmethod
+    @get('/collect_logs')
+    def collect_logs():
+        """ Collect the logs """
+        API._logger.info('Collecting logs')
+        return {'filename': GenericController.collect_logs()}
+
+    @staticmethod
+    @app.route('/downloads/<filename>')
+    def download_logs(filename):
+        """ Download the tgz containing the logs """
+        filename = filename.split('/')[-1]
+        API._logger.info('Downloading file {0}'.format(filename))
+        return send_from_directory(directory='/opt/asd-manager/downloads', filename=filename)
 
     #########
     # DISKS #
