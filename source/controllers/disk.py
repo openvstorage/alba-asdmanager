@@ -77,8 +77,8 @@ class DiskController(object):
 
         # Parse 'lsblk' output
         # --exclude 1 for RAM devices, 2 for floppy devices, 11 for CD-ROM devices (See https://www.kernel.org/doc/Documentation/devices.txt)
-        devices = DiskController._local_client.run(['lsblk', '--pairs', '--bytes', '--noheadings', '--exclude', '1,2,11', '--output=KNAME,FSTYPE,TYPE,MOUNTPOINT']).splitlines()
-        device_regex = re.compile('^KNAME="(?P<name>.*)" FSTYPE="(?P<fstype>.*)" TYPE="(?P<type>.*)" MOUNTPOINT="(?P<mtpt>.*)"$')
+        devices = DiskController._local_client.run(['lsblk', '--pairs', '--bytes', '--noheadings', '--exclude', '1,2,11', '--output=KNAME,SIZE,FSTYPE,TYPE,MOUNTPOINT']).splitlines()
+        device_regex = re.compile('^KNAME="(?P<name>.*)" SIZE="(?P<size>\d*)" FSTYPE="(?P<fstype>.*)" TYPE="(?P<type>.*)" MOUNTPOINT="(?P<mtpt>.*)"$')
         configuration = {}
         parsed_devices = []
         for device in devices:
@@ -89,6 +89,7 @@ class DiskController(object):
 
             groupdict = match.groupdict()
             name = groupdict['name'].strip()
+            size = groupdict['size'].strip()
             fs_type = groupdict['fstype'].strip()
             dev_type = groupdict['type'].strip()
             mount_point = groupdict['mtpt'].strip()
@@ -104,6 +105,7 @@ class DiskController(object):
                 device_is_also_partition = mount_point != ''  # LVM, RAID1, ... have the tendency to be a device with a partition on it, but the partition is not reported by 'lsblk'
                 parsed_devices.append(name)
                 configuration[name] = {'name': name,
+                                       'size': int(size),
                                        'aliases': system_aliases,
                                        'partitions': []}
             if link is None or device_is_also_partition is True:
@@ -171,7 +173,8 @@ class DiskController(object):
                         state = 'error'
                         state_detail = 'io_error'
                 aliases = device_info['aliases']
-                disks[aliases[0]] = {'usage': usage,
+                disks[aliases[0]] = {'size': device_info['size'],
+                                     'usage': usage,
                                      'state': state,
                                      'device': '/dev/{0}'.format(device_name),
                                      'aliases': aliases,
