@@ -75,7 +75,7 @@ class ArakoonClusterConfig(object):
     CONFIG_KEY = '/ovs/arakoon/{0}/config'
     CONFIG_FILE = '/opt/asd-manager/config/arakoon_{0}.ini'
 
-    def __init__(self, cluster_id, load_config=True, ip=None, plugins=None):
+    def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None):
         """
         Initializes an empty Cluster Config
         """
@@ -86,10 +86,10 @@ class ArakoonClusterConfig(object):
         elif isinstance(plugins, basestring):
             self._plugins.append(plugins)
 
-        self.ip = ip
+        self.source_ip = source_ip
         self.nodes = []
         self.cluster_id = cluster_id
-        if ip is None:
+        if self.source_ip is None:
             self.internal_config_path = ArakoonClusterConfig.CONFIG_KEY.format(cluster_id)
             self.external_config_path = Configuration.get_configuration_path(self.internal_config_path)
         else:
@@ -97,10 +97,10 @@ class ArakoonClusterConfig(object):
             self.external_config_path = self.internal_config_path
 
         if load_config is True:
-            if ip is None:
+            if self.source_ip is None:
                 contents = Configuration.get(self.internal_config_path, raw=True)
             else:
-                client = self.load_client(ip)
+                client = self.load_client(self.source_ip)
                 contents = client.file_read(self.internal_config_path)
             self.read_config(contents)
 
@@ -112,7 +112,7 @@ class ArakoonClusterConfig(object):
         :return: A LocalClient instance
         :rtype: source.tools.localclient.LocalClient
         """
-        if self.ip is not None:
+        if self.source_ip is not None:
             if ip is None:
                 raise RuntimeError('An IP should be passed for filesystem configuration')
             return LocalClient(ip, username='root')
@@ -183,11 +183,22 @@ class ArakoonClusterConfig(object):
         contents.write(config_io)
         return config_io.getvalue()
 
+    def write_config(self, ip=None):
+        """
+        Writes the configuration down to in the format expected by Arakoon
+        """
+        contents = self.export_ini()
+        if self.source_ip is None:
+            Configuration.set(self.internal_config_path, contents, raw=True)
+        else:
+            client = self.load_client(ip)
+            client.file_write(self.internal_config_path, contents)
+
     def delete_config(self, ip=None):
         """
         Deletes a configuration file
         """
-        if self.ip is None:
+        if self.source_ip is None:
             key = self.internal_config_path
             if Configuration.exists(key, raw=True):
                 Configuration.delete(key, raw=True)

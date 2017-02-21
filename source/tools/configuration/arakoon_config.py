@@ -48,7 +48,7 @@ class ArakoonConfiguration(object):
         """
         import urllib
         from source.tools.configuration.arakoon_config_helpers import ArakoonClusterConfig
-        config = ArakoonClusterConfig(cluster_id='cacc', ip='127.0.0.1')
+        config = ArakoonClusterConfig(cluster_id='cacc', source_ip='127.0.0.1')
         return 'arakoon://{0}/{1}?{2}'.format(
             config.cluster_id,
             ArakoonConfiguration._clean_key(key),
