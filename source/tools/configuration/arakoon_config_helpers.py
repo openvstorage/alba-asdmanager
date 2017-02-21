@@ -75,49 +75,55 @@ class ArakoonClusterConfig(object):
     CONFIG_KEY = '/ovs/arakoon/{0}/config'
     CONFIG_FILE = '/opt/asd-manager/config/arakoon_{0}.ini'
 
-    def __init__(self, cluster_id, filesystem, plugins=None):
+    def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None):
         """
         Initializes an empty Cluster Config
         """
-        self.filesystem = filesystem
-        self.cluster_id = cluster_id
-        self._extra_globals = {'tlog_max_entries': 5000}
-        self.nodes = []
         self._plugins = []
+        self._extra_globals = {'tlog_max_entries': 5000}
         if isinstance(plugins, list):
             self._plugins = plugins
         elif isinstance(plugins, basestring):
             self._plugins.append(plugins)
 
-    @property
-    def config_path(self):
-        """
-        Retrieve the configuration path
-        :return: Configuration path
-        """
-        if self.filesystem is False:
-            return ArakoonClusterConfig.CONFIG_KEY.format(self.cluster_id)
-        return ArakoonClusterConfig.CONFIG_FILE.format(self.cluster_id)
+        self.source_ip = source_ip
+        self.nodes = []
+        self.cluster_id = cluster_id
+        if self.source_ip is None:
+            self.internal_config_path = ArakoonClusterConfig.CONFIG_KEY.format(cluster_id)
+            self.external_config_path = Configuration.get_configuration_path(self.internal_config_path)
+        else:
+            self.internal_config_path = ArakoonClusterConfig.CONFIG_FILE.format(cluster_id)
+            self.external_config_path = self.internal_config_path
 
-    def _load_client(self, ip):
-        if self.filesystem is True:
+        if load_config is True:
+            if self.source_ip is None:
+                contents = Configuration.get(self.internal_config_path, raw=True)
+            else:
+                client = self.load_client(self.source_ip)
+                contents = client.file_read(self.internal_config_path)
+            self.read_config(contents)
+
+    def load_client(self, ip):
+        """
+        Create a LocalClient instance to the IP provided
+        :param ip: IP for the LocalClient
+        :type ip: str
+        :return: A LocalClient instance
+        :rtype: source.tools.localclient.LocalClient
+        """
+        if self.source_ip is not None:
             if ip is None:
                 raise RuntimeError('An IP should be passed for filesystem configuration')
             return LocalClient(ip, username='root')
 
-    def load_config(self, ip=None):
+    def read_config(self, contents):
         """
-        Reads a configuration from reality
+        Constructs a configuration object from config contents
+        :param contents: Raw .ini contents
         """
-        if self.filesystem is False:
-            contents = Configuration.get(self.config_path, raw=True)
-        else:
-            client = self._load_client(ip)
-            contents = client.file_read(self.config_path)
-
         parser = RawConfigParser()
         parser.readfp(StringIO(contents))
-
         self.nodes = []
         self._extra_globals = {}
         for key in parser.options('global'):
@@ -182,20 +188,20 @@ class ArakoonClusterConfig(object):
         Writes the configuration down to in the format expected by Arakoon
         """
         contents = self.export_ini()
-        if self.filesystem is False:
-            Configuration.set(self.config_path, contents, raw=True)
+        if self.source_ip is None:
+            Configuration.set(self.internal_config_path, contents, raw=True)
         else:
-            client = self._load_client(ip)
-            client.file_write(self.config_path, contents)
+            client = self.load_client(ip)
+            client.file_write(self.internal_config_path, contents)
 
     def delete_config(self, ip=None):
         """
         Deletes a configuration file
         """
-        if self.filesystem is False:
-            key = self.config_path
+        if self.source_ip is None:
+            key = self.internal_config_path
             if Configuration.exists(key, raw=True):
                 Configuration.delete(key, raw=True)
         else:
-            client = self._load_client(ip)
-            client.file_delete(self.config_path)
+            client = self.load_client(ip)
+            client.file_delete(self.internal_config_path)
