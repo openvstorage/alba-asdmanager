@@ -30,6 +30,13 @@ from subprocess import CalledProcessError, PIPE, Popen
 from source.tools.log_handler import LogHandler
 
 
+class CalledProcessTimeout(CalledProcessError):
+    """
+    Custom exception thrown when a command is aborted due to timeout
+    """
+    pass
+
+
 class LocalClient(object):
     """
     Local client
@@ -99,36 +106,51 @@ class LocalClient(object):
             LocalClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
-    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False, return_stderr=False):
+    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False, return_stderr=False, timeout=None):
         """
         Executes a shell command
         :param suppress_logging: Do not log anything
+        :type suppress_logging: bool
         :param command: Command to execute
+        :type command: list or str
         :param debug: Extended logging
+        :type debug: bool
         :param allow_nonzero: Allow non-zero exit code
+        :type allow_nonzero: bool
         :param allow_insecure: Allow string commands (which might be improperly escaped)
+        :type allow_insecure: bool
         :param return_stderr: Return stderr
+        :type return_stderr: bool
+        :param timeout: Timeout after which the command should be aborted (in seconds)
+        :type timeout: int
+        :return: The command's stdout or tuple for stdout and stderr
+        :rtype: str or tuple(str, str)
         """
 
         if not isinstance(command, list) and not allow_insecure:
             raise RuntimeError('The given command must be a list, or the allow_insecure flag must be set')
         if isinstance(command, list):
             command = ' '.join([self.shell_safe(str(entry)) for entry in command])
+        original_command = command
         stderr = None
         try:
             try:
                 if not hasattr(select, 'poll'):
                     import subprocess
                     subprocess._has_poll = False  # Damn 'monkey patching'
-                channel = Popen(command, stdout=PIPE, stderr=PIPE, shell=not isinstance(command, list))
+                if timeout is not None:
+                    command = "'timeout' '{0}' {1}".format(timeout, command)
+                channel = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
             except OSError as ose:
-                raise CalledProcessError(1, command, str(ose))
+                raise CalledProcessError(1, original_command, str(ose))
             stdout, stderr = channel.communicate()
             stdout = self._clean_text(stdout)
             stderr = self._clean_text(stderr)
             exit_code = channel.returncode
+            if exit_code == 124:
+                raise CalledProcessTimeout(exit_code, original_command, 'Timeout during command')
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
-                raise CalledProcessError(exit_code, command, stdout)
+                raise CalledProcessError(exit_code, original_command, stdout)
             if debug is True:
                 LocalClient._logger.debug('stdout: {0}'.format(stdout))
                 LocalClient._logger.debug('stderr: {0}'.format(stderr))
@@ -139,7 +161,7 @@ class LocalClient(object):
         except CalledProcessError as cpe:
             if suppress_logging is False:
                 LocalClient._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
-                    command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
+                    original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                 ))
             raise
 

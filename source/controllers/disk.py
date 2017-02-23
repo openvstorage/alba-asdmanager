@@ -157,7 +157,7 @@ class DiskController(object):
                 if availability is False:
                     # Check partition usage information
                     df_info = DiskController._local_client.run("df -B 1 --output=size,used,avail '{0}' | tail -1 || true".format(partition_mtpt.replace(r"'", r"'\''")),
-                                                               allow_insecure=True).strip().splitlines()
+                                                               allow_insecure=True, timeout=5).strip().splitlines()
                     if len(df_info) != 1:
                         DiskController._logger.warning('Verifying usage information for mountpoint {0} failed. Information retrieved: {1}'.format(partition_mtpt, df_info))
                         continue
@@ -167,7 +167,7 @@ class DiskController(object):
                              'available': int(available)}
 
                     # Check mountpoint validation
-                    output, error = DiskController._local_client.run(['ls', '{0}/'.format(partition_mtpt)], allow_nonzero=True, return_stderr=True)
+                    output, error = DiskController._local_client.run(['ls', '{0}/'.format(partition_mtpt)], allow_nonzero=True, return_stderr=True, timeout=5)
                     output += error
                     if 'Input/output error' in output:
                         state = 'error'
