@@ -96,7 +96,7 @@ class ASDController(object):
             raise RuntimeError('Failed to retrieve the mountpoint for partition with alias: {0}'.format(partition_alias))
 
         # Fetch disk information
-        disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', mountpoint]).splitlines()[1])
+        disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', mountpoint], timeout=5).splitlines()[1])
 
         # Find out appropriate disk size
         asds = 1.0
