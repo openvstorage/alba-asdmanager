@@ -41,7 +41,7 @@ if __name__ == '__main__':
         os.environ['ASD_NODE_ID'] = NODE_ID
 
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-    CURRENT_VERSION = 2
+    CURRENT_VERSION = 3
 
     _logger = LogHandler.get('asd-manager', name='post-update')
 
@@ -96,6 +96,39 @@ if __name__ == '__main__':
                             Toolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
                     if service_manager == 'systemd':
                         client.run(['systemctl', 'daemon-reload'])
+
+                # Version 3: Addition of 'ExecReload' for ASD/maintenance SystemD services
+                if ServiceManager.ImplementationClass == Systemd:  # Upstart does not have functionality to reload a process' configuration
+                    reload_daemon = False
+                    asd_service_names = list(ASDController.list_asd_services())
+                    maintenance_service_names = list(MaintenanceController.get_services())
+                    for service_name in asd_service_names + maintenance_service_names:
+                        if ServiceManager.has_service(name=service_name, client=client):
+                            path = '/lib/systemd/system/{0}.service'.format(service_name)
+                            restart_required = False
+                            if os.path.exists(path):
+                                with open(path, 'r') as system_file:
+                                    if 'ExecReload' not in system_file.read():
+                                        restart_required = True
+
+                            if restart_required is False:
+                                continue
+
+                            reload_daemon = True
+                            configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
+                            if Configuration.exists(configuration_key):
+                                # Rewrite the service file
+                                ServiceManager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                                           client=client,
+                                                           params=Configuration.get(configuration_key),
+                                                           target_name=service_name)
+
+                                # Let the update know that the ASD / maintenance services need to be restarted
+                                # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
+                                Toolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
+                    if reload_daemon is True:
+                        client.run(['systemctl', 'daemon-reload'])
+
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
