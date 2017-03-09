@@ -22,8 +22,6 @@ Watcher module for config cluster
 import os
 import sys
 import time
-import uuid
-import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from source.tools.log_handler import LogHandler
