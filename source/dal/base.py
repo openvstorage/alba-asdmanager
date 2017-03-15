@@ -150,5 +150,17 @@ class Base(object):
         if prop_type in [int, str, basestring, unicode]:
             return data
         if prop_type in [list, dict]:
-            return json.dumps(data)
+            return json.dumps(data, sort_keys=True)
         raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict'.format(prop_type))
+
+    def __repr__(self):
+        return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
+
+    def __str__(self):
+        data = {'id': self.id}
+        for prop in self._properties:
+            data[prop[0]] = getattr(self, prop[0])
+        for relation in self._relations:
+            name = '{0}_id'.format(relation[0])
+            data[name] = getattr(self, name)
+        return json.dumps(data, indent=4, sort_keys=True)
