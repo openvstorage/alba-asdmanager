@@ -22,6 +22,9 @@ from source.dal.base import Base
 
 
 class DataList(object):
+    """
+    The DataList class contains method(s) to query the underlying SQLite database.
+    """
 
     @staticmethod
     def query(object_type, query, parameters=None):

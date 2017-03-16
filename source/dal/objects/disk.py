@@ -22,6 +22,9 @@ from source.dal.base import Base
 
 
 class Disk(Base):
+    """
+    Represents a disk on the system.
+    """
 
     _table = 'disk'
     _properties = [['name', int],

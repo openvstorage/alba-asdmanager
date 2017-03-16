@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This package contains the DAL object's base class
+This package contains the DAL object's base class.
 """
 
 import json
@@ -24,10 +24,14 @@ from source.dal.relations import RelationMapper
 
 
 class ObjectNotFoundException(Exception):
+    """ Exception indicating that an object in the DAL was not found. """
     pass
 
 
 class Base(object):
+    """
+    Base object that is inherited by all DAL objects. It contains base logic like save, delete, ...
+    """
 
     DATABASE_LOCATION = '/opt/asd-manager/db/main.db'
 
@@ -36,6 +40,11 @@ class Base(object):
     _relations = []
 
     def __init__(self, identifier=None):
+        """
+        Initializes a new object. If no identifier is passed in, a new one is created.
+        :param identifier: Optional identifier (primary key)
+        :type identifier: int
+        """
         self.id = identifier
         type_statement = ', '.join(
             ['{0} {1}'.format(prop[0], Base._get_prop_type(prop[1])) for prop in self._properties] +
@@ -68,14 +77,17 @@ class Base(object):
 
     @staticmethod
     def connector():
+        """ Creates and returns a new connection to SQLite. """
         connection = sqlite3.connect(Base.DATABASE_LOCATION)
         connection.row_factory = sqlite3.Row
         return connection
 
     def _add_foreign_relation(self, key, relation_info):
+        """ Generates a new foreign relation on an object. """
         setattr(self.__class__, key, property(lambda s: s._get_foreign_relation(relation_info)))
 
     def _get_foreign_relation(self, relation_info):
+        """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
         with Base.connector() as connection:
             cursor = connection.cursor()
@@ -85,17 +97,20 @@ class Base(object):
                 yield remote_class(row['id'])
 
     def _add_relation(self, relation):
+        """ Generates a new relation on an object. """
         setattr(self.__class__, relation[0], property(lambda s: s._get_relation(relation),
                                                       lambda s, v: s._set_relation(relation, v)))
         setattr(self.__class__, '{0}_id'.format(relation[0]), property(lambda s: s._get_relation_id(relation)))
 
     def _get_relation(self, relation):
+        """ Getter for a relation. """
         data = getattr(self, '_{0}'.format(relation[0]))
         if data['object'] is None and data['id'] is not None:
             data['object'] = relation[1](data['id'])
         return data['object']
 
     def _set_relation(self, relation, value):
+        """ Setter for a relation. """
         data = getattr(self, '_{0}'.format(relation[0]))
         if value is None:
             data['id'] = None
@@ -104,9 +119,14 @@ class Base(object):
             data['object'] = value
 
     def _get_relation_id(self, relation):
+        """ Getter for a relation identifier. """
         return getattr(self, '_{0}'.format(relation[0]))['id']
 
     def save(self):
+        """
+        Saves the current object. If not existing, it is created and the identifier field is filled.
+        :return: None
+        """
         prop_values = [Base._serialize(prop[1], getattr(self, prop[0])) for prop in self._properties] + \
                       [getattr(self, '_{0}'.format(relation[0])).get('id') for relation in self._relations]
         if self.id is None:
@@ -126,11 +146,16 @@ class Base(object):
                                    prop_values + [self.id])
 
     def delete(self):
+        """
+        Deletes the current object from the SQLite database.
+        :return: None
+        """
         with Base.connector() as connection:
             connection.execute('DELETE FROM {0} WHERE id=? LIMIT 1'.format(self._table), [self.id])
 
     @staticmethod
     def _get_prop_type(prop_type):
+        """ Translates a python type to a SQLite type. """
         if prop_type is int:
             return 'INTEGER'
         if prop_type in [str, basestring, unicode, list, dict]:
@@ -139,6 +164,7 @@ class Base(object):
 
     @staticmethod
     def _deserialize(prop_type, data):
+        """ Deserializes a SQLite field to a python type. """
         if prop_type in [int, str, basestring, unicode]:
             return data
         if prop_type in [list, dict]:
@@ -147,6 +173,7 @@ class Base(object):
 
     @staticmethod
     def _serialize(prop_type, data):
+        """ Serializes a python type to a SQLite field. """
         if prop_type in [int, str, basestring, unicode]:
             return data
         if prop_type in [list, dict]:
@@ -154,9 +181,11 @@ class Base(object):
         raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict'.format(prop_type))
 
     def __repr__(self):
+        """ Short representation of the object. """
         return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
 
     def __str__(self):
+        """ Returns a full representation of the object. """
         data = {'id': self.id}
         for prop in self._properties:
             data[prop[0]] = getattr(self, prop[0])

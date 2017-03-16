@@ -23,6 +23,9 @@ from source.dal.objects.disk import Disk
 
 
 class ASD(Base):
+    """
+    Represents an ASD that has been deployed.
+    """
 
     _table = 'asd'
     _properties = [['asd_id', str]]
