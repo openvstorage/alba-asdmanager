@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This is the Disk's module
+This is the ASD's module
 """
 
 from source.dal.base import Base

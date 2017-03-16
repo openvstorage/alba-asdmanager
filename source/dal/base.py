@@ -114,6 +114,7 @@ class Base(object):
         data = getattr(self, '_{0}'.format(relation[0]))
         if value is None:
             data['id'] = None
+            data['object'] = None
         else:
             data['id'] = value.id
             data['object'] = value

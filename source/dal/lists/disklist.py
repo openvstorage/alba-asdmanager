@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-BrandingList module
+DiskList module
 """
 from source.dal.datalist import DataList
 from source.dal.objects.disk import Disk
