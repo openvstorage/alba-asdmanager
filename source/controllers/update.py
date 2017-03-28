@@ -50,11 +50,14 @@ class SDMUpdateController(object):
         :return: Package information
         :rtype: dict
         """
-        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=['alba'])
+        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=['alba', 'alba-ee'])
         installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         if set(installed.keys()) != set(PackageManager.SDM_PACKAGE_NAMES) or set(candidate.keys()) != set(PackageManager.SDM_PACKAGE_NAMES):
             raise RuntimeError('Failed to retrieve the installed and candidate versions for packages: {0}'.format(', '.join(PackageManager.SDM_PACKAGE_NAMES)))
+
+        alba_package = 'alba' if 'alba' in installed.keys() else 'alba-ee'
+        version_mapping = {'alba': ['alba', 'alba-ee']}
 
         package_info = {}
         default_entry = {'candidate': None,
@@ -62,7 +65,7 @@ class SDMUpdateController(object):
                          'services_to_restart': []}
 
         #                     component: package_name: services_with_run_file
-        for component, info in {'alba': {'alba': list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
+        for component, info in {'alba': {alba_package: list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
                                          'openvstorage-sdm': []}}.iteritems():
             component_info = {}
             for package, services in info.iteritems():
@@ -80,17 +83,23 @@ class SDMUpdateController(object):
                         else:
                             running_version = version
 
-                        if package_name not in PackageManager.SDM_PACKAGE_NAMES:
-                            raise ValueError('Unknown package dependency found in {0}'.format(version_file))
-                        if package_name not in binaries:
-                            raise RuntimeError('Binary version for package {0} was not retrieved'.format(package_name))
+                        did_check = False
+                        for mapped_package_name in version_mapping.get(package_name, [package_name]):
+                            if mapped_package_name not in PackageManager.SDM_PACKAGE_NAMES:
+                                raise ValueError('Unknown package dependency found in {0}'.format(version_file))
+                            if mapped_package_name not in binaries or mapped_package_name not in installed:
+                                continue
 
-                        if running_version != binaries[package_name]:
-                            if package_name not in component_info:
-                                component_info[package_name] = copy.deepcopy(default_entry)
-                            component_info[package_name]['installed'] = running_version
-                            component_info[package_name]['candidate'] = binaries[package_name]
-                            component_info[package_name]['services_to_restart'].append(service)
+                            did_check = True
+                            if running_version is not None and running_version != binaries[mapped_package_name]:
+                                if package_name not in component_info:
+                                    component_info[mapped_package_name] = copy.deepcopy(default_entry)
+                                component_info[mapped_package_name]['installed'] = running_version
+                                component_info[mapped_package_name]['candidate'] = binaries[mapped_package_name]
+                                component_info[mapped_package_name]['services_to_restart'].append(service)
+                                break
+                        if did_check is False:
+                            raise RuntimeError('Binary version for package {0} was not retrieved'.format(package_name))
 
                 if installed[package] != candidate[package] and package not in component_info:
                     component_info[package] = copy.deepcopy(default_entry)
