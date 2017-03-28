@@ -21,6 +21,13 @@ from source.dal.datalist import DataList
 from source.dal.objects.disk import Disk
 
 
+class DiskNotFoundError(RuntimeError):
+    """
+    Error raised when a disk is not found on the system
+    """
+    pass
+
+
 class DiskList(object):
     """
     This DiskList class contains various lists regarding to the Disk class
@@ -34,20 +41,25 @@ class DiskList(object):
         return DataList.query(Disk, "SELECT id FROM {table}")
 
     @staticmethod
-    def get_by_name(name):
+    def get_usable_disks():
         """
-        Returns a list of all Disks with a given name (including alias)
+        Returns a list of all disks that are "usable"
         """
-        return DataList.query(Disk,
-                              "SELECT id FROM {table} WHERE name=:name OR aliases LIKE :alias",
-                              {'name': name,
-                               'alias': '%"{0}"%'.format(name)})
+        for disk in DiskList.get_disks():
+            if disk.usable:
+                yield disk
 
     @staticmethod
-    def contains_name(name):
-        """
-        Returns a list of all Disks that contains the given name, or has the given name as (part of) an alias
-        """
-        return DataList.query(Disk,
-                              "SELECT id FROM {table} WHERE name LIKE :name OR aliases LIKE :name",
-                              {'name': '%{0}%'.format(name)})
+    def get_by_alias(alias, raise_exception=False):
+        for disk in DiskList.get_usable_disks():
+            for alias in disk.get('aliases', []):
+                if alias.endswith(alias):
+                    return disk
+            partition_aliases = []
+            for partition_info in disk.partitions:
+                partition_aliases += partition_info['aliases']
+            if alias in partition_aliases:
+                return disk
+        if raise_exception is True:
+            raise DiskNotFoundError('Disk with alias {0} not available'.format(alias))
+        return None

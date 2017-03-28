@@ -30,3 +30,4 @@ class ASD(Base):
     _table = 'asd'
     _properties = [['asd_id', str]]
     _relations = [['disk', Disk, 'asds']]
+    _dynamics = []

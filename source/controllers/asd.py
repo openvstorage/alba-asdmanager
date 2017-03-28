@@ -166,58 +166,57 @@ class ASDController(object):
         ASDController.start_asd(asd_id)
 
     @staticmethod
-    def remove_asd(asd_id, mountpoint):
+    def remove_asd(asd):
         """
         Removes an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
-        :param mountpoint: Mountpoint of the ASDs disk
-        :type mountpoint: str
+        :param asd: ASD to remove
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd.asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
             ServiceManager.remove_service(service_name, ASDController._local_client)
         try:
-            ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+            ASDController._local_client.dir_delete('{0}/{1}'.format(asd.disk.mountpoint, asd.asd_id))
         except Exception as ex:
             ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
-        Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
+        Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd.asd_id), raw=True)
+        asd.delete()
 
     @staticmethod
-    def start_asd(asd_id):
+    def start_asd(asd):
         """
         Starts an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to start
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd.asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.start_service(service_name, ASDController._local_client)
 
     @staticmethod
-    def stop_asd(asd_id):
+    def stop_asd(asd):
         """
         Stops an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to stop
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd.asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.stop_service(service_name, ASDController._local_client)
 
     @staticmethod
-    def restart_asd(asd_id):
+    def restart_asd(asd):
         """
         Restart an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to remove
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
+        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd.asd_id)
         if ServiceManager.has_service(service_name, ASDController._local_client):
             ServiceManager.restart_service(service_name, ASDController._local_client)
 

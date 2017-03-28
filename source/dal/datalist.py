@@ -49,6 +49,7 @@ class DataList(object):
         """
         if parameters is None:
             parameters = []
+        object_type._ensure_table()
         query = query.format(table=object_type._table)
         for relation in object_type._relations:
             query = query.replace('{0}_id'.format(relation[0]),
