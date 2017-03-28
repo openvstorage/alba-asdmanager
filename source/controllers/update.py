@@ -53,7 +53,9 @@ class SDMUpdateController(object):
         binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=['alba', 'alba-ee'])
         installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
-        if set(installed.keys()) != set(PackageManager.SDM_PACKAGE_NAMES) or set(candidate.keys()) != set(PackageManager.SDM_PACKAGE_NAMES):
+        installed_difference = set(PackageManager.SDM_PACKAGE_NAMES) - set(installed.keys())
+        candidate_difference = set(PackageManager.SDM_PACKAGE_NAMES) - set(candidate.keys())
+        if len(installed_difference | candidate_difference) > 1 or any(['alba' not in package for package in installed_difference | candidate_difference]):
             raise RuntimeError('Failed to retrieve the installed and candidate versions for packages: {0}'.format(', '.join(PackageManager.SDM_PACKAGE_NAMES)))
 
         alba_package = 'alba' if 'alba' in installed.keys() else 'alba-ee'
