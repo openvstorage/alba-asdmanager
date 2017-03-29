@@ -33,9 +33,9 @@ class DebianPackage(object):
     @staticmethod
     def get_release_name(client=None):
         """
-        Retrieve currently installed versions of the packages provided (or all if none provided)
-        :param client: Client on which to check the installed versions
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        Get the release name based on the name of the repository
+        :param client: Client on which to check the release name
+        :type client: source.tools.localclient.LocalClient
         :return: Release name
         :rtype: str
         """
