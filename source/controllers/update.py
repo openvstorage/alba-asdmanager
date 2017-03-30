@@ -33,6 +33,8 @@ class SDMUpdateController(object):
     """
     _local_client = LocalClient()
     _logger = LogHandler.get('asd-manager', name='update')
+    _packages_alba = ['alba', 'alba-ee']
+    _packages_mutual_excl = [_packages_alba]
 
     @staticmethod
     def get_package_information():
@@ -50,13 +52,26 @@ class SDMUpdateController(object):
         :return: Package information
         :rtype: dict
         """
-        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=['alba', 'alba-ee'])
+        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._packages_alba)
         installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
         candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
-        installed_difference = set(PackageManager.SDM_PACKAGE_NAMES) - set(installed.keys())
+        not_installed = set(PackageManager.SDM_PACKAGE_NAMES) - set(installed.keys())
         candidate_difference = set(PackageManager.SDM_PACKAGE_NAMES) - set(candidate.keys())
-        if len(installed_difference | candidate_difference) > 1 or any(['alba' not in package for package in installed_difference | candidate_difference]):
-            raise RuntimeError('Failed to retrieve the installed and candidate versions for packages: {0}'.format(', '.join(PackageManager.SDM_PACKAGE_NAMES)))
+
+        for package_name in not_installed:
+            found = False
+            for entry in SDMUpdateController._packages_mutual_excl:
+                if package_name in entry:
+                    found = True
+                    if entry[1 - entry.index(package_name)] in not_installed:
+                        raise RuntimeError('Conflicting packages installed: {0}'.format(entry))
+            if found is False:
+                raise RuntimeError('Missing non-installed package: {0}'.format(package_name))
+            if package_name not in candidate_difference:
+                raise RuntimeError('Unexpected difference in missing installed/candidates: {0}'.format(package_name))
+            candidate_difference.remove(package_name)
+        if len(candidate_difference) > 0:
+            raise RuntimeError('No candidates available for some packages: {0}'.format(candidate_difference))
 
         alba_package = 'alba' if 'alba' in installed.keys() else 'alba-ee'
         version_mapping = {'alba': ['alba', 'alba-ee']}
