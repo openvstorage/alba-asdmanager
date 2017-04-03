@@ -30,8 +30,8 @@ class PackageManager(object):
     ImplementationClass = None
 
     GET_VERSION_ALBA = 'alba version --terse'
-    SDM_PACKAGE_NAMES = ['alba', 'openvstorage-sdm']
-    SDM_PACKAGES_WITH_BINARIES = ['alba']
+    SDM_PACKAGE_NAMES = ['alba', 'alba-ee', 'openvstorage-sdm']
+    SDM_PACKAGES_WITH_BINARIES = ['alba', 'alba-ee']
 
     class MetaClass(type):
         """

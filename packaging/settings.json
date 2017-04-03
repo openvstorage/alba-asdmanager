@@ -1,10 +1,10 @@
 {
     "package_name": "openvstorage-sdm",
     "product_name": "Open vStorage ASD Manager",
+    "tags": ["community", "enterprise"],
     "source_contents": "--transform 's,^,{0}-{1}/,' config source scripts *.txt",
     "version": {
         "major": 1,
-        "minor": 7,
-        "patch": 0
+        "minor": 7
     }
 }
