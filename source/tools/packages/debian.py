@@ -18,9 +18,9 @@
 Debian Package module
 """
 
+import re
 from subprocess import check_output, CalledProcessError
 from source.tools.log_handler import LogHandler
-from source.tools.toolbox import Toolbox
 
 
 class DebianPackage(object):
@@ -29,6 +29,22 @@ class DebianPackage(object):
     """
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
     _logger = LogHandler.get('asd-manager', name='package-manager-debian')
+
+    @staticmethod
+    def get_release_name(client=None):
+        """
+        Get the release name based on the name of the repository
+        :param client: Client on which to check the release name
+        :type client: source.tools.localclient.LocalClient
+        :return: Release name
+        :rtype: str
+        """
+        command = "cat /etc/apt/sources.list.d/ovsaptrepo.list | grep openvstorage | cut -d ' ' -f 3"
+        if client is None:
+            output = check_output(command, shell=True).strip()
+        else:
+            output = client.run(command, allow_insecure=True).strip()
+        return output.replace('-', ' ').title()
 
     @staticmethod
     def get_installed_versions(client=None, package_names=None):
@@ -47,9 +63,11 @@ class DebianPackage(object):
         for package_name in package_names:
             command = "dpkg -s '{0}' | grep Version | awk '{{print $2}}'".format(package_name.replace(r"'", r"'\''"))
             if client is None:
-                versions[package_name] = check_output(command, shell=True).strip()
+                output = check_output(command, shell=True).strip()
             else:
-                versions[package_name] = client.run(command, allow_insecure=True).strip()
+                output = client.run(command, allow_insecure=True).strip()
+            if output:
+                versions[package_name] = output
         return versions
 
     @staticmethod
@@ -66,15 +84,14 @@ class DebianPackage(object):
         DebianPackage.update(client=client)
         versions = {}
         for package_name in package_names:
-            versions[package_name] = ''
-            for line in client.run(['apt-cache', 'policy', package_name, DebianPackage.APT_CONFIG_STRING]).splitlines():
-                line = line.strip()
-                if line.startswith('Candidate:'):
-                    candidate = Toolbox.remove_prefix(line, 'Candidate:').strip()
-                    if candidate == '(none)':
-                        candidate = ''
-                    versions[package_name] = candidate
-                    break
+            output = client.run(['apt-cache', 'policy', package_name, DebianPackage.APT_CONFIG_STRING]).strip()
+            match = re.match(".*Installed: (?P<installed>\S+).*Candidate: (?P<candidate>\S+).*",
+                             output, re.DOTALL)
+            if match is not None:
+                groups = match.groupdict()
+                if groups['candidate'] == '(none)' and groups['installed'] == '(none)':
+                    continue
+                versions[package_name] = groups['candidate'] if groups['candidate'] != '(none)' else ''
         return versions
 
     @staticmethod
@@ -90,7 +107,7 @@ class DebianPackage(object):
         """
         versions = {}
         for package_name in package_names:
-            if package_name == 'alba':
+            if package_name in ['alba', 'alba-ee']:
                 versions[package_name] = client.run(DebianPackage.GET_VERSION_ALBA, allow_insecure=True)
             else:
                 raise ValueError('Only the following packages in the ALBA ASD-manager repository have a binary file: "{0}"'.format('", "'.join(DebianPackage.SDM_PACKAGES_WITH_BINARIES)))
@@ -109,8 +126,8 @@ class DebianPackage(object):
         if client.username != 'root':
             raise RuntimeError('Only the "root" user can install packages')
 
-        installed = DebianPackage.get_installed_versions(client=client, package_names=[package_name])[package_name]
-        candidate = DebianPackage.get_candidate_versions(client=client, package_names=[package_name])[package_name]
+        installed = DebianPackage.get_installed_versions(client=client, package_names=[package_name]).get(package_name)
+        candidate = DebianPackage.get_candidate_versions(client=client, package_names=[package_name]).get(package_name)
 
         if installed == candidate:
             return
