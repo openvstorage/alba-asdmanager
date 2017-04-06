@@ -91,12 +91,15 @@ class Base(object):
     def _get_foreign_relation(self, relation_info):
         """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
+        remote_class._ensure_table()
+        entries = []
         with Base.connector() as connection:
             cursor = connection.cursor()
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
             for row in cursor.fetchall():
-                yield remote_class(row['id'])
+                entries.append(remote_class(row['id']))
+        return entries
 
     def _add_relation(self, relation):
         """ Generates a new relation on an object. """
@@ -201,8 +204,8 @@ class Base(object):
         """ Short representation of the object. """
         return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
 
-    def __str__(self):
-        """ Returns a full representation of the object. """
+    def export(self):
+        """ Exports the object """
         data = {'id': self.id}
         for prop in self._properties:
             data[prop[0]] = getattr(self, prop[0])
@@ -211,4 +214,8 @@ class Base(object):
             data[name] = getattr(self, name)
         for dynamic in self._dynamics:
             data[dynamic] = getattr(self, dynamic)
-        return json.dumps(data, indent=4, sort_keys=True)
+        return data
+
+    def __str__(self):
+        """ Returns a full representation of the object. """
+        return json.dumps(self.export(), indent=4, sort_keys=True)

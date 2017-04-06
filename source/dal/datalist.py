@@ -47,6 +47,7 @@ class DataList(object):
         :param parameters: SQLite compatible query parameters
         :return: Yields instances of the given object type
         """
+        entries = []
         if parameters is None:
             parameters = []
         object_type._ensure_table()
@@ -58,4 +59,5 @@ class DataList(object):
             cursor = connection.cursor()
             result = cursor.execute(query, parameters)
             for row in result.fetchall():
-                yield object_type(row[0])
+                entries.append(object_type(row[0]))
+        return entries

@@ -45,15 +45,17 @@ class DiskList(object):
         """
         Returns a list of all disks that are "usable"
         """
+        disks = []
         for disk in DiskList.get_disks():
             if disk.usable:
-                yield disk
+                disks.append(disk)
+        return disks
 
     @staticmethod
     def get_by_alias(alias, raise_exception=False):
         for disk in DiskList.get_usable_disks():
-            for alias in disk.get('aliases', []):
-                if alias.endswith(alias):
+            for disk_alias in disk.aliases:
+                if disk_alias.endswith(alias):
                     return disk
             partition_aliases = []
             for partition_info in disk.partitions:

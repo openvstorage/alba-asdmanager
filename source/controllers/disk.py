@@ -250,7 +250,7 @@ class DiskController(object):
 
         # Create mountpoint and mount
         DiskController._local_client.run(['mkdir', '-p', mountpoint])
-        FSTab.add(partition_aliases=alias, mountpoint=mountpoint)
+        FSTab.add(partition_aliases=[disk.partition_aliases[0]], mountpoint=mountpoint)
         if already_mounted is False:
             DiskController._local_client.run(['mount', mountpoint])
         DiskController.sync_disks()

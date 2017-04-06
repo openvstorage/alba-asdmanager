@@ -91,9 +91,7 @@ class Disk(Base):
                 return {'size': int(size),
                         'used': int(used),
                         'available': int(available)}
-        return {'size': 0,
-                'used': 0,
-                'available': 0}
+        return {}
 
     def _partition_aliases(self):
         partition_aliases = []
