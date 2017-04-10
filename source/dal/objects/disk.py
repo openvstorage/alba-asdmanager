@@ -74,6 +74,9 @@ class Disk(Base):
 
     def _status(self):
         if self.mountpoint is not None:
+            if self.state == 'MISSING':
+                return {'state': 'error',
+                        'detail': 'missing'}
             output, error = self._local_client.run(['ls', '{0}/'.format(self.mountpoint)],
                                                    allow_nonzero=True, return_stderr=True, timeout=5)
             output += error

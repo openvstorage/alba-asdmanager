@@ -176,10 +176,11 @@ class DiskController(object):
                     disk.delete()
                     DiskController._logger.info('Disk {0} - Deleted (no ASDs)'.format(disk.name))
                 else:
-                    for partition in disk.partitions:
-                        DiskController._logger.warning('Disk {0} - Partition with offset {1} - Updated status to MISSING'.format(disk.name, partition.offset))
-                    DiskController._update_disk(disk, {'state': 'MISSING'})
-                    DiskController._logger.warning('Disk {0} - Updated status to MISSING'.format(disk.name))
+                    if disk.state != 'MISSING':
+                        for partition in disk.partitions:
+                            DiskController._logger.warning('Disk {0} - Partition with offset {1} - Updated status to MISSING'.format(disk.name, partition['offset']))
+                        DiskController._update_disk(disk, {'state': 'MISSING'})
+                        DiskController._logger.warning('Disk {0} - Updated status to MISSING'.format(disk.name))
 
             else:  # Update existing disks and their partitions
                 DiskController._update_disk(disk, disk_info)
@@ -301,8 +302,8 @@ class DiskController(object):
             raise RuntimeError('Cannot remount disk {0}'.format(disk.name))
 
         DiskController._logger.info('Remounting disk {0}'.format(disk.name))
-        DiskController._local_client.run(['umount', disk.mountpoint], allow_nonzero=True)
-        DiskController._local_client.run(['mount', disk.mountpoint], allow_nonzero=True)
+        DiskController._local_client.run(['umount', '-l', disk.mountpoint], timeout=10, allow_nonzero=True)
+        DiskController._local_client.run(['mount', disk.mountpoint], timeout=10, allow_nonzero=True)
         DiskController._logger.info('Remounting disk {0} complete'.format(disk.name))
 
     @staticmethod

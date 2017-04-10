@@ -217,6 +217,7 @@ class API(object):
         :type disk_id: str
         :return: None
         """
+        DiskController.sync_disks()
         disk = DiskList.get_by_alias(disk_id, raise_exception=True)
         with file_mutex('add_asd'):
             ASDController.create_asd(disk)

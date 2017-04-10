@@ -53,19 +53,23 @@ class ASD(Base):
         if not self.has_config:
             raise RuntimeError('No configuration found for ASD {0}'.format(self.asd_id))
         data = Configuration.get(self.config_key)
-        output, error = ASD._local_client.run(['ls', '{0}/{1}/'.format(self.disk.mountpoint, self.folder)],
-                                              allow_nonzero=True, return_stderr=True)
-        output += error
-        if 'Input/output error' in output:
+        if self.disk.state == 'MISSING':
             data.update({'state': 'error',
-                         'state_detail': 'io_error'})
-        elif ServiceManager.has_service(self.service_name, ASD._local_client):
-            if ServiceManager.get_service_status(self.service_name, ASD._local_client)[0] is False:
+                         'state_detail': 'missing'})
+        else:
+            output, error = ASD._local_client.run(['ls', '{0}/{1}/'.format(self.disk.mountpoint, self.folder)],
+                                                  allow_nonzero=True, return_stderr=True)
+            output += error
+            if 'Input/output error' in output:
+                data.update({'state': 'error',
+                             'state_detail': 'io_error'})
+            elif ServiceManager.has_service(self.service_name, ASD._local_client):
+                if ServiceManager.get_service_status(self.service_name, ASD._local_client)[0] is False:
+                    data.update({'state': 'error',
+                                 'state_detail': 'service_failure'})
+                else:
+                    data.update({'state': 'ok'})
+            else:
                 data.update({'state': 'error',
                              'state_detail': 'service_failure'})
-            else:
-                data.update({'state': 'ok'})
-        else:
-            data.update({'state': 'error',
-                         'state_detail': 'service_failure'})
         return data

@@ -48,6 +48,9 @@ class ASDController(object):
         :type disk: source.dal.objects.disk.Disk
         :return: None
         """
+        if disk.state == 'MISSING':
+            raise RuntimeError('Cannot create an ASD on missing disk {0}'.format(disk.name))
+
         # Fetch disk information
         disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', disk.mountpoint], timeout=5).splitlines()[1])
 
