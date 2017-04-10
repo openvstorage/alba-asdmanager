@@ -41,7 +41,7 @@ if __name__ == '__main__':
         os.environ['ASD_NODE_ID'] = NODE_ID
 
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-    CURRENT_VERSION = 3
+    CURRENT_VERSION = 4
 
     _logger = LogHandler.get('asd-manager', name='post-update')
 
@@ -61,6 +61,25 @@ if __name__ == '__main__':
 
         if version < CURRENT_VERSION:
             try:
+                # DB migrations
+                from source.dal.base import Base
+                from source.controllers.disk import DiskController
+                if not client.file_exists(Base.DATABASE_LOCATION):
+                    from source.dal.objects.asd import ASD
+                    from source.dal.lists.disklist import DiskList
+                    client.dir_create([Base.DATABASE_FOLDER])
+                    DiskController.sync_disks()
+                    for disk in DiskList.get_usable_disks():
+                        if disk.state == 'MISSING' or disk.mountpoint is None:
+                            continue
+                        for directory in client.dir_list(disk.mountpoint):
+                            asd = ASD()
+                            asd.asd_id = directory
+                            asd.folder = directory
+                            asd.disk = disk
+                            if asd.has_config:
+                                asd.save()
+
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
                 service_manager = 'systemd' if ServiceManager.ImplementationClass == Systemd else 'upstart'
                 asd_service_names = list(ASDController.list_asd_services())

@@ -33,7 +33,8 @@ class Base(object):
     Base object that is inherited by all DAL objects. It contains base logic like save, delete, ...
     """
 
-    DATABASE_LOCATION = '/opt/asd-manager/db/main.db'
+    DATABASE_FOLDER = '/opt/asd-manager/db'
+    DATABASE_LOCATION = '{0}/main.db'.format(DATABASE_FOLDER)
 
     _table = None
     _properties = []
