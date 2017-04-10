@@ -130,8 +130,7 @@ class Systemd(object):
         if startup_dependency == '':
             startup_dependency = None
         else:
-            startup_dependency = '.'.join(
-                startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
+            startup_dependency = '.'.join(startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
         output = Systemd.add_service(name=name,
                                      client=client,
                                      params=service_params,
@@ -149,16 +148,11 @@ class Systemd(object):
         :type name: str
         :param client: Client on which to retrieve the status
         :type client: source.tools.localclient.LocalClient
-        :return: The status of the service and the output of the command
-        :rtype: tuple
+        :return: The status of the service
+        :rtype: str
         """
         name = Systemd._get_name(name, client)
-        output = client.run(['systemctl', 'is-active', name], allow_nonzero=True)
-        if output == 'active':
-            return True, output
-        elif output == 'inactive':
-            return False, output
-        return False, output
+        return client.run(['systemctl', 'is-active', name], allow_nonzero=True)
 
     @staticmethod
     def remove_service(name, client, delay_unregistration=False):
@@ -171,6 +165,7 @@ class Systemd(object):
         :param delay_unregistration: Un-register the service parameters in the config management right away or not
         :type delay_unregistration: bool
         :return: None
+        :rtype: NoneType
         """
         name = Systemd._get_name(name, client)
         run_file_name = '/opt/asd-manager/run/{0}.version'.format(name)
@@ -187,77 +182,106 @@ class Systemd(object):
             Systemd.unregister_service(service_name=name, node_name='')
 
     @staticmethod
-    def start_service(name, client):
+    def start_service(name, client, timeout=5):
         """
         Start a service
         :param name: Name of the service to start
         :type name: str
         :param client: Client on which to start the service
         :type client: source.tools.localclient.LocalClient
-        :return: The output of the start command
-        :rtype: str
+        :param timeout: Timeout within to verify the service status (in seconds)
+        :type timeout: int
+        :return: None
+        :rtype: NoneType
         """
-        status, output = Systemd.get_service_status(name, client)
-        if status is True:
-            return output
+        if Systemd.get_service_status(name, client) == 'active':
+            return
+
         try:
             # When service files have been adjusted, a reload is required for these changes to take effect
             client.run(['systemctl', 'daemon-reload'])
         except CalledProcessError:
             pass
+
+        name = Systemd._get_name(name, client)
+        timeout = timeout if timeout > 0 else 5
         try:
-            name = Systemd._get_name(name, client)
-            output = client.run(['systemctl', 'start', '{0}.service'.format(name)])
+            client.run(['systemctl', 'start', '{0}.service'.format(name)])
+            counter = 0
+            while counter < timeout * 4:
+                if Systemd.get_service_status(name=name, client=client) == 'active':
+                    return
+                time.sleep(0.25)
+                counter += 1
         except CalledProcessError as cpe:
-            output = cpe.output
-            Systemd._logger.exception('Start {0} failed, {1}'.format(name, output))
-        return output
+            Systemd._logger.exception('Start {0} failed, {1}'.format(name, cpe.output))
+            raise
+        raise RuntimeError('Did not manage to start service {0} on node with IP {1}'.format(name, client.ip))
 
     @staticmethod
-    def stop_service(name, client):
+    def stop_service(name, client, timeout=5):
         """
         Stop a service
         :param name: Name of the service to stop
         :type name: str
         :param client: Client on which to stop the service
         :type client: source.tools.localclient.LocalClient
-        :return: The output of the stop command
-        :rtype: str
+        :param timeout: Timeout within to verify the service status (in seconds)
+        :type timeout: int
+        :return: None
+        :rtype: NoneType
         """
-        status, output = Systemd.get_service_status(name, client)
-        if status is False:
-            return output
+        if Systemd.get_service_status(name, client) == 'inactive':
+            return
+
+        name = Systemd._get_name(name, client)
+        timeout = timeout if timeout > 0 else 5
         try:
-            name = Systemd._get_name(name, client)
-            output = client.run(['systemctl', 'stop', '{0}.service'.format(name)])
+            client.run(['systemctl', 'stop', '{0}.service'.format(name)])
+            counter = 0
+            while counter < timeout * 4:
+                if Systemd.get_service_status(name=name, client=client) == 'inactive':
+                    return
+                time.sleep(0.25)
+                counter += 1
         except CalledProcessError as cpe:
-            output = cpe.output
-            Systemd._logger.exception('Stop {0} failed, {1}'.format(name, output))
-        return output
+            Systemd._logger.exception('Stop {0} failed, {1}'.format(name, cpe.output))
+            raise
+        raise RuntimeError('Did not manage to stop service {0} on node with IP {1}'.format(name, client.ip))
 
     @staticmethod
-    def restart_service(name, client):
+    def restart_service(name, client, timeout=5):
         """
         Restart a service
         :param name: Name of the service to restart
         :type name: str
         :param client: Client on which to restart the service
         :type client: source.tools.localclient.LocalClient
-        :return: The output of the restart command
-        :rtype: str
+        :param timeout: Timeout within to verify the service status (in seconds)
+        :type timeout: int
+        :return: None
+        :rtype: NoneType
         """
         try:
             # When service files have been adjusted, a reload is required for these changes to take effect
             client.run(['systemctl', 'daemon-reload'])
         except CalledProcessError:
             pass
+
+        name = Systemd._get_name(name, client)
+        timeout = timeout if timeout > 0 else 5
         try:
-            name = Systemd._get_name(name, client)
-            output = client.run(['systemctl', 'restart', '{0}.service'.format(name)])
+            client.run(['systemctl', 'restart', '{0}.service'.format(name)])
+            counter = 0
+            while counter < timeout * 4:
+                if Systemd.get_service_status(name=name, client=client) == 'active':
+                    return
+                time.sleep(0.25)
+                counter += 1
         except CalledProcessError as cpe:
-            output = cpe.output
-            Systemd._logger.exception('Restart {0} failed, {1}'.format(name, output))
-        return output
+            Systemd._logger.exception('Restart {0} failed, {1}'.format(name, cpe.output))
+            raise
+        raise RuntimeError('Did not manage to restart service {0} on node with IP {1}'.format(name, client.ip))
 
     @staticmethod
     def has_service(name, client):
@@ -272,9 +296,9 @@ class Systemd(object):
         """
         try:
             Systemd._get_name(name, client, log=False)
-            return True
         except ValueError:
             return False
+        return True
 
     @staticmethod
     def get_service_pid(name, client):
@@ -289,7 +313,7 @@ class Systemd(object):
         """
         pid = 0
         name = Systemd._get_name(name, client)
-        if Systemd.get_service_status(name, client)[0] is True:
+        if Systemd.get_service_status(name, client) == 'active':
             output = client.run(['systemctl', 'show', name, '--property=MainPID']).split('=')
             if len(output) == 2:
                 pid = output[1]
@@ -308,6 +332,7 @@ class Systemd(object):
         :param client: Client on which to send a signal to the service
         :type client: source.tools.localclient.LocalClient
         :return: None
+        :rtype: NoneType
         """
         name = Systemd._get_name(name, client)
         pid = Systemd.get_service_pid(name, client)
@@ -332,6 +357,7 @@ class Systemd(object):
         """
         Monitor the local ASD services
         :return: None
+        :rtype: NoneType
         """
         try:
             previous_output = None
@@ -386,6 +412,7 @@ class Systemd(object):
         :param service_metadata: Metadata of the service
         :type service_metadata: dict
         :return: None
+        :rtype: NoneType
         """
         _ = node_name
         service_name = service_metadata['SERVICE_NAME']
