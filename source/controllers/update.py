@@ -144,8 +144,7 @@ class SDMUpdateController(object):
         service_names = [service_name for service_name in ASDController.list_asd_services()]
         service_names.extend([service_name for service_name in MaintenanceController.get_services()])
         for service_name in service_names:
-            status, _ = ServiceManager.get_service_status(service_name, SDMUpdateController._local_client)
-            if status is False:
+            if ServiceManager.get_service_status(service_name, SDMUpdateController._local_client) != 'active':
                 SDMUpdateController._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue
 
