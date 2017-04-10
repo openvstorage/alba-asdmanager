@@ -66,7 +66,7 @@ class ASDController(object):
                         continue
                     service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
                     if ServiceManager.has_service(service_name, ASDController._local_client):
-                        if ServiceManager.get_service_status(service_name, ASDController._local_client)[0] is False:
+                        if ServiceManager.get_service_status(service_name, ASDController._local_client) != 'active':
                             asds[asd_id].update({'state': 'error',
                                                  'state_detail': 'service_failure'})
                         else:

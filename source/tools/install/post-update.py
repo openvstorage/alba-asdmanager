@@ -55,7 +55,7 @@ if __name__ == '__main__':
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
         asd_manager_service_name = 'asd-manager'
-        if ServiceManager.has_service(asd_manager_service_name, client) and ServiceManager.get_service_status(asd_manager_service_name, client)[0] is True:
+        if ServiceManager.has_service(asd_manager_service_name, client) and ServiceManager.get_service_status(asd_manager_service_name, client) == 'active':
             _logger.info('Stopping asd-manager service')
             ServiceManager.stop_service(asd_manager_service_name, client)
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
                 _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
 
-        if ServiceManager.has_service(asd_manager_service_name, client) and ServiceManager.get_service_status(asd_manager_service_name, client)[0] is False:
+        if ServiceManager.has_service(asd_manager_service_name, client) and ServiceManager.get_service_status(asd_manager_service_name, client) != 'active':
             _logger.info('Starting asd-manager service')
             ServiceManager.start_service(asd_manager_service_name, client)
 
