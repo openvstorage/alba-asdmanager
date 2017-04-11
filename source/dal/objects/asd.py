@@ -50,6 +50,11 @@ class ASD(Base):
         return Configuration.exists(self.config_key)
 
     def export(self):
+        """
+        Exports this ASD's information to a dict structure
+        :return: Representation of the ASD as dict
+        :rtype: dict
+        """
         if not self.has_config:
             raise RuntimeError('No configuration found for ASD {0}'.format(self.asd_id))
         data = Configuration.get(self.config_key)
@@ -64,7 +69,7 @@ class ASD(Base):
                 data.update({'state': 'error',
                              'state_detail': 'io_error'})
             elif ServiceManager.has_service(self.service_name, ASD._local_client):
-                if ServiceManager.get_service_status(self.service_name, ASD._local_client)[0] is False:
+                if ServiceManager.get_service_status(self.service_name, ASD._local_client) != 'active':
                     data.update({'state': 'error',
                                  'state_detail': 'service_failure'})
                 else:

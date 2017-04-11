@@ -22,8 +22,8 @@ import math
 import random
 import signal
 import string
-from source.dal.objects.asd import ASD
 from source.dal.lists.asdlist import ASDList
+from source.dal.objects.asd import ASD
 from source.tools.configuration.configuration import Configuration
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler

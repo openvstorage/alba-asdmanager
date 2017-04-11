@@ -103,6 +103,11 @@ class Disk(Base):
         return partition_aliases
 
     def export(self):
+        """
+        Exports this Disk's information to a dict structure
+        :return: Representation of the Disk as dict
+        :rtype: dict
+        """
         return {'size': self.size,
                 'usage': self.usage,
                 'state': self.status['state'],

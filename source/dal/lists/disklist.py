@@ -52,7 +52,16 @@ class DiskList(object):
         return disks
 
     @staticmethod
-    def get_by_alias(alias, raise_exception=False):
+    def get_by_alias(alias, raise_exception=True):
+        """
+        Gets a Disk by its alias.
+        :param alias: Alias to search
+        :type alias: str
+        :param raise_exception: Indicate whether an exception should be raised if no Disk could be found
+        :type raise_exception: bool
+        :return: The found Disk
+        :rtype: source.dal.objects.disk.Disk
+        """
         for disk in DiskList.get_usable_disks():
             for disk_alias in disk.aliases:
                 if disk_alias.endswith(alias):

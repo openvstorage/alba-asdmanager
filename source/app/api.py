@@ -105,7 +105,7 @@ class API(object):
         :rtype: dict
         """
         DiskController.sync_disks()
-        return DiskList.get_by_alias(disk_id, raise_exception=True).export()
+        return DiskList.get_by_alias(disk_id).export()
 
     @staticmethod
     @post('/disks/<disk_id>/add')
@@ -117,12 +117,12 @@ class API(object):
         :return: Disk information about the newly added disk
         :rtype: dict
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         if disk.available is False:
             raise BadRequest('Disk {0} already configured'.format(disk.name))
         with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
             DiskController.prepare_disk(disk=disk)
-        return DiskList.get_by_alias(disk_id, raise_exception=True).export()
+        return DiskList.get_by_alias(disk_id).export()
 
     @staticmethod
     @post('/disks/<disk_id>/delete')
@@ -151,8 +151,10 @@ class API(object):
             disk = Disk(disk.id)
             if len(disk.asds) == 0:
                 DiskController.clean_disk(disk=disk)
-            if last_exception is not None:
+            elif last_exception is not None:
                 raise last_exception
+            else:
+                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/restart')
@@ -163,7 +165,7 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         with file_mutex('disk_{0}'.format(disk_id)):
             API._logger.info('Got lock for restarting disk {0}'.format(disk_id))
             for asd in disk.asds:
@@ -205,7 +207,7 @@ class API(object):
         :return: ASD information for the specified disk
         :rtype: dict
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         return dict((asd.asd_id, asd.export()) for asd in disk.asds)
 
     @staticmethod
@@ -218,7 +220,7 @@ class API(object):
         :return: None
         """
         DiskController.sync_disks()
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         with file_mutex('add_asd'):
             ASDController.create_asd(disk)
 
@@ -234,7 +236,7 @@ class API(object):
         :return: ASD information
         :rtype: dict
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
             raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
@@ -251,7 +253,7 @@ class API(object):
         :type asd_id: str
         :return: None
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
             raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
@@ -268,7 +270,7 @@ class API(object):
         :type asd_id: str
         :return: None
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=True)
+        disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
             raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
