@@ -393,7 +393,8 @@ class API(object):
         """
         client = LocalClient()
         if ServiceManager.has_service(name=name, client=client):
-            return {'status': ServiceManager.get_service_status(name=name, client=client)}
+            status = ServiceManager.get_service_status(name=name, client=client)
+            return {'status': (status == 'active', status)}
         return {'status': None}
 
     ########################
