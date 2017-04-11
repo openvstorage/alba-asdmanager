@@ -25,13 +25,14 @@ from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
-from source.controllers.disk import DiskController, DiskNotFoundError
+from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
+from source.dal.lists.disklist import DiskList
+from source.dal.objects.disk import Disk
 from source.tools.configuration.configuration import Configuration
 from source.tools.filemutex import file_mutex
-from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from source.tools.services.service import ServiceManager
@@ -58,7 +59,6 @@ class API(object):
     @get('/net', authenticate=False)
     def net():
         """ Retrieve IP information """
-        API._logger.info('Loading network information')
         output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
         my_ips = output.split('\n')
         return {'ips': [found_ip.strip() for found_ip in my_ips if
@@ -68,14 +68,12 @@ class API(object):
     @post('/net')
     def set_net():
         """ Set IP information """
-        API._logger.info('Setting network information')
         Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/collect_logs')
     def collect_logs():
         """ Collect the logs """
-        API._logger.info('Collecting logs')
         return {'filename': GenericController.collect_logs()}
 
     @staticmethod
@@ -83,7 +81,7 @@ class API(object):
     def download_logs(filename):
         """ Download the tgz containing the logs """
         filename = filename.split('/')[-1]
-        API._logger.info('Downloading file {0}'.format(filename))
+        API._logger.info('Uploading file {0}'.format(filename))
         return send_from_directory(directory='/opt/asd-manager/downloads', filename=filename)
 
     #########
@@ -93,8 +91,8 @@ class API(object):
     @get('/disks')
     def list_disks():
         """ List all disk information """
-        API._logger.info('Listing disks')
-        return dict((key.split('/')[-1], value) for key, value in DiskController.list_disks().iteritems())
+        DiskController.sync_disks()
+        return dict((disk.aliases[0].split('/')[-1], disk.export()) for disk in DiskList.get_usable_disks())
 
     @staticmethod
     @get('/disks/<disk_id>')
@@ -106,8 +104,8 @@ class API(object):
         :return: Disk information
         :rtype: dict
         """
-        API._logger.info('Listing disk {0}'.format(disk_id))
-        return DiskController.get_disk_data_by_alias(device_alias=disk_id)
+        DiskController.sync_disks()
+        return DiskList.get_by_alias(disk_id).export()
 
     @staticmethod
     @post('/disks/<disk_id>/add')
@@ -119,14 +117,12 @@ class API(object):
         :return: Disk information about the newly added disk
         :rtype: dict
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        if disk_data['available'] is False:
-            raise BadRequest('Disk already configured')
-        alias = disk_data['aliases'][0]
-        API._logger.info('Add disk {0}'.format(alias))
+        disk = DiskList.get_by_alias(disk_id)
+        if disk.available is False:
+            raise BadRequest('Disk {0} already configured'.format(disk.name))
         with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
-            DiskController.prepare_disk(device_alias=alias)
-        return DiskController.get_disk_data_by_alias(device_alias=alias)
+            DiskController.prepare_disk(disk=disk)
+        return DiskList.get_by_alias(disk_id).export()
 
     @staticmethod
     @post('/disks/<disk_id>/delete')
@@ -137,41 +133,28 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        try:
-            disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        except DiskNotFoundError:
-            API._logger.warning('Disk with ID {0} is no longer detected on the filesystem'.format(disk_id))
-            disk_data = {}
+        disk = DiskList.get_by_alias(disk_id, raise_exception=False)
+        if disk is None:
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(disk_id))
+            return None
 
-        if disk_data.get('available') is True:
+        if disk.available is True:
             raise BadRequest('Disk not yet configured')
 
-        if disk_data:
-            alias = disk_data['aliases'][0]
-            mountpoint = disk_data['mountpoint'] or None
-            partition_aliases = disk_data['partition_aliases']
-            API._logger.info('Deleting disk {0}'.format(alias))
-        else:  # Disk is most likely missing from filesystem
-            alias = None
-            mountpoint = None
-            partition_aliases = json.loads(request.form['partition_aliases'])
-            API._logger.info('Deleting unknown disk with partition aliases "{0}"'.format('", "'.join(partition_aliases)))
-
-        if mountpoint is None:  # 'lsblk' did not return mountpoint for the device, but perhaps it's still mounted according to FSTab
-            for partition_alias, mtpt in FSTab.read().iteritems():
-                if partition_alias in partition_aliases:
-                    API._logger.warning('Disk with ID {0} is still mounted on {1} according to FSTab'.format(disk_id, mountpoint))
-                    mountpoint = mtpt
-                    break
-
         with file_mutex('disk_{0}'.format(disk_id)):
-            if mountpoint is not None:
-                for asd_id in ASDController.list_asds(mountpoint=mountpoint):
-                    ASDController.remove_asd(asd_id=asd_id,
-                                             mountpoint=mountpoint)
-            DiskController.clean_disk(device_alias=alias,
-                                      mountpoint=mountpoint,
-                                      partition_aliases=partition_aliases)
+            last_exception = None
+            for asd in disk.asds:
+                try:
+                    ASDController.remove_asd(asd=asd)
+                except Exception as ex:
+                    last_exception = ex
+            disk = Disk(disk.id)
+            if len(disk.asds) == 0:
+                DiskController.clean_disk(disk=disk)
+            elif last_exception is not None:
+                raise last_exception
+            else:
+                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/restart')
@@ -182,22 +165,14 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        API._logger.info('Restarting disk {0}'.format(disk_id))
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        alias = disk_data['aliases'][0]
+        disk = DiskList.get_by_alias(disk_id)
         with file_mutex('disk_{0}'.format(disk_id)):
-            API._logger.info('Got lock for restarting disk {0}'.format(alias))
-            for partition_alias, mountpoint in FSTab.read().iteritems():
-                if partition_alias in disk_data['partition_aliases']:
-                    asds = ASDController.list_asds(mountpoint=mountpoint)
-                    for asd_id in asds:
-                        ASDController.stop_asd(asd_id=asd_id)
-                    DiskController.remount_disk(device_alias=alias,
-                                                mountpoint=mountpoint)
-                    asds = ASDController.list_asds(mountpoint=mountpoint)
-                    for asd_id in asds:
-                        ASDController.start_asd(asd_id=asd_id)
-                    break
+            API._logger.info('Got lock for restarting disk {0}'.format(disk_id))
+            for asd in disk.asds:
+                ASDController.stop_asd(asd=asd)
+            DiskController.remount_disk(disk=disk)
+            for asd in disk.asds:
+                ASDController.start_asd(asd=asd)
 
     ########
     # ASDS #
@@ -210,13 +185,16 @@ class API(object):
         :return: Information about all ASDs on local node
         :rtype: dict
         """
-        return dict((partition_alias, ASDController.list_asds(mountpoint=mountpoint)) for partition_alias, mountpoint in FSTab.read().iteritems())
+        asds = {}
+        for disk in DiskList.get_usable_disks():
+            if len(disk.asds) > 0:
+                asds[disk.partition_aliases[0]] = dict((asd.asd_id, asd.export()) for asd in disk.asds)
+        return asds
 
     @staticmethod
     @get('/asds/services')
     def list_asd_services():
         """ List all ASD service names """
-        API._logger.info('Listing ASD services')
         return {'services': list(ASDController.list_asd_services())}
 
     @staticmethod
@@ -229,11 +207,8 @@ class API(object):
         :return: ASD information for the specified disk
         :rtype: dict
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        for partition_alias, mountpoint in FSTab.read().iteritems():
-            if partition_alias in disk_data['partition_aliases']:
-                return ASDController.list_asds(mountpoint=mountpoint)
-        raise BadRequest('Disk {0} is not yet initialized'.format(disk_data['aliases'][0]))
+        disk = DiskList.get_by_alias(disk_id)
+        return dict((asd.asd_id, asd.export()) for asd in disk.asds)
 
     @staticmethod
     @post('/disks/<disk_id>/asds')
@@ -244,13 +219,10 @@ class API(object):
         :type disk_id: str
         :return: None
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        for partition_alias, mountpoint in FSTab.read().iteritems():
-            if partition_alias in disk_data['partition_aliases']:
-                with file_mutex('add_asd'):
-                    ASDController.create_asd(partition_alias=partition_alias)
-                    return
-        raise BadRequest('Disk {0} is not yet initialized'.format(disk_data['aliases'][0]))
+        DiskController.sync_disks()
+        disk = DiskList.get_by_alias(disk_id)
+        with file_mutex('add_asd'):
+            ASDController.create_asd(disk)
 
     @staticmethod
     @get('/disks/<disk_id>/asds/<asd_id>')
@@ -264,15 +236,11 @@ class API(object):
         :return: ASD information
         :rtype: dict
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        alias = disk_data['aliases'][0]
-        for partition_alias, mountpoint in FSTab.read().iteritems():
-            if partition_alias in disk_data['partition_aliases']:
-                asds = ASDController.list_asds(mountpoint=mountpoint)
-                if asd_id not in asds:
-                    raise BadRequest('ASD {0} could not be found on disk'.format(alias))
-                return asds[asd_id]
-        raise BadRequest('Disk {0} is not yet initialized'.format(alias))
+        disk = DiskList.get_by_alias(disk_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+        return asds[0].export()
 
     @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/restart')
@@ -285,9 +253,11 @@ class API(object):
         :type asd_id: str
         :return: None
         """
-        API._logger.info('Restarting ASD {0}'.format(asd_id))
-        _ = disk_id
-        ASDController.restart_asd(asd_id=asd_id)
+        disk = DiskList.get_by_alias(disk_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+        ASDController.restart_asd(asds[0])
 
     @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/delete')
@@ -300,17 +270,11 @@ class API(object):
         :type asd_id: str
         :return: None
         """
-        disk_data = DiskController.get_disk_data_by_alias(device_alias=disk_id)
-        alias = disk_data['aliases'][0]
-        API._logger.info('Removing services for disk {0}'.format(alias))
-        for partition_alias, mountpoint in FSTab.read().iteritems():
-            if partition_alias in disk_data['partition_aliases']:
-                if asd_id not in ASDController.list_asds(mountpoint=mountpoint):
-                    raise BadRequest('Could not find ASD {0} on disk {1}'.format(asd_id, alias))
-                ASDController.remove_asd(asd_id=asd_id,
-                                         mountpoint=mountpoint)
-                return
-        raise BadRequest('Disk {0} is not yet initialized'.format(alias))
+        disk = DiskList.get_by_alias(disk_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+        ASDController.remove_asd(asds[0])
 
     ##########
     # UPDATE #
@@ -404,7 +368,6 @@ class API(object):
     @get('/maintenance')
     def list_maintenance_services():
         """ List all maintenance information """
-        API._logger.info('Listing maintenance services')
         return {'services': list(MaintenanceController.get_services())}
 
     @staticmethod

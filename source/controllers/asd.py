@@ -18,13 +18,13 @@
 This module contains the asd controller (logic for managing asds)
 """
 import os
-import json
 import math
 import random
 import signal
 import string
+from source.dal.lists.asdlist import ASDList
+from source.dal.objects.asd import ASD
 from source.tools.configuration.configuration import Configuration
-from source.tools.fstab import FSTab
 from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 from source.tools.services.service import ServiceManager
@@ -35,99 +35,52 @@ class ASDController(object):
     ASD Controller class
     """
     NODE_ID = os.environ['ASD_NODE_ID']
-    ASD_SERVICE_PREFIX = 'alba-asd-{0}'
-    ASD_CONFIG_ROOT = '/ovs/alba/asds/{0}'
-    ASD_CONFIG = '/ovs/alba/asds/{0}/config'
-    ASDS = {}
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
     _local_client = LocalClient()
     _logger = LogHandler.get('asd-manager', name='asd')
 
     @staticmethod
-    def list_asds(mountpoint):
-        """
-        Lists all ASDs found on a given mountpoint
-        :param mountpoint: Mountpoint to list ASDs on
-        :type mountpoint: str
-        :return: Dictionary of ASDs
-        :rtype: dict
-        """
-        asds = {}
-        try:
-            for asd_id in os.listdir(mountpoint):
-                if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
-                    asds[asd_id] = Configuration.get(ASDController.ASD_CONFIG.format(asd_id))
-                    output, error = ASDController._local_client.run(['ls', '{0}/{1}/'.format(mountpoint, asd_id)], allow_nonzero=True, return_stderr=True)
-                    output += error
-                    if 'Input/output error' in output:
-                        asds[asd_id].update({'state': 'error',
-                                             'state_detail': 'io_error'})
-                        continue
-                    service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-                    if ServiceManager.has_service(service_name, ASDController._local_client):
-                        if ServiceManager.get_service_status(service_name, ASDController._local_client) != 'active':
-                            asds[asd_id].update({'state': 'error',
-                                                 'state_detail': 'service_failure'})
-                        else:
-                            asds[asd_id].update({'state': 'ok'})
-                    else:
-                        asds[asd_id].update({'state': 'error',
-                                             'state_detail': 'service_failure'})
-        except OSError as ex:
-            ASDController._logger.info('Error collecting ASD information: {0}'.format(str(ex)))
-        return asds
-
-    @staticmethod
-    def create_asd(partition_alias):
+    def create_asd(disk):
         """
         Creates and starts an ASD on a given disk
-        :param partition_alias: Alias of the partition of a disk  (eg: /dev/disk/by-id/scsi-1ATA_TOSHIBA_MK2002TSKB_92M1KDMHF-part1)
-        :type partition_alias: str
+        :param disk: Disk on which to create an ASD
+        :type disk: source.dal.objects.disk.Disk
         :return: None
         """
-        all_asds = {}
-        mountpoint = None
-        for alias, mtpt in FSTab.read().iteritems():
-            all_asds.update(ASDController.list_asds(mtpt))
-            if alias == partition_alias:
-                mountpoint = mtpt
-        if mountpoint is None:
-            raise RuntimeError('Failed to retrieve the mountpoint for partition with alias: {0}'.format(partition_alias))
+        if disk.state == 'MISSING':
+            raise RuntimeError('Cannot create an ASD on missing disk {0}'.format(disk.name))
 
         # Fetch disk information
-        disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', mountpoint], timeout=5).splitlines()[1])
+        disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', disk.mountpoint], timeout=5).splitlines()[1])
 
         # Find out appropriate disk size
-        asds = 1.0
-        for asd_id in os.listdir(mountpoint):
-            if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
-                asds += 1
-        asd_size = int(math.floor(disk_size / asds))
-        for asd_id in os.listdir(mountpoint):
-            if os.path.isdir('/'.join([mountpoint, asd_id])) and Configuration.exists(ASDController.ASD_CONFIG.format(asd_id)):
-                config = json.loads(Configuration.get(ASDController.ASD_CONFIG.format(asd_id), raw=True))
+        asd_size = int(math.floor(disk_size / (len(disk.asds) + 1)))
+        for asd in disk.asds:
+            if asd.has_config:
+                config = Configuration.get(asd.config_key)
                 config['capacity'] = asd_size
                 config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
-                Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(config, indent=4), raw=True)
+                Configuration.set(asd.config_key, config)
                 try:
-                    ServiceManager.send_signal(ASDController.ASD_SERVICE_PREFIX.format(asd_id),
-                                               signal.SIGUSR1,
-                                               ASDController._local_client)
+                    ServiceManager.send_signal(asd.service_name, signal.SIGUSR1, ASDController._local_client)
                 except Exception as ex:
                     ASDController._logger.info('Could not send signal to ASD for reloading the quota: {0}'.format(ex))
 
+        used_ports = []
+        for asd in ASDList.get_asds():
+            if asd.has_config:
+                config = Configuration.get(asd.config_key)
+                used_ports.append(config['port'])
+                if 'rora_port' in config:
+                    used_ports.append(config['rora_port'])
+
         # Prepare & start service
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        ASDController._logger.info('Setting up service for disk {0}'.format(partition_alias))
-        homedir = '{0}/{1}'.format(mountpoint, asd_id)
+        ASDController._logger.info('Setting up service for disk {0}'.format(disk.name))
+        homedir = '{0}/{1}'.format(disk.mountpoint, asd_id)
         base_port = Configuration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
         ips = Configuration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
-        used_ports = []
-        for asd in all_asds.itervalues():
-            used_ports.append(asd['port'])
-            if 'rora_port' in asd:
-                used_ports.append(asd['rora_port'])
         asd_port = base_port
         rora_port = base_port + 1
         while asd_port in used_ports:
@@ -154,72 +107,71 @@ class ASDController(object):
             data = Configuration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
             asd_config.update(data)
 
-        Configuration.set(ASDController.ASD_CONFIG.format(asd_id), json.dumps(asd_config, indent=4), raw=True)
+        asd = ASD()
+        asd.asd_id = asd_id
+        asd.folder = asd_id
+        asd.disk = disk
+        asd.save()
 
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        params = {'CONFIG_PATH': Configuration.get_configuration_path('/ovs/alba/asds/{0}/config'.format(asd_id)),
-                  'SERVICE_NAME': service_name,
+        Configuration.set(asd.config_key, asd_config)
+        params = {'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
+                  'SERVICE_NAME': asd.service_name,
                   'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
-        ServiceManager.add_service('alba-asd', ASDController._local_client, params, service_name)
-        ASDController.start_asd(asd_id)
+        ServiceManager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
+        ASDController.start_asd(asd)
 
     @staticmethod
-    def remove_asd(asd_id, mountpoint):
+    def remove_asd(asd):
         """
         Removes an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
-        :param mountpoint: Mountpoint of the ASDs disk
-        :type mountpoint: str
+        :param asd: ASD to remove
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        if ServiceManager.has_service(service_name, ASDController._local_client):
-            ServiceManager.stop_service(service_name, ASDController._local_client)
-            ServiceManager.remove_service(service_name, ASDController._local_client)
+        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
+            ServiceManager.stop_service(asd.service_name, ASDController._local_client)
+            ServiceManager.remove_service(asd.service_name, ASDController._local_client)
         try:
-            ASDController._local_client.dir_delete('{0}/{1}'.format(mountpoint, asd_id))
+            ASDController._local_client.dir_delete('{0}/{1}'.format(asd.disk.mountpoint, asd.asd_id))
         except Exception as ex:
             ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
-        Configuration.delete(ASDController.ASD_CONFIG_ROOT.format(asd_id), raw=True)
+        Configuration.delete(asd.config_key)
+        asd.delete()
 
     @staticmethod
-    def start_asd(asd_id):
+    def start_asd(asd):
         """
         Starts an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to start
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        if ServiceManager.has_service(service_name, ASDController._local_client):
-            ServiceManager.start_service(service_name, ASDController._local_client)
+        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
+            ServiceManager.start_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
-    def stop_asd(asd_id):
+    def stop_asd(asd):
         """
         Stops an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to stop
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        if ServiceManager.has_service(service_name, ASDController._local_client):
-            ServiceManager.stop_service(service_name, ASDController._local_client)
+        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
+            ServiceManager.stop_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
-    def restart_asd(asd_id):
+    def restart_asd(asd):
         """
         Restart an ASD
-        :param asd_id: ASD identifier
-        :type asd_id: str
+        :param asd: ASD to remove
+        :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        service_name = ASDController.ASD_SERVICE_PREFIX.format(asd_id)
-        if ServiceManager.has_service(service_name, ASDController._local_client):
-            ServiceManager.restart_service(service_name, ASDController._local_client)
+        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
+            ServiceManager.restart_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
     def list_asd_services():
@@ -228,5 +180,5 @@ class ASDController(object):
         :return: generator
         """
         for service_name in ServiceManager.list_services(ASDController._local_client):
-            if service_name.startswith(ASDController.ASD_SERVICE_PREFIX.format('')):
+            if service_name.startswith(ASD.ASD_SERVICE_PREFIX.format('')):
                 yield service_name

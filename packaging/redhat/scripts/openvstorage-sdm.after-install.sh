@@ -17,6 +17,7 @@ then
     useradd -d /opt/asd-manager --system -m alba
 fi
 
+mkdir -p /opt/asd-manager/db
 chown -R alba:alba /opt/asd-manager
 
 if [ -f /usr/lib/systemd/system/asd-manager.service ]; then

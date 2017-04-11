@@ -313,7 +313,6 @@ if __name__ == '__main__':
             app.logger.propagate = False
             wz_logger = logging.getLogger('werkzeug')
             wz_logger.handlers = []
-            wz_logger.addHandler(_logger.handler)
             wz_logger.propagate = False
 
     app.debug = False
