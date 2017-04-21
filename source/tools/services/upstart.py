@@ -91,7 +91,7 @@ class Upstart(object):
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else 'started {0}'.format(startup_dependency)})
         template_content = client.file_read(template_file)
         for key, value in params.iteritems():
-            template_content = template_content.replace('<{0}>'.format(key), value)
+            template_content = template_content.replace('<{0}>'.format(key), str(value))
         client.file_write('/etc/init/{0}.conf'.format(service_name), template_content)
 
         if delay_registration is False:
@@ -429,3 +429,36 @@ class Upstart(object):
         with open(Toolbox.BOOTSTRAP_FILE, 'r') as bs_file:
             node_id = json.load(bs_file)['node_id']
             Configuration.delete(key=Upstart.SERVICE_CONFIG_KEY.format(node_id, Toolbox.remove_prefix(service_name, 'ovs-')))
+
+    @staticmethod
+    def extract_from_service_file(name, client, entries=None):
+        """
+        Extract an entry, multiple entries or the entire service file content for a service
+        :param name: Name of the service
+        :type name: str
+        :param client: Client on which to extract the entries from the service file
+        :type client: source.tools.localclient.LocalClient
+        :param entries: Entries to extract
+        :type entries: list
+        :return: The requested entry information or entire service file content if entry=None
+        :rtype: list
+        """
+        if Upstart.has_service(name=name, client=client) is False:
+            return []
+
+        try:
+            name = Upstart._get_name(name=name, client=client)
+            contents = client.file_read('/etc/init/{0}.conf'.format(name)).splitlines()
+        except Exception:
+            Upstart._logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))
+            return []
+
+        if entries is None:
+            return contents
+
+        return_value = []
+        for line in contents:
+            for entry in entries:
+                if entry in line:
+                    return_value.append(line)
+        return return_value
