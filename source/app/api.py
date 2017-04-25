@@ -211,6 +211,24 @@ class API(object):
         return dict((asd.asd_id, asd.export()) for asd in disk.asds)
 
     @staticmethod
+    @get('/disks/<disk_id>/get_claimed_asds')
+    def get_claimed_asds(disk_id):
+        """
+        Retrieve all ASDs which have been claimed by any Backend
+        :param disk_id: Identifier of the disk  (eg: 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
+        :type disk_id: str
+        :return: Mapping between ASDs and the Backends they're linked to
+        :rtype: dict
+        """
+        disk = DiskList.get_by_alias(disk_id)
+        asds_in_use = {}
+        for asd in disk.asds:
+            alba_info = asd.alba_info  # Dynamic property, so only retrieving this once, because no caching for dynamics
+            if alba_info['loaded'] is False or alba_info['result'] is not None:
+                asds_in_use[asd.asd_id] = alba_info['result']
+        return asds_in_use
+
+    @staticmethod
     @post('/disks/<disk_id>/asds')
     def add_asd_disk(disk_id):
         """

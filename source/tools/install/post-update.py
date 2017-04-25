@@ -41,7 +41,7 @@ if __name__ == '__main__':
         os.environ['ASD_NODE_ID'] = NODE_ID
 
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-    CURRENT_VERSION = 4
+    CURRENT_VERSION = 5
 
     _logger = LogHandler.get('asd-manager', name='post-update')
 
@@ -79,6 +79,15 @@ if __name__ == '__main__':
                             asd.disk = disk
                             if asd.has_config:
                                 asd.save()
+
+                # New properties on ASD (hosts and port)
+                from source.dal.lists.asdlist import ASDList
+                for asd in ASDList.get_asds():
+                    if (asd.port is None or asd.hosts is None) and asd.has_config:
+                        config = Configuration.get(key=asd.config_key)
+                        asd.port = config['port']
+                        asd.hosts = config.get('ips', [])
+                        asd.save()
 
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
                 service_manager = 'systemd' if ServiceManager.ImplementationClass == Systemd else 'upstart'

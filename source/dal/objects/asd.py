@@ -18,6 +18,7 @@
 This is the ASD's module
 """
 
+import json
 from source.dal.base import Base
 from source.dal.objects.disk import Disk
 from source.tools.configuration.configuration import Configuration
@@ -35,10 +36,12 @@ class ASD(Base):
     _local_client = LocalClient()
 
     _table = 'asd'
-    _properties = [['asd_id', str],
+    _properties = [['port', int],
+                   ['hosts', list],
+                   ['asd_id', str],
                    ['folder', str]]
     _relations = [['disk', Disk, 'asds']]
-    _dynamics = ['service_name', 'config_key', 'has_config']
+    _dynamics = ['service_name', 'config_key', 'has_config', 'alba_info']
 
     def _service_name(self):
         return ASD.ASD_SERVICE_PREFIX.format(self.asd_id)
@@ -48,6 +51,22 @@ class ASD(Base):
 
     def _has_config(self):
         return Configuration.exists(self.config_key)
+
+    def _alba_info(self):
+        host = self.hosts[0] if len(self.hosts) > 0 else '127.0.0.1'
+        info = {'loaded': False,
+                'result': None}
+        try:
+            output = json.loads(ASD._local_client.run(allow_nonzero=True,
+                                                      command=['alba', 'get-osd-claimed-by', '--host={0}'.format(host), '--port={0}'.format(self.port), '--to-json']))
+            if output.get('success') is True:
+                info['loaded'] = True
+                info['result'] = output.get('result')
+            else:
+                info['result'] = 'Failed to retrieve ALBA info for ASD {0}:{1}'.format(host, self.port)
+        except ValueError:
+            info['result'] = 'Could not json parse ALBA output for ASD {0}:{1}'.format(host, self.port)
+        return info
 
     def export(self):
         """

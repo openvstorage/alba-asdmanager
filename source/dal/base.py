@@ -175,7 +175,7 @@ class Base(object):
         if prop_type in [int, str, basestring, unicode]:
             return data
         if prop_type in [list, dict]:
-            return json.loads(data)
+            return json.loads(data) if data is not None else None
         if prop_type in [bool]:
             return data == 1
         raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict, bool'.format(prop_type))
@@ -193,13 +193,32 @@ class Base(object):
 
     @classmethod
     def _ensure_table(cls):
+        relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
+        property_dict = dict((prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties)
         type_statement = ', '.join(
-            ['{0} {1}'.format(prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties] +
-            ['_{0}_id INTEGER'.format(relation[0]) for relation in cls._relations]
+            ['{0} {1}'.format(key, value) for key, value in property_dict.iteritems()] +
+            ['{0} INTEGER'.format(relation) for relation in relation_list]
         )
         type_statement = 'id INTEGER PRIMARY KEY AUTOINCREMENT, {0}'.format(type_statement)
         with Base.connector() as connection:
             connection.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(cls._table, type_statement))
+            cursor = connection.cursor()
+            cursor.execute('PRAGMA table_info({0})'.format(cls._table))
+            current_relations = []
+            current_properties = []
+            for row in cursor.fetchall():
+                if row['name'].startswith('_'):
+                    current_relations.append(row['name'])
+                else:
+                    current_properties.append(row['name'])
+
+            for prop_name, prop_type in property_dict.iteritems():
+                if prop_name not in current_properties:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table, prop_name, prop_type))
+
+            for rel_name in relation_list:
+                if rel_name not in current_relations:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
     def __repr__(self):
         """ Short representation of the object. """
