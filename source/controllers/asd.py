@@ -108,6 +108,8 @@ class ASDController(object):
             asd_config.update(data)
 
         asd = ASD()
+        asd.port = asd_port
+        asd.hosts = asd_config.get('ips', [])
         asd.asd_id = asd_id
         asd.folder = asd_id
         asd.disk = disk
