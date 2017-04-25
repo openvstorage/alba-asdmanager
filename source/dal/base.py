@@ -193,11 +193,11 @@ class Base(object):
 
     @classmethod
     def _ensure_table(cls):
-        rel_list = [relation[0] for relation in cls._relations]
-        prop_dict = dict((prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties)
+        relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
+        property_dict = dict((prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties)
         type_statement = ', '.join(
-            ['{0} {1}'.format(key, value) for key, value in prop_dict.iteritems()] +
-            ['_{0}_id INTEGER'.format(relation) for relation in rel_list]
+            ['{0} {1}'.format(key, value) for key, value in property_dict.iteritems()] +
+            ['{0} INTEGER'.format(relation) for relation in relation_list]
         )
         type_statement = 'id INTEGER PRIMARY KEY AUTOINCREMENT, {0}'.format(type_statement)
         with Base.connector() as connection:
@@ -212,12 +212,12 @@ class Base(object):
                 else:
                     current_properties.append(row['name'])
 
-            for prop_name, prop_type in prop_dict.iteritems():
+            for prop_name, prop_type in property_dict.iteritems():
                 if prop_name not in current_properties:
                     connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table, prop_name, prop_type))
 
-            for rel_name in rel_list:
-                if '_{0}_id'.format(rel_name) not in current_relations:
+            for rel_name in relation_list:
+                if rel_name not in current_relations:
                     connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
     def __repr__(self):
