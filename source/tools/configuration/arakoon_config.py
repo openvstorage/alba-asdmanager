@@ -66,7 +66,12 @@ class ArakoonConfiguration(object):
         """
         key = ArakoonConfiguration._clean_key(key)
         client = ArakoonConfiguration.get_client()
-        return any(client.prefix(key))
+        for entry in list(client.prefix(key)):
+            parts = entry.split('/')
+            for index in range(len(parts)):
+                if key == '/'.join(parts[:index + 1]):
+                    return client.exists(key) is False  # Exists returns False for directories (not complete keys)
+        return False
 
     @staticmethod
     def list(key):
@@ -81,7 +86,7 @@ class ArakoonConfiguration(object):
         client = ArakoonConfiguration.get_client()
         entries = []
         for entry in client.prefix(key):
-            if key == '' or entry.startswith(key + '/'):
+            if key == '' or entry.startswith(key.rstrip('/') + '/'):
                 cleaned = Toolbox.remove_prefix(entry, key).strip('/').split('/')[0]
                 if cleaned not in entries:
                     entries.append(cleaned)
