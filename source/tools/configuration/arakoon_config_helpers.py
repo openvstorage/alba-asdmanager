@@ -184,7 +184,7 @@ class ArakoonClusterConfig(object):
             client = self.load_client(ip)
             client.file_delete(self.internal_config_path)
 
-    def export_json(self):
+    def export_dict(self):
         """
         Exports the current configuration to a python dict
         :return: Data available in the Arakoon configuration
@@ -219,7 +219,7 @@ class ArakoonClusterConfig(object):
         :rtype: str
         """
         contents = RawConfigParser()
-        data = self.export_json()
+        data = self.export_dict()
         sections = data.keys()
         sections.remove('global')
         for section in ['global'] + sorted(sections):
@@ -236,7 +236,7 @@ class ArakoonClusterConfig(object):
         :return: None
         :rtype: NoneType
         """
-        config = ArakoonClusterConfig.convert_config_to(config=config, return_type='JSON')
+        config = ArakoonClusterConfig.convert_config_to(config=config, return_type='DICT')
         new_sections = sorted(config.keys())
         old_sections = sorted([node.name for node in self.nodes] + ['global'])
         if old_sections != new_sections:
