@@ -21,15 +21,15 @@ API decorators
 import os
 import json
 import time
-import datetime
-import traceback
 import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
 from source.tools.configuration.configuration import Configuration
+from source.tools.log_handler import LogHandler
 
 NODE_ID = os.environ['ASD_NODE_ID']
+_logger = LogHandler.get('asd-manager', name='api')
 
 
 def post(route, authenticate=True):
@@ -40,7 +40,7 @@ def post(route, authenticate=True):
         """
         Wrapper function
         """
-        return app.route(route, methods=['POST'])(_build_function(f, authenticate))
+        return app.route(route, methods=['POST'])(_build_function(f, authenticate, route, 'POST'))
     return wrap
 
 
@@ -52,11 +52,11 @@ def get(route, authenticate=True):
         """
         Wrapper function
         """
-        return app.route(route, methods=['GET'])(_build_function(f, authenticate))
+        return app.route(route, methods=['GET'])(_build_function(f, authenticate, route, 'GET'))
     return wrap
 
 
-def _build_function(f, authenticate):
+def _build_function(f, authenticate, route, method):
     """
     Wrapping generator
     """
@@ -70,7 +70,12 @@ def _build_function(f, authenticate):
                             '_error': 'Invalid credentials'}, 401
         else:
             try:
+                if args or kwargs:
+                    _logger.info('{0} {1} - Entering with {2} {3}'.format(method, route, json.dumps(args), json.dumps(kwargs)))
+                else:
+                    _logger.info('{0} {1} - Entering'.format(method, route))
                 return_data = f(*args, **kwargs)
+                _logger.debug('{0} {1} - Leaving'.format(method, route))
                 if return_data is None:
                     return_data = {}
                 if isinstance(return_data, tuple):
@@ -80,15 +85,15 @@ def _build_function(f, authenticate):
                 data['_success'] = True
                 data['_error'] = ''
             except APIException as ex:
-                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
+                _logger.exception('API exception')
                 data, status = {'_success': False,
                                 '_error': str(ex)}, ex.status_code
             except subprocess.CalledProcessError as ex:
-                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
+                _logger.exception('CPE exception')
                 data, status = {'_success': False,
                                 '_error': ex.output if ex.output != '' else str(ex)}, 500
             except Exception as ex:
-                print '{0} - {1}'.format(datetime.datetime.now(), traceback.print_exc())
+                _logger.exception('Unexpected exception')
                 data, status = {'_success': False,
                                 '_error': str(ex)}, 500
         data['_version'] = 2

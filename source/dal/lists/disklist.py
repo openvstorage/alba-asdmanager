@@ -21,6 +21,13 @@ from source.dal.datalist import DataList
 from source.dal.objects.disk import Disk
 
 
+class DiskNotFoundError(RuntimeError):
+    """
+    Error raised when a disk is not found on the system
+    """
+    pass
+
+
 class DiskList(object):
     """
     This DiskList class contains various lists regarding to the Disk class
@@ -34,20 +41,36 @@ class DiskList(object):
         return DataList.query(Disk, "SELECT id FROM {table}")
 
     @staticmethod
-    def get_by_name(name):
+    def get_usable_disks():
         """
-        Returns a list of all Disks with a given name (including alias)
+        Returns a list of all disks that are "usable"
         """
-        return DataList.query(Disk,
-                              "SELECT id FROM {table} WHERE name=:name OR aliases LIKE :alias",
-                              {'name': name,
-                               'alias': '%"{0}"%'.format(name)})
+        disks = []
+        for disk in DiskList.get_disks():
+            if disk.usable:
+                disks.append(disk)
+        return disks
 
     @staticmethod
-    def contains_name(name):
+    def get_by_alias(alias, raise_exception=True):
         """
-        Returns a list of all Disks that contains the given name, or has the given name as (part of) an alias
+        Gets a Disk by its alias.
+        :param alias: Alias to search
+        :type alias: str
+        :param raise_exception: Indicate whether an exception should be raised if no Disk could be found
+        :type raise_exception: bool
+        :return: The found Disk
+        :rtype: source.dal.objects.disk.Disk
         """
-        return DataList.query(Disk,
-                              "SELECT id FROM {table} WHERE name LIKE :name OR aliases LIKE :name",
-                              {'name': '%{0}%'.format(name)})
+        for disk in DiskList.get_usable_disks():
+            for disk_alias in disk.aliases:
+                if disk_alias.endswith(alias):
+                    return disk
+            partition_aliases = []
+            for partition_info in disk.partitions:
+                partition_aliases += partition_info['aliases']
+            if alias in partition_aliases:
+                return disk
+        if raise_exception is True:
+            raise DiskNotFoundError('Disk with alias {0} not available'.format(alias))
+        return None

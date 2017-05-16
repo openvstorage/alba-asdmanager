@@ -33,11 +33,13 @@ class Base(object):
     Base object that is inherited by all DAL objects. It contains base logic like save, delete, ...
     """
 
-    DATABASE_LOCATION = '/opt/asd-manager/db/main.db'
+    DATABASE_FOLDER = '/opt/asd-manager/db'
+    DATABASE_LOCATION = '{0}/main.db'.format(DATABASE_FOLDER)
 
     _table = None
     _properties = []
     _relations = []
+    _dynamics = []
 
     def __init__(self, identifier=None):
         """
@@ -46,13 +48,8 @@ class Base(object):
         :type identifier: int
         """
         self.id = identifier
-        type_statement = ', '.join(
-            ['{0} {1}'.format(prop[0], Base._get_prop_type(prop[1])) for prop in self._properties] +
-            ['_{0}_id INTEGER'.format(relation[0]) for relation in self._relations]
-        )
-        type_statement = 'id INTEGER PRIMARY KEY AUTOINCREMENT, {0}'.format(type_statement)
+        self.__class__._ensure_table()
         with Base.connector() as connection:
-            connection.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(self._table, type_statement))
             if identifier is not None:
                 cursor = connection.cursor()
                 cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
@@ -74,6 +71,8 @@ class Base(object):
             self._add_relation(relation)
         for key, relation_info in RelationMapper.load_foreign_relations(self.__class__).iteritems():
             self._add_foreign_relation(key, relation_info)
+        for key in self._dynamics:
+            self._add_dynamic(key)
 
     @staticmethod
     def connector():
@@ -82,6 +81,10 @@ class Base(object):
         connection.row_factory = sqlite3.Row
         return connection
 
+    def _add_dynamic(self, key):
+        """ Generates a new dynamic value on an object. """
+        setattr(self.__class__, key, property(lambda s: getattr(s, '_{0}'.format(key))()))
+
     def _add_foreign_relation(self, key, relation_info):
         """ Generates a new foreign relation on an object. """
         setattr(self.__class__, key, property(lambda s: s._get_foreign_relation(relation_info)))
@@ -89,12 +92,15 @@ class Base(object):
     def _get_foreign_relation(self, relation_info):
         """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
+        remote_class._ensure_table()
+        entries = []
         with Base.connector() as connection:
             cursor = connection.cursor()
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
             for row in cursor.fetchall():
-                yield remote_class(row['id'])
+                entries.append(remote_class(row['id']))
+        return entries
 
     def _add_relation(self, relation):
         """ Generates a new relation on an object. """
@@ -157,11 +163,11 @@ class Base(object):
     @staticmethod
     def _get_prop_type(prop_type):
         """ Translates a python type to a SQLite type. """
-        if prop_type is int:
+        if prop_type in [int, bool]:
             return 'INTEGER'
         if prop_type in [str, basestring, unicode, list, dict]:
             return 'TEXT'
-        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict'.format(prop_type))
+        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict, bool'.format(prop_type))
 
     @staticmethod
     def _deserialize(prop_type, data):
@@ -169,8 +175,10 @@ class Base(object):
         if prop_type in [int, str, basestring, unicode]:
             return data
         if prop_type in [list, dict]:
-            return json.loads(data)
-        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict'.format(prop_type))
+            return json.loads(data) if data is not None else None
+        if prop_type in [bool]:
+            return data == 1
+        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict, bool'.format(prop_type))
 
     @staticmethod
     def _serialize(prop_type, data):
@@ -179,18 +187,55 @@ class Base(object):
             return data
         if prop_type in [list, dict]:
             return json.dumps(data, sort_keys=True)
-        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict'.format(prop_type))
+        if prop_type in [bool]:
+            return 1 if data else 0
+        raise ValueError('The type {0} is not supported. Supported types: int, str, list, dict, bool'.format(prop_type))
+
+    @classmethod
+    def _ensure_table(cls):
+        relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
+        property_dict = dict((prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties)
+        type_statement = ', '.join(
+            ['{0} {1}'.format(key, value) for key, value in property_dict.iteritems()] +
+            ['{0} INTEGER'.format(relation) for relation in relation_list]
+        )
+        type_statement = 'id INTEGER PRIMARY KEY AUTOINCREMENT, {0}'.format(type_statement)
+        with Base.connector() as connection:
+            connection.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(cls._table, type_statement))
+            cursor = connection.cursor()
+            cursor.execute('PRAGMA table_info({0})'.format(cls._table))
+            current_relations = []
+            current_properties = []
+            for row in cursor.fetchall():
+                if row['name'].startswith('_'):
+                    current_relations.append(row['name'])
+                else:
+                    current_properties.append(row['name'])
+
+            for prop_name, prop_type in property_dict.iteritems():
+                if prop_name not in current_properties:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table, prop_name, prop_type))
+
+            for rel_name in relation_list:
+                if rel_name not in current_relations:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
     def __repr__(self):
         """ Short representation of the object. """
         return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
 
-    def __str__(self):
-        """ Returns a full representation of the object. """
+    def export(self):
+        """ Exports the object """
         data = {'id': self.id}
         for prop in self._properties:
             data[prop[0]] = getattr(self, prop[0])
         for relation in self._relations:
             name = '{0}_id'.format(relation[0])
             data[name] = getattr(self, name)
-        return json.dumps(data, indent=4, sort_keys=True)
+        for dynamic in self._dynamics:
+            data[dynamic] = getattr(self, dynamic)
+        return data
+
+    def __str__(self):
+        """ Returns a full representation of the object. """
+        return json.dumps(self.export(), indent=4, sort_keys=True)
