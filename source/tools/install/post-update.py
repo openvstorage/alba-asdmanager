@@ -23,20 +23,22 @@ Post update script for package openvstorage-sdm
 import sys
 sys.path.append('/opt/asd-manager')
 
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
+
 
 if __name__ == '__main__':
     import os
     import json
     from ovs_extensions.services.interfaces.systemd import Systemd
+    from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
+    from ovs_extensions.generic.toolbox import ExtensionsToolbox
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration import Configuration
-    from source.tools.filemutex import file_mutex
     from source.tools.log_handler import LogHandler
     from source.tools.servicefactory import ServiceFactory
-    from source.tools.toolbox import Toolbox
 
-    with open(Toolbox.BOOTSTRAP_FILE, 'r') as bootstrap_file:
+    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
         NODE_ID = json.load(bootstrap_file)['node_id']
         os.environ['ASD_NODE_ID'] = NODE_ID
 
@@ -122,7 +124,7 @@ if __name__ == '__main__':
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
-                            Toolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
+                            ExtensionsToolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
                     if service_manager == 'systemd':
                         client.run(['systemctl', 'daemon-reload'])
 

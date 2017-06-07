@@ -23,6 +23,7 @@ import json
 from flask import request, send_from_directory
 from subprocess import check_output
 from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.filemutex import file_mutex
 from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
@@ -34,7 +35,6 @@ from source.controllers.update import SDMUpdateController
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
-from source.tools.filemutex import file_mutex
 from source.tools.log_handler import LogHandler
 from source.tools.servicefactory import ServiceFactory
 

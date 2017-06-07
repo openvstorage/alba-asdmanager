@@ -24,13 +24,14 @@ import sys
 import json
 import logging
 from subprocess import check_output
+from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.tools.configuration import Configuration
-from source.tools.interactive import Interactive
 from source.tools.log_handler import LogHandler
 from source.tools.servicefactory import ServiceFactory
-from source.tools.toolbox import Toolbox
 
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
@@ -102,9 +103,8 @@ def setup():
     with open(PRECONFIG_FILE, 'w') as preconfig:
         preconfig.write(json.dumps({'asdmanager': config}, indent=4))
 
-    from source.tools.configuration.arakoon_config import ArakoonConfiguration
-    file_location = ArakoonConfiguration.CACC_LOCATION
-    source_location = ArakoonConfiguration.CACC_SOURCE
+    file_location = Configuration.CACC_LOCATION
+    source_location = Configuration.CACC_SOURCE
     if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
         # Try to copy automatically
         try:
@@ -126,7 +126,7 @@ def setup():
         print Interactive.boxed_message(['Could not connect to Arakoon'])
         sys.exit(1)
 
-    with open(Toolbox.BOOTSTRAP_FILE, 'w') as bs_file:
+    with open(BOOTSTRAP_FILE, 'w') as bs_file:
         json.dump({'node_id': alba_node_id}, bs_file)
 
     service_manager.add_service(MANAGER_SERVICE, local_client)
@@ -157,7 +157,7 @@ def remove(silent=None):
     ##############
     local_client = SSHClient(endpoint='127.0.0.1', username='root')
     service_manager = ServiceFactory.get_manager()
-    if not local_client.file_exists(filename=Toolbox.BOOTSTRAP_FILE):
+    if not local_client.file_exists(filename=BOOTSTRAP_FILE):
         print '\n' + Interactive.boxed_message(['The ASD Manager has already been removed'])
         sys.exit(1)
 
@@ -168,11 +168,11 @@ def remove(silent=None):
         sys.exit(1)
 
     print '  - Validating node ID'
-    with open(Toolbox.BOOTSTRAP_FILE) as bs_file:
+    with open(BOOTSTRAP_FILE) as bs_file:
         try:
             alba_node_id = json.loads(bs_file.read())['node_id']
         except:
-            print '\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(Toolbox.BOOTSTRAP_FILE)])
+            print '\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(BOOTSTRAP_FILE)])
             sys.exit(1)
 
     print '  - Validating configuration management'
@@ -236,9 +236,8 @@ def remove(silent=None):
             service_manager.stop_service(name=service_name, client=local_client)
             service_manager.remove_service(name=service_name, client=local_client)
 
-    from source.tools.configuration.arakoon_config import ArakoonConfiguration
-    local_client.file_delete(filenames=ArakoonConfiguration.CACC_LOCATION)
-    local_client.file_delete(filenames=Toolbox.BOOTSTRAP_FILE)
+    local_client.file_delete(filenames=Configuration.CACC_LOCATION)
+    local_client.file_delete(filenames=BOOTSTRAP_FILE)
     print '\n' + Interactive.boxed_message(['ASD Manager removal completed'])
 
 
@@ -277,11 +276,11 @@ def _validate_and_retrieve_pre_config():
         sys.exit(1)
 
     try:
-        Toolbox.verify_required_params(actual_params=config,
-                                       required_params={'api_ip': (str, Toolbox.regex_ip, True),
-                                                        'asd_ips': (list, Toolbox.regex_ip, False),
-                                                        'api_port': (int, {'min': 1025, 'max': 65535}, False),
-                                                        'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)})
+        ExtensionsToolbox.verify_required_params(actual_params=config,
+                                                 required_params={'api_ip': (str, ExtensionsToolbox.regex_ip, True),
+                                                                  'asd_ips': (list, ExtensionsToolbox.regex_ip, False),
+                                                                  'api_port': (int, {'min': 1025, 'max': 65535}, False),
+                                                                  'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)})
     except RuntimeError as rte:
         print Interactive.boxed_message(['The asd-manager pre-configuration file does not contain correct information\n{0}'.format(rte)])
         sys.exit(1)
@@ -289,7 +288,7 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
-    with open(Toolbox.BOOTSTRAP_FILE) as bootstrap_file:
+    with open(BOOTSTRAP_FILE) as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
 

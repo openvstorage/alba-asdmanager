@@ -64,9 +64,14 @@ class Watcher(object):
                     self.log_message(target, '  Error during configuration store test: {0}'.format(ex), 2)
                     return False
 
-                from source.tools.configuration.arakoon_config import ArakoonConfiguration
-                from source.tools.pyrakoon.pyrakoon.compat import NoGuarantee
-                client = ArakoonConfiguration.get_client()
+                from source.tools.arakooninstaller import ArakoonInstaller, ArakoonClusterConfig
+                from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import NoGuarantee
+                from source.tools.configuration import Configuration
+                with open(Configuration.CACC_LOCATION) as config_file:
+                    contents = config_file.read()
+                config = ArakoonClusterConfig(cluster_id='cacc', load_config=False)
+                config.read_config(contents=contents)
+                client = ArakoonInstaller.build_client(config)
                 contents = client.get(Watcher.INTERNAL_CONFIG_KEY, consistency=NoGuarantee())
                 if Watcher.LOG_CONTENTS != contents:
                     try:
@@ -76,12 +81,12 @@ class Watcher(object):
                     except Exception as ex:
                         self.log_message(target, '  Configuration stored in configuration store seems to be corrupt: {0}'.format(ex), 2)
                         return False
-                    temp_filename = '{0}~'.format(ArakoonConfiguration.CACC_LOCATION)
+                    temp_filename = '{0}~'.format(Configuration.CACC_LOCATION)
                     with open(temp_filename, 'w') as config_file:
                         config_file.write(contents)
                         config_file.flush()
                         os.fsync(config_file)
-                    os.rename(temp_filename, ArakoonConfiguration.CACC_LOCATION)
+                    os.rename(temp_filename, Configuration.CACC_LOCATION)
                     if Watcher.LOG_CONTENTS is not None:
                         self.log_message(target, '  Configuration changed, trigger restart', 1)
                         sys.exit(1)
