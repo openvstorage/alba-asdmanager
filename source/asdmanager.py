@@ -30,8 +30,8 @@ from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
 from source.tools.servicefactory import ServiceFactory
+from source.tools.system import BOOTSTRAP_FILE
 
-BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
