@@ -58,7 +58,7 @@ class Configuration(_Configuration):
                                        'port': config['api_port'],
                                        'version': 0},
                        'config/network': {'ips': config['asd_ips'],
-                                          'port': config['asd_starter_port']}}
+                                          'port': config['asd_start_port']}}
         for key, value in base_config.iteritems():
             cls.set(key='/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key),
                     value=value,

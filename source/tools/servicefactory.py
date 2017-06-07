@@ -37,8 +37,10 @@ class ServiceFactory(_ServiceFactory):
         """Init method"""
         raise Exception('This class cannot be instantiated')
 
-    def _get_system(self):
+    @classmethod
+    def _get_system(cls):
         return System
 
-    def _get_configuration(self):
+    @classmethod
+    def _get_configuration(cls):
         return Configuration

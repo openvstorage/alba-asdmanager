@@ -17,8 +17,10 @@
 """
 System module for the ASD Manager
 """
-import os
+import json
 from ovs_extensions.generic.system import System as _System
+
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 
 
 class System(_System):
@@ -40,4 +42,5 @@ class System(_System):
         :return: Machine ID
         :rtype: str
         """
-        return os.environ['ASD_NODE_ID']
+        with open(BOOTSTRAP_FILE) as bs_file:
+            return json.loads(bs_file.read())['node_id']
