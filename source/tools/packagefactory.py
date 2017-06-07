@@ -15,21 +15,27 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-ASDList module
+Package Factory module
 """
-from ovs_extensions.dal.datalist import DataList
-from source.dal.objects.asd import ASD
+from ovs_extensions.packages.packagefactory import PackageFactory as _PackageFactory
 
 
-# noinspection SqlNoDataSourceInspection
-class ASDList(object):
+class PackageFactory(_PackageFactory):
     """
-    This ASDList class contains various lists regarding to the ASD class
+    Factory class returning specialized classes
     """
 
-    @staticmethod
-    def get_asds():
+    def __init__(self):
         """
-        Returns a list of all ASDs
+        Initialization method
         """
-        return DataList.query(ASD, "SELECT id FROM {table}")
+        pass
+
+    @classmethod
+    def _get_packages(cls):
+        return {'names': ['alba', 'alba-ee', 'openvstorage-sdm'],
+                'binaries': ['alba', 'alba-ee']}
+
+    @classmethod
+    def _get_versions(cls):
+        return {'alba': 'alba version --terse'}

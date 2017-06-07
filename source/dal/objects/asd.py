@@ -19,27 +19,29 @@ This is the ASD's module
 """
 
 import json
-from source.dal.base import Base
+from ovs_extensions.dal.structures import Property
+from ovs_extensions.generic.sshclient import SSHClient
+from source.dal.asdbase import ASDBase
 from source.dal.objects.disk import Disk
-from source.tools.configuration.configuration import Configuration
-from source.tools.localclient import LocalClient
-from source.tools.services.service import ServiceManager
+from source.tools.configuration import Configuration
+from source.tools.servicefactory import ServiceFactory
 
 
-class ASD(Base):
+class ASD(ASDBase):
     """
     Represents an ASD that has been deployed.
     """
 
     ASD_CONFIG = '/ovs/alba/asds/{0}/config'
     ASD_SERVICE_PREFIX = 'alba-asd-{0}'
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    _service_manager = ServiceFactory.get_manager()
 
     _table = 'asd'
-    _properties = [['port', int],
-                   ['hosts', list],
-                   ['asd_id', str],
-                   ['folder', str]]
+    _properties = [Property(name='port', property_type=int, unique=True, mandatory=True),
+                   Property(name='hosts', property_type=list, unique=False, mandatory=True),
+                   Property(name='asd_id', property_type=str, unique=True, mandatory=True),
+                   Property(name='folder', property_type=str, unique=False, mandatory=False)]
     _relations = [['disk', Disk, 'asds']]
     _dynamics = ['service_name', 'config_key', 'has_config', 'alba_info']
 
@@ -87,8 +89,8 @@ class ASD(Base):
             if 'Input/output error' in output:
                 data.update({'state': 'error',
                              'state_detail': 'io_error'})
-            elif ServiceManager.has_service(self.service_name, ASD._local_client):
-                if ServiceManager.get_service_status(self.service_name, ASD._local_client) != 'active':
+            elif ASD._service_manager.has_service(self.service_name, ASD._local_client):
+                if ASD._service_manager.get_service_status(self.service_name, ASD._local_client) != 'active':
                     data.update({'state': 'error',
                                  'state_detail': 'service_failure'})
                 else:

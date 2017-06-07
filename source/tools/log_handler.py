@@ -95,7 +95,7 @@ class LogHandler(object):
     def load_target_definition(source, allow_override=False):
         logging_target = {'type': 'console'}
         try:
-            from source.tools.configuration.configuration import Configuration
+            from source.tools.configuration import Configuration
             logging_target = Configuration.get('/ovs/framework/logging')
         except:
             pass
