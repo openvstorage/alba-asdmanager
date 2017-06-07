@@ -17,7 +17,7 @@
 """
 DiskList module
 """
-from source.dal.datalist import DataList
+from ovs_extensions.dal.datalist import DataList
 from source.dal.objects.disk import Disk
 
 
@@ -28,6 +28,7 @@ class DiskNotFoundError(RuntimeError):
     pass
 
 
+# noinspection SqlNoDataSourceInspection
 class DiskList(object):
     """
     This DiskList class contains various lists regarding to the Disk class

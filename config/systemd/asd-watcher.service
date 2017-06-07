@@ -1,5 +1,5 @@
 [Unit]
-Description=Watcher for the configuration cluster
+Description=Watcher for the ASD Manager
 After=local-fs.target network-online.target
 
 [Service]

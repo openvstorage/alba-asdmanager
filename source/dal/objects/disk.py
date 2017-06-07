@@ -19,26 +19,27 @@ This is the Disk's module
 """
 
 import os
-from source.dal.base import Base
-from source.tools.localclient import LocalClient
+from ovs_extensions.dal.structures import Property
+from ovs_extensions.generic.sshclient import SSHClient
+from source.dal.asdbase import ASDBase
 
 
-class Disk(Base):
+class Disk(ASDBase):
     """
     Represents a disk on the system.
     """
 
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
     _table = 'disk'
-    _properties = [['name', str],
-                   ['state', str],
-                   ['aliases', list],
-                   ['is_ssd', bool],
-                   ['model', str],
-                   ['size', int],
-                   ['serial', str],
-                   ['partitions', dict]]
+    _properties = [Property(name='name', property_type=str, unique=True, mandatory=True),
+                   Property(name='state', property_type=str, unique=False, mandatory=False),
+                   Property(name='aliases', property_type=list, unique=True, mandatory=False),
+                   Property(name='is_ssd', property_type=bool, unique=False, mandatory=False),
+                   Property(name='model', property_type=str, unique=False, mandatory=False),
+                   Property(name='size', property_type=int, unique=False, mandatory=True),
+                   Property(name='serial', property_type=str, unique=True, mandatory=False),
+                   Property(name='partitions', property_type=dict, unique=False, mandatory=False)]
     _relations = []
     _dynamics = ['mountpoint', 'available', 'usable', 'status', 'usage', 'partition_aliases']
 

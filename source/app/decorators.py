@@ -25,7 +25,7 @@ import subprocess
 from flask import request, Response
 from source.app import app
 from source.app.exceptions import APIException
-from source.tools.configuration.configuration import Configuration
+from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
 
 NODE_ID = os.environ['ASD_NODE_ID']

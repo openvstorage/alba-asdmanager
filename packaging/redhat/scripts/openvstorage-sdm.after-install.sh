@@ -18,6 +18,7 @@ then
 fi
 
 mkdir -p /opt/asd-manager/db
+mkdir -p /opt/asd-manager/downloads
 chown -R alba:alba /opt/asd-manager
 
 if [ -f /usr/lib/systemd/system/asd-manager.service ]; then

@@ -16,7 +16,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Watcher module for config cluster
+Watcher module for ASD Manager
 """
 
 import os
@@ -39,7 +39,7 @@ class Watcher(object):
         """
         Dummy init method
         """
-        self._logger = LogHandler.get('extensions', name='watcher')
+        self._logger = LogHandler.get('extensions', name='asd-watcher')
 
     def log_message(self, log_target, entry, level):
         """
@@ -57,7 +57,7 @@ class Watcher(object):
         try:
             if target == 'config':
                 self.log_message(target, 'Testing configuration store...', 0)
-                from source.tools.configuration.configuration import Configuration
+                from source.tools.configuration import Configuration
                 try:
                     Configuration.list('/')
                 except Exception as ex:

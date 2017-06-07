@@ -23,13 +23,13 @@ import os
 import sys
 import json
 import logging
-from source.tools.configuration.configuration import Configuration
-from source.tools.interactive import Interactive
-from source.tools.toolbox import Toolbox
-from source.tools.services.service import ServiceManager
-from source.tools.localclient import LocalClient
-from source.tools.log_handler import LogHandler
 from subprocess import check_output
+from ovs_extensions.generic.sshclient import SSHClient
+from source.tools.configuration import Configuration
+from source.tools.interactive import Interactive
+from source.tools.log_handler import LogHandler
+from source.tools.servicefactory import ServiceFactory
+from source.tools.toolbox import Toolbox
 
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
 MANAGER_SERVICE = 'asd-manager'
@@ -43,8 +43,9 @@ def setup():
 
     print Interactive.boxed_message(['ASD Manager setup'])
     print '- Verifying distribution'
-    local_client = LocalClient()
-    if ServiceManager.has_service(MANAGER_SERVICE, local_client):
+    service_manager = ServiceFactory.get_manager()
+    local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    if service_manager.has_service(MANAGER_SERVICE, local_client):
         print ''  # Spacing
         print Interactive.boxed_message(['The ASD Manager is already installed.'])
         sys.exit(1)
@@ -52,7 +53,7 @@ def setup():
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
     ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
     if not ipaddresses:
-        print Interactive.boxed_message(['Could not retrieve IP information on current node'])
+        print Interactive.boxed_message(['Could not retrieve IP information on local node'])
         sys.exit(1)
 
     config = _validate_and_retrieve_pre_config()
@@ -94,11 +95,12 @@ def setup():
         sys.exit(1)
 
     # Make sure to always have the information stored
+    config = {'api_ip': api_ip,
+              'asd_ips': asd_ips,
+              'api_port': api_port,
+              'asd_start_port': asd_start_port}
     with open(PRECONFIG_FILE, 'w') as preconfig:
-        preconfig.write(json.dumps({'asdmanager': {'api_ip': api_ip,
-                                                   'asd_ips': asd_ips,
-                                                   'api_port': api_port,
-                                                   'asd_start_port': asd_start_port}}, indent=4))
+        preconfig.write(json.dumps({'asdmanager': config}, indent=4))
 
     from source.tools.configuration.arakoon_config import ArakoonConfiguration
     file_location = ArakoonConfiguration.CACC_LOCATION
@@ -118,7 +120,7 @@ def setup():
     local_client.file_write(bootstrap_location, json.dumps({'configuration_store': 'arakoon'}, indent=4))
 
     try:
-        alba_node_id = Configuration.initialize(api_ip, api_port, asd_ips, asd_start_port)
+        alba_node_id = Configuration.initialize(config=config)
     except:
         print ''
         print Interactive.boxed_message(['Could not connect to Arakoon'])
@@ -127,11 +129,11 @@ def setup():
     with open(Toolbox.BOOTSTRAP_FILE, 'w') as bs_file:
         json.dump({'node_id': alba_node_id}, bs_file)
 
-    ServiceManager.add_service(MANAGER_SERVICE, local_client)
-    ServiceManager.add_service(WATCHER_SERVICE, local_client)
+    service_manager.add_service(MANAGER_SERVICE, local_client)
+    service_manager.add_service(WATCHER_SERVICE, local_client)
     print '- Starting watcher service'
     try:
-        ServiceManager.start_service(WATCHER_SERVICE, local_client)
+        service_manager.start_service(WATCHER_SERVICE, local_client)
     except Exception as ex:
         Configuration.uninitialize(alba_node_id)
         print Interactive.boxed_message(['Starting watcher failed with error:', str(ex)])
@@ -153,7 +155,8 @@ def remove(silent=None):
     ##############
     # VALIDATION #
     ##############
-    local_client = LocalClient()
+    local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    service_manager = ServiceFactory.get_manager()
     if not local_client.file_exists(filename=Toolbox.BOOTSTRAP_FILE):
         print '\n' + Interactive.boxed_message(['The ASD Manager has already been removed'])
         sys.exit(1)
@@ -228,10 +231,10 @@ def remove(silent=None):
         print '    - Removing service {0}'.format(service_name)
         API.remove_maintenance_service.original(name=service_name)
     for service_name in [WATCHER_SERVICE, MANAGER_SERVICE]:
-        if ServiceManager.has_service(name=service_name, client=local_client):
+        if service_manager.has_service(name=service_name, client=local_client):
             print '    - Removing service {0}'.format(service_name)
-            ServiceManager.stop_service(name=service_name, client=local_client)
-            ServiceManager.remove_service(name=service_name, client=local_client)
+            service_manager.stop_service(name=service_name, client=local_client)
+            service_manager.remove_service(name=service_name, client=local_client)
 
     from source.tools.configuration.arakoon_config import ArakoonConfiguration
     local_client.file_delete(filenames=ArakoonConfiguration.CACC_LOCATION)

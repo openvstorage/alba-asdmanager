@@ -15,21 +15,29 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-ASDList module
+System module for the ASD Manager
 """
-from ovs_extensions.dal.datalist import DataList
-from source.dal.objects.asd import ASD
+import os
+from ovs_extensions.generic.system import System as _System
 
 
-# noinspection SqlNoDataSourceInspection
-class ASDList(object):
+class System(_System):
     """
-    This ASDList class contains various lists regarding to the ASD class
+    System class for the ASD Manager
     """
+    def __init__(self):
+        """
+        Dummy init method
+        """
+        _ = self
 
-    @staticmethod
-    def get_asds():
+    @classmethod
+    def get_my_machine_id(cls, client=None):
         """
-        Returns a list of all ASDs
+        Returns unique machine id, generated during the setup of the ASD Manager
+        :param client: Local client on which to retrieve the machine ID
+        :type client: SSHClient
+        :return: Machine ID
+        :rtype: str
         """
-        return DataList.query(ASD, "SELECT id FROM {table}")
+        return os.environ['ASD_NODE_ID']

@@ -24,10 +24,10 @@ import time
 import random
 import string
 from subprocess import CalledProcessError
+from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.fstab import FSTab
-from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
 
 
@@ -38,7 +38,7 @@ class DiskController(object):
     NODE_ID = os.environ['ASD_NODE_ID']
 
     controllers = {}
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _logger = LogHandler.get('asd-manager', name='disk')
 
     @staticmethod
