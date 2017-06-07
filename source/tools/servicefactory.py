@@ -32,6 +32,7 @@ class ServiceFactory(_ServiceFactory):
     RUN_FILE_DIR = '/opt/asd-manager/run'
     SERVICE_CONFIG_KEY = '/ovs/alba/asdnodes/{0}/services/{1}'
     CONFIG_TEMPLATE_DIR = '/opt/asd-manager/config/{0}'
+    MONITOR_PREFIXES = ['alba-|asd-']
 
     def __init__(self):
         """Init method"""

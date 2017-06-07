@@ -129,8 +129,14 @@ def setup():
     with open(BOOTSTRAP_FILE, 'w') as bs_file:
         json.dump({'node_id': alba_node_id}, bs_file)
 
-    service_manager.add_service(MANAGER_SERVICE, local_client)
-    service_manager.add_service(WATCHER_SERVICE, local_client)
+    try:
+        service_manager.add_service(MANAGER_SERVICE, local_client)
+        service_manager.add_service(WATCHER_SERVICE, local_client)
+    except Exception as ex:
+        Configuration.uninitialize(alba_node_id)
+        print Interactive.boxed_message(['Adding services failed with error:', str(ex)])
+        sys.exit(1)
+
     print '- Starting watcher service'
     try:
         service_manager.start_service(WATCHER_SERVICE, local_client)
