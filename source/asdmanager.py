@@ -306,6 +306,8 @@ if __name__ == '__main__':
     if 'ip' not in asd_manager_config or 'port' not in asd_manager_config:
         raise RuntimeError('IP and/or port not available in configuration for ALBA node {0}'.format(node_id))
 
+    LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
+
     from source.app import app
 
     @app.before_first_request
@@ -322,6 +324,7 @@ if __name__ == '__main__':
             wz_logger = logging.getLogger('werkzeug')
             wz_logger.handlers = []
             wz_logger.propagate = False
+            LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
 
     app.debug = False
     app.run(host=asd_manager_config['ip'],

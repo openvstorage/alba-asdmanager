@@ -53,11 +53,12 @@ class SDMUpdateController(object):
         :return: Package information
         :rtype: dict
         """
+        sdm_package_names = SDMUpdateController._package_manager.package_names
         binaries = SDMUpdateController._package_manager.get_binary_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._packages_alba)
-        installed = SDMUpdateController._package_manager.get_installed_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._package_manager.SDM_PACKAGE_NAMES)
-        candidate = SDMUpdateController._package_manager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._package_manager.SDM_PACKAGE_NAMES)
-        not_installed = set(SDMUpdateController._package_manager.SDM_PACKAGE_NAMES) - set(installed.keys())
-        candidate_difference = set(SDMUpdateController._package_manager.SDM_PACKAGE_NAMES) - set(candidate.keys())
+        installed = SDMUpdateController._package_manager.get_installed_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
+        candidate = SDMUpdateController._package_manager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
+        not_installed = set(sdm_package_names) - set(installed.keys())
+        candidate_difference = set(sdm_package_names) - set(candidate.keys())
 
         for package_name in not_installed:
             found = False
@@ -103,7 +104,7 @@ class SDMUpdateController(object):
 
                         did_check = False
                         for mapped_package_name in version_mapping.get(package_name, [package_name]):
-                            if mapped_package_name not in SDMUpdateController._package_manager.SDM_PACKAGE_NAMES:
+                            if mapped_package_name not in sdm_package_names:
                                 raise ValueError('Unknown package dependency found in {0}'.format(version_file))
                             if mapped_package_name not in binaries or mapped_package_name not in installed:
                                 continue
