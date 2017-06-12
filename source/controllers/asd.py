@@ -119,7 +119,7 @@ class ASDController(object):
         Configuration.set(asd.config_key, asd_config)
         params = {'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
                   'SERVICE_NAME': asd.service_name,
-                  'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
+                  'LOG_SINK': LogHandler.get_sink_path('alba-asd_{0}'.format(asd_id))}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
         ASDController._service_manager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
