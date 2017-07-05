@@ -61,6 +61,7 @@ class ASDController(object):
             if asd.has_config:
                 config = Configuration.get(asd.config_key)
                 config['capacity'] = asd_size
+                config['multicast'] = None
                 config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
                 Configuration.set(asd.config_key, config)
                 try:

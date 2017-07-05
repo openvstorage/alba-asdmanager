@@ -63,7 +63,8 @@ class MaintenanceController(object):
             Configuration.set(config_location, json.dumps({
                 'log_level': 'info',
                 'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
-                'read_preference': [] if node_id is None else [node_id]
+                'read_preference': [] if node_id is None else [node_id],
+                'multicast_discover_osds': False
             }, indent=4), raw=True)
 
             MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,

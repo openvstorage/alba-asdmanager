@@ -22,8 +22,8 @@ import os
 import json
 from flask import request, send_from_directory
 from subprocess import check_output
-from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.filemutex import file_mutex
+from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
