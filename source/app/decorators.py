@@ -96,7 +96,7 @@ def _build_function(f, authenticate, route, method):
                 _logger.exception('Unexpected exception')
                 data, status = {'_success': False,
                                 '_error': str(ex)}, 500
-        data['_version'] = 2
+        data['_version'] = 3
         data['_duration'] = time.time() - start
         return Response(json.dumps(data), content_type='application/json', status=status)
 

@@ -84,6 +84,36 @@ class API(object):
         API._logger.info('Uploading file {0}'.format(filename))
         return send_from_directory(directory='/opt/asd-manager/downloads', filename=filename)
 
+    #################
+    # STACK / SLOTS #
+    #################
+
+    @staticmethod
+    @get('/slots')
+    def get_slots():
+        """ Gets the current stack (slot based) """
+        stack = {}
+        for disk in DiskList.get_usable_disks():
+            slot_id = disk.aliases[0].split('/')[-1]
+            stack[slot_id] = {'state': disk.status,
+                              'available': disk.available,
+                              'osds': {}}
+            for asd in disk.asds:
+                stack[slot_id]['osds'][asd.asd_id] = asd.export()
+        return stack
+
+    @staticmethod
+    @post('/slots/<slot_id>/asds')
+    def add_asd(slot_id):
+        disk = DiskList.get_by_alias(slot_id)
+        if disk.available is True:
+            with file_mutex('add_disk'), file_mutex('disk_{0}'.format(slot_id)):
+                DiskController.prepare_disk(disk=disk)
+        with file_mutex('add_asd'):
+            ASDController.create_asd(disk)
+
+    # TODO: Also provide slot-based calls for restarting/deleting/...
+
     #########
     # DISKS #
     #########
