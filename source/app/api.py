@@ -59,10 +59,8 @@ class API(object):
     @get('/net', authenticate=False)
     def net():
         """ Retrieve IP information """
-        output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
-        my_ips = output.split('\n')
-        return {'ips': [found_ip.strip() for found_ip in my_ips if
-                        found_ip.strip() != '127.0.0.1' and found_ip.strip() != '']}
+        ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
+        return {'ips': [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]}
 
     @staticmethod
     @post('/net')

@@ -52,6 +52,14 @@ class ASDController(object):
         if disk.state == 'MISSING':
             raise RuntimeError('Cannot create an ASD on missing disk {0}'.format(disk.name))
 
+        ipaddresses = Configuration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
+        if len(ipaddresses) == 0:
+            ipaddresses = ASDController._local_client.run("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", allow_insecure=True).strip().splitlines()
+            ipaddresses = [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]
+            if len(ipaddresses) == 0:
+                raise RuntimeError('Could not find any IP on the local node')
+            ipaddresses = [ipaddresses[0]]  # We make list of first IP found on system if None were configured during initial setup
+
         # Fetch disk information
         disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', disk.mountpoint], timeout=5).splitlines()[1])
 
@@ -61,7 +69,6 @@ class ASDController(object):
             if asd.has_config:
                 config = Configuration.get(asd.config_key)
                 config['capacity'] = asd_size
-                config['multicast'] = None
                 config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
                 Configuration.set(asd.config_key, config)
                 try:
@@ -78,11 +85,11 @@ class ASDController(object):
                     used_ports.append(config['rora_port'])
 
         # Prepare & start service
-        asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         ASDController._logger.info('Setting up service for disk {0}'.format(disk.name))
+        asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         homedir = '{0}/{1}'.format(disk.mountpoint, asd_id)
         base_port = Configuration.get('{0}/network|port'.format(ASDController.CONFIG_ROOT))
-        ips = Configuration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
+
         asd_port = base_port
         rora_port = base_port + 1
         while asd_port in used_ports:
@@ -91,30 +98,30 @@ class ASDController(object):
         while rora_port in used_ports:
             rora_port += 1
 
-        asd_config = {'home': homedir,
-                      'node_id': ASDController.NODE_ID,
-                      'asd_id': asd_id,
-                      'capacity': asd_size,
-                      'log_level': 'info',
+        asd_config = {'ips': ipaddresses,
+                      'home': homedir,
                       'port': asd_port,
+                      'asd_id': asd_id,
+                      'node_id': ASDController.NODE_ID,
+                      'capacity': asd_size,
+                      'multicast': None,
                       'transport': 'tcp',
+                      'log_level': 'info',
                       'rocksdb_block_cache_size': int(asd_size / 1024 / 4)}
         if Configuration.get('/ovs/framework/rdma'):
             asd_config['rora_port'] = rora_port
             asd_config['rora_transport'] = 'rdma'
-        if ips is not None and len(ips) > 0:
-            asd_config['ips'] = ips
 
         if Configuration.exists('{0}/extra'.format(ASDController.CONFIG_ROOT)):
             data = Configuration.get('{0}/extra'.format(ASDController.CONFIG_ROOT))
             asd_config.update(data)
 
         asd = ASD()
+        asd.disk = disk
         asd.port = asd_port
-        asd.hosts = asd_config.get('ips', [])
+        asd.hosts = ipaddresses
         asd.asd_id = asd_id
         asd.folder = asd_id
-        asd.disk = disk
         asd.save()
 
         Configuration.set(asd.config_key, asd_config)

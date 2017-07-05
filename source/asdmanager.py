@@ -52,7 +52,7 @@ def setup():
         sys.exit(1)
 
     ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
+    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]
     if not ipaddresses:
         print Interactive.boxed_message(['Could not retrieve IP information on local node'])
         sys.exit(1)

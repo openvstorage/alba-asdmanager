@@ -79,6 +79,7 @@ class ASD(ASDBase):
         if not self.has_config:
             raise RuntimeError('No configuration found for ASD {0}'.format(self.asd_id))
         data = Configuration.get(self.config_key)
+        data['claimed_by'] = self.alba_info['result'] if self.alba_info['loaded'] is True else None
         if self.disk.state == 'MISSING':
             data.update({'state': 'error',
                          'state_detail': 'missing'})
