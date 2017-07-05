@@ -56,6 +56,30 @@ def get(route, authenticate=True):
     return wrap
 
 
+def delete(route, authenticate=True):
+    """
+    DELETE decorator
+    """
+    def wrap(f):
+        """
+        Wrapper function
+        """
+        return app.route(route, methods=['DELETE'])(_build_function(f, authenticate, route, 'DELETE'))
+    return wrap
+
+
+def patch(route, authenticate=True):
+    """
+    PATCH decorator
+    """
+    def wrap(f):
+        """
+        Wrapper function
+        """
+        return app.route(route, methods=['PATCH'])(_build_function(f, authenticate, route, 'PATCH'))
+    return wrap
+
+
 def _build_function(f, authenticate, route, method):
     """
     Wrapping generator
