@@ -120,7 +120,7 @@ class API(object):
             slot_id = disk.aliases[0].split('/')[-1]
             stack[slot_id] = {'state': disk.status,
                               'available': disk.available,
-                              'osds': dict((asd.asd_id, asd.export) for asd in disk.asds)}
+                              'osds': dict((asd.asd_id, asd.export()) for asd in disk.asds)}
         return stack
 
     @staticmethod
@@ -142,7 +142,7 @@ class API(object):
 
     @staticmethod
     @delete('/slots/<slot_id>/asds/<asd_id>')
-    def asd_delete(slot_id, asd_id):
+    def asd_delete_by_slot(slot_id, asd_id):
         """
         Delete an ASD from the slot specified
         :param slot_id: Identifier of the slot
