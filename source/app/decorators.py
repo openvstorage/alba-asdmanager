@@ -23,8 +23,8 @@ import json
 import time
 import subprocess
 from flask import request, Response
+from ovs_extensions.api.exceptions import HttpBadRequestException
 from source.app import app
-from source.app.exceptions import APIException
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
 
@@ -90,8 +90,8 @@ def _build_function(f, authenticate, route, method):
         """
         start = time.time()
         if authenticate is True and not _authorized():
-            data, status = {'_success': False,
-                            '_error': 'Invalid credentials'}, 401
+            data = {'_success': False, '_error': 'Invalid credentials'}
+            status = 401
         else:
             try:
                 if args or kwargs:
@@ -103,23 +103,25 @@ def _build_function(f, authenticate, route, method):
                 if return_data is None:
                     return_data = {}
                 if isinstance(return_data, tuple):
-                    data, status = return_data[0], return_data[1]
+                    data = return_data[0]
+                    status = return_data[1]
                 else:
-                    data, status = return_data, 200
+                    data = return_data
+                    status = 200
                 data['_success'] = True
                 data['_error'] = ''
-            except APIException as ex:
+            except HttpBadRequestException as ex:
                 _logger.exception('API exception')
-                data, status = {'_success': False,
-                                '_error': str(ex)}, ex.status_code
+                data = {'_success': False, '_error': str(ex)}
+                status = ex.status_code
             except subprocess.CalledProcessError as ex:
                 _logger.exception('CPE exception')
-                data, status = {'_success': False,
-                                '_error': ex.output if ex.output != '' else str(ex)}, 500
+                data = {'_success': False, '_error': ex.output if ex.output != '' else str(ex)}
+                status = 500
             except Exception as ex:
                 _logger.exception('Unexpected exception')
-                data, status = {'_success': False,
-                                '_error': str(ex)}, 500
+                data = {'_success': False, '_error': str(ex)}
+                status = 500
         data['_version'] = 3
         data['_duration'] = time.time() - start
         return Response(json.dumps(data), content_type='application/json', status=status)

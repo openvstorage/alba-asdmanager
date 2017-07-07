@@ -22,11 +22,11 @@ import os
 import json
 from flask import request, send_from_directory
 from subprocess import check_output
+from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
 from source.app.decorators import delete, get, post
-from source.app.exceptions import BadRequest
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
@@ -155,7 +155,8 @@ class API(object):
         disk = DiskList.get_by_alias(slot_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
         ASDController.remove_asd(asds[0])
 
     @staticmethod
@@ -173,7 +174,8 @@ class API(object):
         disk = DiskList.get_by_alias(slot_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
         return asds[0].export()
 
     @staticmethod
@@ -191,7 +193,8 @@ class API(object):
         disk = DiskList.get_by_alias(slot_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
         ASDController.restart_asd(asds[0])
 
     #########
@@ -233,7 +236,8 @@ class API(object):
         """
         disk = DiskList.get_by_alias(disk_id)
         if disk.available is False:
-            raise BadRequest('Disk {0} already configured'.format(disk.name))
+            raise HttpNotAcceptableException(error='disk_configured',
+                                             error_description='Disk {0} already configured'.format(disk.name))
         with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
             DiskController.prepare_disk(disk=disk)
         return DiskList.get_by_alias(disk_id).export()
@@ -254,7 +258,8 @@ class API(object):
             return None
 
         if disk.available is True:
-            raise BadRequest('Disk not yet configured')
+            raise HttpNotAcceptableException(error='disk_not_configured',
+                                             error_description='Disk not yet configured')
 
         with file_mutex('disk_{0}'.format(disk_id)):
             last_exception = None
@@ -378,7 +383,8 @@ class API(object):
         disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
         return asds[0].export()
 
     @staticmethod
@@ -396,7 +402,8 @@ class API(object):
         disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
         ASDController.restart_asd(asds[0])
 
     @staticmethod
@@ -414,7 +421,8 @@ class API(object):
         disk = DiskList.get_by_alias(disk_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
         ASDController.remove_asd(asds[0])
 
     ##########
