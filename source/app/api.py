@@ -26,7 +26,7 @@ from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFou
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
-from source.app.decorators import delete, get, post
+from source.app.decorators import HTTPRequestDecorators
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
@@ -45,6 +45,10 @@ class API(object):
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
     _logger = LogHandler.get('asd-manager', name='api')
+
+    get = HTTPRequestDecorators.get
+    post = HTTPRequestDecorators.post
+    delete = HTTPRequestDecorators.delete
 
     ###########
     # GENERIC #
