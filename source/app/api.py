@@ -122,9 +122,8 @@ class API(object):
         stack = {}
         for disk in DiskList.get_usable_disks():
             slot_id = disk.aliases[0].split('/')[-1]
-            stack[slot_id] = {'state': disk.status,
-                              'available': disk.available,
-                              'osds': dict((asd.asd_id, asd.export()) for asd in disk.asds)}
+            stack[slot_id] = disk.export()
+            stack[slot_id].update({'osds': dict((asd.asd_id, asd.export()) for asd in disk.asds)})
         return stack
 
     @staticmethod
