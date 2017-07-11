@@ -19,10 +19,10 @@ This module contains the maintenance controller (maintenance service logic)
 """
 import os
 import json
-from source.tools.configuration.configuration import Configuration
-from source.tools.localclient import LocalClient
+from ovs_extensions.generic.sshclient import SSHClient
+from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
-from source.tools.services.service import ServiceManager
+from source.tools.servicefactory import ServiceFactory
 
 
 class MaintenanceController(object):
@@ -30,7 +30,8 @@ class MaintenanceController(object):
     Maintenance controller class
     """
     MAINTENANCE_PREFIX = 'alba-maintenance'
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    _service_manager = ServiceFactory.get_manager()
 
     @staticmethod
     def get_services():
@@ -38,7 +39,7 @@ class MaintenanceController(object):
         Retrieve all configured maintenance service running on this node for each backend
         :return: generator
         """
-        for service_name in ServiceManager.list_services(MaintenanceController._local_client):
+        for service_name in MaintenanceController._service_manager.list_services(MaintenanceController._local_client):
             if service_name.startswith(MaintenanceController.MAINTENANCE_PREFIX):
                 yield service_name
 
@@ -53,7 +54,7 @@ class MaintenanceController(object):
         :param abm_name: Name of the ABM cluster
         :type abm_name: str
         """
-        if ServiceManager.has_service(name, MaintenanceController._local_client) is False:
+        if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
             alba_config = Configuration.get_configuration_path(config_location)
             node_id = os.environ.get('ASD_NODE_ID')
@@ -65,11 +66,11 @@ class MaintenanceController(object):
                 'read_preference': [] if node_id is None else [node_id]
             }, indent=4), raw=True)
 
-            ServiceManager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
-                                       client=MaintenanceController._local_client,
-                                       params=params,
-                                       target_name=name)
-        ServiceManager.start_service(name, MaintenanceController._local_client)
+            MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
+                                                               client=MaintenanceController._local_client,
+                                                               params=params,
+                                                               target_name=name)
+        MaintenanceController._service_manager.start_service(name, MaintenanceController._local_client)
 
     @staticmethod
     def remove_maintenance_service(name):
@@ -77,6 +78,6 @@ class MaintenanceController(object):
         Remove a maintenance service with a specific name
         :param name: Name of the service
         """
-        if ServiceManager.has_service(name, MaintenanceController._local_client):
-            ServiceManager.stop_service(name, MaintenanceController._local_client)
-            ServiceManager.remove_service(name, MaintenanceController._local_client)
+        if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client):
+            MaintenanceController._service_manager.stop_service(name, MaintenanceController._local_client)
+            MaintenanceController._service_manager.remove_service(name, MaintenanceController._local_client)

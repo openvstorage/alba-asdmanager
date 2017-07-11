@@ -28,6 +28,9 @@ import itertools
 
 
 class OVSFormatter(logging.Formatter):
+    """
+    Formatter for the logger
+    """
     def formatTime(self, record, datefmt=None):
         """
         Overrides the default formatter to include UTC offset
@@ -40,6 +43,11 @@ class OVSFormatter(logging.Formatter):
         return '{0} {1:03.0f}00 {2}'.format(base_time, record.msecs, offset)
 
     def format(self, record):
+        """
+        Format a record
+        :param record: Record to format
+        :return: Formatted record
+        """
         if 'hostname' not in record.__dict__:
             record.hostname = socket.gethostname()
         if 'sequence' not in record.__dict__:
@@ -56,9 +64,11 @@ class LogHandler(object):
     or log to files and have a separate process forward them to Redis (so logs can be re-send if Redis is unavailable)
     """
 
-    counter = itertools.count()
     cache = {}
+    counter = itertools.count()
     propagate_cache = {}
+    defaults = {'logging_target': {'type': 'console'},
+                'level': 'INFO'}
 
     def __init__(self, source, name, propagate):
         """
@@ -88,14 +98,23 @@ class LogHandler(object):
         self.logger = logging.getLogger(name)
         self.logger.addHandler(self.handler)
         self.logger.propagate = propagate
-        self.logger.setLevel(getattr(logging, 'DEBUG'))
+        self.logger.setLevel(getattr(logging, LogHandler.get_level()))
         self._key = '{0}_{1}'.format(source, name)
 
     @staticmethod
     def load_target_definition(source, allow_override=False):
-        logging_target = {'type': 'console'}
+        """
+        Load the logger target
+        :param source: Source
+        :type source: str
+        :param allow_override: Allow override
+        :type allow_override: bool
+        :return: Target definition
+        :rtype: dict
+        """
+        logging_target = LogHandler.defaults['logging_target']
         try:
-            from source.tools.configuration.configuration import Configuration
+            from source.tools.configuration import Configuration
             logging_target = Configuration.get('/ovs/framework/logging')
         except:
             pass
@@ -119,6 +138,15 @@ class LogHandler(object):
 
     @staticmethod
     def get_sink_path(source, allow_override=False):
+        """
+        Retrieve the path to sink logs to
+        :param source: Source
+        :type source: str
+        :param allow_override: Allow override
+        :type allow_override: bool
+        :return: The path to sink to
+        :rtype: str
+        """
         target_definition = LogHandler.load_target_definition(source, allow_override)
         if target_definition['type'] == 'redis':
             sink = 'redis://{0}:{1}{2}'.format(target_definition['host'], target_definition['port'], target_definition['queue'])
@@ -129,7 +157,22 @@ class LogHandler(object):
         return sink
 
     @staticmethod
+    def get_level():
+        level = LogHandler.defaults['level']
+        try:
+            from source.tools.configuration import Configuration
+            level = Configuration.get('/ovs/framework/logging').get('level', level)
+        except:
+            pass
+        return level.upper()
+
+    @staticmethod
     def load_path(source):
+        """
+        Load path
+        :param source: Source
+        :return: Path
+        """
         log_path = '/var/log/asd-manager'
         log_filename = '{0}/{1}.log'.format(log_path, source)
         if not os.path.exists(log_path):
@@ -141,6 +184,9 @@ class LogHandler(object):
 
     @staticmethod
     def get(source, name=None, propagate=False):
+        """
+        Retrieve a loghandler instance
+        """
         key = '{0}_{1}'.format(source, name)
         if key not in LogHandler.cache:
             logger = LogHandler(source, name, propagate)

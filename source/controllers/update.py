@@ -19,22 +19,23 @@ This module contains logic related to updates
 """
 import copy
 from subprocess import CalledProcessError
+from ovs_extensions.generic.sshclient import SSHClient
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
-from source.tools.localclient import LocalClient
 from source.tools.log_handler import LogHandler
-from source.tools.packages.package import PackageManager
-from source.tools.services.service import ServiceManager
+from source.tools.packagefactory import PackageFactory
+from source.tools.servicefactory import ServiceFactory
 
 
 class SDMUpdateController(object):
     """
     Update Controller class for SDM package
     """
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _logger = LogHandler.get('asd-manager', name='update')
     _packages_alba = ['alba', 'alba-ee']
     _packages_mutual_excl = [_packages_alba]
+    _package_manager = PackageFactory.get_manager()
 
     @staticmethod
     def get_package_information():
@@ -52,11 +53,12 @@ class SDMUpdateController(object):
         :return: Package information
         :rtype: dict
         """
-        binaries = PackageManager.get_binary_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._packages_alba)
-        installed = PackageManager.get_installed_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
-        candidate = PackageManager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=PackageManager.SDM_PACKAGE_NAMES)
-        not_installed = set(PackageManager.SDM_PACKAGE_NAMES) - set(installed.keys())
-        candidate_difference = set(PackageManager.SDM_PACKAGE_NAMES) - set(candidate.keys())
+        sdm_package_names = SDMUpdateController._package_manager.package_names
+        binaries = SDMUpdateController._package_manager.get_binary_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._packages_alba)
+        installed = SDMUpdateController._package_manager.get_installed_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
+        candidate = SDMUpdateController._package_manager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
+        not_installed = set(sdm_package_names) - set(installed.keys())
+        candidate_difference = set(sdm_package_names) - set(candidate.keys())
 
         for package_name in not_installed:
             found = False
@@ -102,7 +104,7 @@ class SDMUpdateController(object):
 
                         did_check = False
                         for mapped_package_name in version_mapping.get(package_name, [package_name]):
-                            if mapped_package_name not in PackageManager.SDM_PACKAGE_NAMES:
+                            if mapped_package_name not in sdm_package_names:
                                 raise ValueError('Unknown package dependency found in {0}'.format(version_file))
                             if mapped_package_name not in binaries or mapped_package_name not in installed:
                                 continue
@@ -132,7 +134,7 @@ class SDMUpdateController(object):
         Update the package on the local node
         """
         SDMUpdateController._logger.debug('Installing package {0}'.format(package_name))
-        PackageManager.install(package_name=package_name, client=SDMUpdateController._local_client)
+        SDMUpdateController._package_manager.install(package_name=package_name, client=SDMUpdateController._local_client)
         SDMUpdateController._logger.debug('Installed package {0}'.format(package_name))
 
     @staticmethod
@@ -143,13 +145,14 @@ class SDMUpdateController(object):
         """
         service_names = [service_name for service_name in ASDController.list_asd_services()]
         service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+        service_manager = ServiceFactory.get_manager()
         for service_name in service_names:
-            if ServiceManager.get_service_status(service_name, SDMUpdateController._local_client) != 'active':
+            if service_manager.get_service_status(service_name, SDMUpdateController._local_client) != 'active':
                 SDMUpdateController._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue
 
             SDMUpdateController._logger.debug('Restarting service {0}'.format(service_name))
             try:
-                ServiceManager.restart_service(service_name, SDMUpdateController._local_client)
+                service_manager.restart_service(service_name, SDMUpdateController._local_client)
             except CalledProcessError as cpe:
                 SDMUpdateController._logger.debug('Failed to restart service {0} {1}'.format(service_name, cpe))

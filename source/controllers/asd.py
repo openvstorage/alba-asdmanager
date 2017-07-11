@@ -22,12 +22,12 @@ import math
 import random
 import signal
 import string
+from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.asdlist import ASDList
 from source.dal.objects.asd import ASD
-from source.tools.configuration.configuration import Configuration
-from source.tools.localclient import LocalClient
+from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
-from source.tools.services.service import ServiceManager
+from source.tools.servicefactory import ServiceFactory
 
 
 class ASDController(object):
@@ -37,7 +37,8 @@ class ASDController(object):
     NODE_ID = os.environ['ASD_NODE_ID']
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
-    _local_client = LocalClient()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    _service_manager = ServiceFactory.get_manager()
     _logger = LogHandler.get('asd-manager', name='asd')
 
     @staticmethod
@@ -63,7 +64,7 @@ class ASDController(object):
                 config['rocksdb_block_cache_size'] = int(asd_size / 1024 / 4)
                 Configuration.set(asd.config_key, config)
                 try:
-                    ServiceManager.send_signal(asd.service_name, signal.SIGUSR1, ASDController._local_client)
+                    ASDController._service_manager.send_signal(asd.service_name, signal.SIGUSR1, ASDController._local_client)
                 except Exception as ex:
                     ASDController._logger.info('Could not send signal to ASD for reloading the quota: {0}'.format(ex))
 
@@ -118,10 +119,10 @@ class ASDController(object):
         Configuration.set(asd.config_key, asd_config)
         params = {'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
                   'SERVICE_NAME': asd.service_name,
-                  'LOG_SINK': LogHandler.get_sink_path('alba_asd')}
+                  'LOG_SINK': LogHandler.get_sink_path('alba-asd_{0}'.format(asd_id))}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
-        ServiceManager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
+        ASDController._service_manager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
         ASDController.start_asd(asd)
 
     @staticmethod
@@ -132,9 +133,9 @@ class ASDController(object):
         :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
-            ServiceManager.stop_service(asd.service_name, ASDController._local_client)
-            ServiceManager.remove_service(asd.service_name, ASDController._local_client)
+        if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
+            ASDController._service_manager.stop_service(asd.service_name, ASDController._local_client)
+            ASDController._service_manager.remove_service(asd.service_name, ASDController._local_client)
         try:
             ASDController._local_client.dir_delete('{0}/{1}'.format(asd.disk.mountpoint, asd.asd_id))
         except Exception as ex:
@@ -150,8 +151,8 @@ class ASDController(object):
         :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
-            ServiceManager.start_service(asd.service_name, ASDController._local_client)
+        if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
+            ASDController._service_manager.start_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
     def stop_asd(asd):
@@ -161,8 +162,8 @@ class ASDController(object):
         :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
-            ServiceManager.stop_service(asd.service_name, ASDController._local_client)
+        if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
+            ASDController._service_manager.stop_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
     def restart_asd(asd):
@@ -172,8 +173,8 @@ class ASDController(object):
         :type asd: source.dal.objects.asd.ASD
         :return: None
         """
-        if ServiceManager.has_service(asd.service_name, ASDController._local_client):
-            ServiceManager.restart_service(asd.service_name, ASDController._local_client)
+        if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
+            ASDController._service_manager.restart_service(asd.service_name, ASDController._local_client)
 
     @staticmethod
     def list_asd_services():
@@ -181,6 +182,6 @@ class ASDController(object):
         Retrieve all ASD services
         :return: generator
         """
-        for service_name in ServiceManager.list_services(ASDController._local_client):
+        for service_name in ASDController._service_manager.list_services(ASDController._local_client):
             if service_name.startswith(ASD.ASD_SERVICE_PREFIX.format('')):
                 yield service_name

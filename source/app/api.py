@@ -21,6 +21,9 @@ API views
 import os
 import json
 from flask import request, send_from_directory
+from subprocess import check_output
+from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.filemutex import file_mutex
 from source.app import app
 from source.app.decorators import get, post
 from source.app.exceptions import BadRequest
@@ -31,12 +34,9 @@ from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
-from source.tools.configuration.configuration import Configuration
-from source.tools.filemutex import file_mutex
-from source.tools.localclient import LocalClient
+from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
-from source.tools.services.service import ServiceManager
-from subprocess import check_output
+from source.tools.servicefactory import ServiceFactory
 
 
 class API(object):
@@ -373,9 +373,10 @@ class API(object):
         :return: Status of the service
         :rtype: str
         """
-        client = LocalClient()
-        if ServiceManager.has_service(name=name, client=client):
-            status = ServiceManager.get_service_status(name=name, client=client)
+        client = SSHClient(endpoint='127.0.0.1', username='root')
+        service_manager = ServiceFactory.get_manager()
+        if service_manager.has_service(name=name, client=client):
+            status = service_manager.get_service_status(name=name, client=client)
             return {'status': (status == 'active', status)}
         return {'status': None}
 
