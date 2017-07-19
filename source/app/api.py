@@ -140,6 +140,7 @@ class API(object):
         if disk.available is True:
             with file_mutex('add_disk'), file_mutex('disk_{0}'.format(slot_id)):
                 DiskController.prepare_disk(disk=disk)
+                disk = Disk(disk.id)
         with file_mutex('add_asd'):
             ASDController.create_asd(disk)
 
@@ -161,25 +162,6 @@ class API(object):
             raise HttpNotFoundException(error='asd_not_found',
                                         error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
         ASDController.remove_asd(asds[0])
-
-    @staticmethod
-    @get('/slots/<slot_id>/asds/<asd_id>')
-    def asd_get(slot_id, asd_id):
-        """
-        Gets an ASD
-        :param slot_id: Identifier of the slot
-        :type slot_id: str
-        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
-        :type asd_id: str
-        :return: ASD information
-        :rtype: dict
-        """
-        disk = DiskList.get_by_alias(slot_id)
-        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
-        if len(asds) != 1:
-            raise HttpNotFoundException(error='asd_not_found',
-                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
-        return asds[0].export()
 
     @staticmethod
     @post('/slots/<slot_id>/asds/<asd_id>/restart')

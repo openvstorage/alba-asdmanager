@@ -84,6 +84,8 @@ class Disk(ASDBase):
             if 'Input/output error' in output:
                 return {'state': 'error',
                         'detail': 'io_error'}
+        if len(self.asds) == 0:
+            return {'state': 'empty'}
         return {'state': 'ok'}
 
     def _usage(self):
