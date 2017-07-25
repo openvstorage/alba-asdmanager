@@ -182,6 +182,37 @@ class API(object):
                                         error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
         ASDController.restart_asd(asds[0])
 
+    @staticmethod
+    @delete('/slots/<slot_id>')
+    def clear_slot(slot_id):
+        """
+        Clears a slot
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        """
+        disk = DiskList.get_by_alias(slot_id, raise_exception=False)
+        if disk is None:
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
+            return None
+
+        if disk.available is True:
+            raise HttpNotAcceptableException(error='disk_not_configured', error_description='Disk not yet configured')
+
+        with file_mutex('disk_{0}'.format(slot_id)):
+            last_exception = None
+            for asd in disk.asds:
+                try:
+                    ASDController.remove_asd(asd=asd)
+                except Exception as ex:
+                    last_exception = ex
+            disk = Disk(disk.id)
+            if len(disk.asds) == 0:
+                DiskController.clean_disk(disk=disk)
+            elif last_exception is not None:
+                raise last_exception
+            else:
+                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(slot_id))
+
     #########
     # DISKS #
     #########
