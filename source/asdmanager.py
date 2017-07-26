@@ -22,8 +22,10 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
+import time
 import logging
 from subprocess import check_output
+from threading import Thread
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -294,6 +296,12 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
+    def _sync_disks():
+        from source.controllers.disk import DiskController
+        while True:
+            DiskController.sync_disks()
+            time.sleep(60)
+
     with open(BOOTSTRAP_FILE) as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
@@ -325,6 +333,9 @@ if __name__ == '__main__':
             wz_logger.handlers = []
             wz_logger.propagate = False
             LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
+
+    thread = Thread(target=_sync_disks, name='sync_disks')
+    thread.start()
 
     app.debug = False
     app.run(host=asd_manager_config['ip'],
