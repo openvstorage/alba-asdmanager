@@ -15,10 +15,9 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This is the ASD's module
+This is the ASD module
 """
 
-import json
 from ovs_extensions.dal.structures import Property
 from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.asdbase import ASDBase
@@ -56,7 +55,7 @@ class ASD(ASDBase):
 
     def export(self):
         """
-        Exports this ASD's information to a dict structure
+        Exports the ASD information to a dict structure
         :return: Representation of the ASD as dict
         :rtype: dict
         """
