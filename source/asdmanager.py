@@ -157,7 +157,7 @@ def remove(silent=None):
     :type silent: str
     :return: None
     """
-    os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'
+    os.environ['OVS_LOGTYPE_OVERRIDE'] = LogHandler.TARGET_TYPE_FILE
     print '\n' + Interactive.boxed_message(['ASD Manager removal'])
 
     ##############
