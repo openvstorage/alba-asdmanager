@@ -21,7 +21,6 @@ API views
 import os
 import json
 from flask import request, send_from_directory
-from subprocess import check_output
 from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
@@ -36,6 +35,7 @@ from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -72,8 +72,7 @@ class API(object):
         :return: IPs found on the local system (excluding the loop-back IPs)
         :rtype: dict
         """
-        ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-        return {'ips': [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]}
+        return {'ips': OSFactory.get_manager().get_ip_addresses()}
 
     @staticmethod
     @post('/net')
