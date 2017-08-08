@@ -57,16 +57,16 @@ class Watcher(object):
         try:
             if target == 'config':
                 self.log_message(target, 'Testing configuration store...', 0)
+                from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import NoGuarantee
+                from source.tools.arakooninstaller import ArakoonInstaller, ArakoonClusterConfig
                 from source.tools.configuration import Configuration
+
                 try:
                     Configuration.list('/')
                 except Exception as ex:
                     self.log_message(target, '  Error during configuration store test: {0}'.format(ex), 2)
                     return False
 
-                from source.tools.arakooninstaller import ArakoonInstaller, ArakoonClusterConfig
-                from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import NoGuarantee
-                from source.tools.configuration import Configuration
                 with open(Configuration.CACC_LOCATION) as config_file:
                     contents = config_file.read()
                 config = ArakoonClusterConfig(cluster_id='cacc', load_config=False)

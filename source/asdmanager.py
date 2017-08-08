@@ -22,13 +22,15 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
+import time
 import logging
-from subprocess import check_output
+from threading import Thread
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 from source.tools.system import BOOTSTRAP_FILE
 
@@ -51,8 +53,7 @@ def setup():
         print Interactive.boxed_message(['The ASD Manager is already installed.'])
         sys.exit(1)
 
-    ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
+    ipaddresses = OSFactory.get_manager().get_ip_addresses()
     if not ipaddresses:
         print Interactive.boxed_message(['Could not retrieve IP information on local node'])
         sys.exit(1)
@@ -155,7 +156,7 @@ def remove(silent=None):
     :type silent: str
     :return: None
     """
-    os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'
+    os.environ['OVS_LOGTYPE_OVERRIDE'] = LogHandler.TARGET_TYPE_FILE
     print '\n' + Interactive.boxed_message(['ASD Manager removal'])
 
     ##############
@@ -294,6 +295,12 @@ def _validate_and_retrieve_pre_config():
 
 
 if __name__ == '__main__':
+    def _sync_disks():
+        from source.controllers.disk import DiskController
+        while True:
+            DiskController.sync_disks()
+            time.sleep(60)
+
     with open(BOOTSTRAP_FILE) as bootstrap_file:
         node_id = json.load(bootstrap_file)['node_id']
     os.environ['ASD_NODE_ID'] = node_id
@@ -325,6 +332,9 @@ if __name__ == '__main__':
             wz_logger.handlers = []
             wz_logger.propagate = False
             LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
+
+    thread = Thread(target=_sync_disks, name='sync_disks')
+    thread.start()
 
     app.debug = False
     app.run(host=asd_manager_config['ip'],
