@@ -227,7 +227,6 @@ class DiskController(object):
         counter = 0
         already_mounted = False
         while True:
-            DiskController.sync_disks()
             disk = Disk(disk.id)
             if len(disk.partitions) == 1:
                 try:
@@ -244,6 +243,7 @@ class DiskController(object):
                         DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
                         break
             DiskController._logger.info('Partition for disk {0} not ready yet'.format(disk.name))
+            DiskController.sync_disks()
             time.sleep(0.2)
             counter += 1
             if counter > 10:

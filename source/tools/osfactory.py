@@ -1,4 +1,4 @@
-# Copyright (C) 2016 iNuron NV
+# Copyright (C) 2017 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -15,28 +15,26 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Redis log handler
+OS Factory module
 """
-import logging
+
+from ovs_extensions.os.osfactory import OSFactory as _OSFactory
+from source.tools.configuration import Configuration
+from source.tools.system import System
 
 
-class RedisListHandler(logging.Handler):
+class OSFactory(_OSFactory):
     """
-    Publish messages to Redis channel using a list
+    Factory class returning specialized classes
     """
 
-    def __init__(self, queue, client, level=logging.NOTSET):
-        """
-        Create a new logger for the given channel and Redis client.
-        """
-        logging.Handler.__init__(self, level)
-        self.queue = queue
-        self.client = client
+    def __init__(self):
+        raise RuntimeError('Cannot be instantiated, please use OSFactory.get_manager() instead')
 
-    def emit(self, record):
-        """
-        Publish record to Redis logging list
-        """
-        self.client.rpush(self.queue, self.format(record))
+    @classmethod
+    def _get_configuration(cls):
+        return Configuration
 
-
+    @classmethod
+    def _get_system(cls):
+        return System
