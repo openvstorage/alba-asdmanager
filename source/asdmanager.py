@@ -24,13 +24,13 @@ import sys
 import json
 import time
 import logging
-from subprocess import check_output
 from threading import Thread
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 from source.tools.system import BOOTSTRAP_FILE
 
@@ -53,8 +53,7 @@ def setup():
         print Interactive.boxed_message(['The ASD Manager is already installed.'])
         sys.exit(1)
 
-    ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]
+    ipaddresses = OSFactory.get_manager().get_ip_addresses()
     if not ipaddresses:
         print Interactive.boxed_message(['Could not retrieve IP information on local node'])
         sys.exit(1)

@@ -27,6 +27,7 @@ from source.dal.lists.asdlist import ASDList
 from source.dal.objects.asd import ASD
 from source.tools.configuration import Configuration
 from source.tools.log_handler import LogHandler
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -54,8 +55,7 @@ class ASDController(object):
 
         ipaddresses = Configuration.get('{0}/network|ips'.format(ASDController.CONFIG_ROOT))
         if len(ipaddresses) == 0:
-            ipaddresses = ASDController._local_client.run("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", allow_insecure=True).strip().splitlines()
-            ipaddresses = [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]
+            ipaddresses = OSFactory.get_manager().get_ip_addresses(client=ASDController._local_client)
             if len(ipaddresses) == 0:
                 raise RuntimeError('Could not find any IP on the local node')
 
