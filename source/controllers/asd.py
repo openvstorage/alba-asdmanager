@@ -58,7 +58,6 @@ class ASDController(object):
             ipaddresses = [found_ip.strip() for found_ip in ipaddresses if not found_ip.strip().startswith('127.')]
             if len(ipaddresses) == 0:
                 raise RuntimeError('Could not find any IP on the local node')
-            ipaddresses = [ipaddresses[0]]  # We make list of first IP found on system if None were configured during initial setup
 
         # Fetch disk information
         disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', disk.mountpoint], timeout=5).splitlines()[1])
