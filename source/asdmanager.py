@@ -72,7 +72,7 @@ def setup():
                                                 default_value='All')
             if new_asd_ip == 'All':
                 ipaddresses.remove('All')
-                asd_ips = []  # Empty maps to all ips - checked when configuring asds
+                asd_ips = []  # Empty list maps to all IPs - checked when configuring ASDs
                 add_ips = False
             else:
                 asd_ips.append(new_asd_ip)
