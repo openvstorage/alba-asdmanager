@@ -326,7 +326,7 @@ if __name__ == '__main__':
         if app.debug is False:
             _logger = LogHandler.get('asd-manager', name='flask')
             app.logger.handlers = []
-            app.logger.addHandler(_logger.handler)
+            app.logger.addHandler(_logger.logger.handlers[0])
             app.logger.propagate = False
             wz_logger = logging.getLogger('werkzeug')
             wz_logger.handlers = []
