@@ -133,6 +133,32 @@ class ASDController(object):
         ASDController.start_asd(asd)
 
     @staticmethod
+    def update_asd(asd, update_data):
+        """
+        Updates an ASD with the 'update_data' provided
+        :param asd: ASD to update
+        :type asd: source.dal.objects.asd.ASD
+        :param update_data: Data to update
+        :type update_data: dict
+        :raises ValueError: - When ASD configuration key is not present
+                            - When an unsupported key is passed in via 'update_data'
+        :return: None
+        :rtype: NoneType
+        """
+        key_map = {'ips': 'hosts'}
+        if not Configuration.exists(asd.config_key):
+            raise ValueError('Failed to the configuration at location {0}'.format(asd.config_key))
+
+        config = Configuration.get(asd.config_key)
+        for key, value in update_data.iteritems():
+            if key not in key_map:  # Only updating IPs is supported for now
+                raise ValueError('Unsupported property provided: {0}. Only IPs can be updated for now'.format(key))
+            setattr(asd, key_map[key], value)
+            config['ips'] = value
+        asd.save()
+        Configuration.set(key=asd.config_key, value=config)
+
+    @staticmethod
     def remove_asd(asd):
         """
         Removes an ASD

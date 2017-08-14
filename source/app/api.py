@@ -184,6 +184,25 @@ class API(object):
         ASDController.restart_asd(asds[0])
 
     @staticmethod
+    @post('/slots/<slot_id>/asds/<asd_id>/update')
+    def asd_update(slot_id, asd_id):
+        """
+        Restart an ASD
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
+        :type asd_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        disk = DiskList.get_by_alias(slot_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+        ASDController.update_asd(asd=asds[0], update_data=json.loads(request.form['update_data']))
+
+    @staticmethod
     @post('/slots/<slot_id>/restart')
     def slot_restart(slot_id):
         """
