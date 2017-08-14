@@ -72,7 +72,7 @@ def setup():
                                                 default_value='All')
             if new_asd_ip == 'All':
                 ipaddresses.remove('All')
-                asd_ips = []
+                asd_ips = []  # Empty list maps to all IPs - checked when configuring ASDs
                 add_ips = False
             else:
                 asd_ips.append(new_asd_ip)
@@ -326,7 +326,7 @@ if __name__ == '__main__':
         if app.debug is False:
             _logger = LogHandler.get('asd-manager', name='flask')
             app.logger.handlers = []
-            app.logger.addHandler(_logger.handler)
+            app.logger.addHandler(_logger.logger.handlers[0])
             app.logger.propagate = False
             wz_logger = logging.getLogger('werkzeug')
             wz_logger.handlers = []

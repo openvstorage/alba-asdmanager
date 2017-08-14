@@ -184,6 +184,43 @@ class API(object):
         ASDController.restart_asd(asds[0])
 
     @staticmethod
+    @post('/slots/<slot_id>/asds/<asd_id>/update')
+    def asd_update(slot_id, asd_id):
+        """
+        Restart an ASD
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
+        :type asd_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        disk = DiskList.get_by_alias(slot_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+        ASDController.update_asd(asd=asds[0], update_data=json.loads(request.form['update_data']))
+
+    @staticmethod
+    @post('/slots/<slot_id>/restart')
+    def slot_restart(slot_id):
+        """
+       Restart a slot
+       :param slot_id: Identifier of the slot  (eg: 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
+       :type slot_id: str
+       :return: None
+       """
+        disk = DiskList.get_by_alias(slot_id)
+        with file_mutex('slot_{0}'.format(slot_id)):
+            API._logger.info('Got lock for restarting slot {0}'.format(slot_id))
+            for asd in disk.asds:
+                ASDController.stop_asd(asd=asd)
+            DiskController.remount_disk(disk=disk)
+            for asd in disk.asds:
+                ASDController.start_asd(asd=asd)
+
+    @staticmethod
     @delete('/slots/<slot_id>')
     def clear_slot(slot_id):
         """
