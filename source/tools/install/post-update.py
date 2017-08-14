@@ -155,11 +155,6 @@ if __name__ == '__main__':
                         local_client.run(['systemctl', 'daemon-reload'])
 
                 # Introduction of Active Drive
-                asd_node_ips_map = {}
-                for asd_node_id in Configuration.list('/ovs/alba/asdnodes'):
-                    network_config = Configuration.get('/ovs/alba/asdnodes/{0}/config/network'.format(asd_node_id))
-                    asd_node_ips_map[asd_node_id] = network_config['ips']
-
                 all_local_ips = OSFactory.get_manager().get_ip_addresses(client=local_client)
                 for asd in ASDList.get_asds():
                     if asd.has_config:
