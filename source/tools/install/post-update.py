@@ -48,7 +48,7 @@ if __name__ == '__main__':
     CURRENT_VERSION = 6
 
     _logger = LogHandler.get('asd-manager', name='post-update')
-    _service_manager = ServiceFactory.get_manager()
+    service_manager = ServiceFactory.get_manager()
 
     _logger.info('Executing post-update logic of package openvstorage-sdm')
     with file_mutex('package_update_pu'):
@@ -60,9 +60,9 @@ if __name__ == '__main__':
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
         asd_manager_service_name = 'asd-manager'
-        if _service_manager.has_service(asd_manager_service_name, local_client) and _service_manager.get_service_status(asd_manager_service_name, local_client) == 'active':
+        if service_manager.has_service(asd_manager_service_name, local_client) and service_manager.get_service_status(asd_manager_service_name, local_client) == 'active':
             _logger.info('Stopping asd-manager service')
-            _service_manager.stop_service(asd_manager_service_name, local_client)
+            service_manager.stop_service(asd_manager_service_name, local_client)
 
         if version < CURRENT_VERSION:
             try:
@@ -94,12 +94,11 @@ if __name__ == '__main__':
                         asd.save()
 
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
-                service_manager = 'systemd' if _service_manager.ImplementationClass == Systemd else 'upstart'
                 asd_service_names = list(ASDController.list_asd_services())
                 maintenance_service_names = list(MaintenanceController.get_services())
                 for service_name in asd_service_names + maintenance_service_names:
-                    if _service_manager.has_service(name=service_name, client=local_client):
-                        if service_manager == 'systemd':
+                    if service_manager.has_service(name=service_name, client=local_client):
+                        if service_manager.__class__ == Systemd:
                             path = '/lib/systemd/system/{0}.service'.format(service_name)
                             check = 'LimitNOFILE=8192'
                         else:
@@ -118,25 +117,24 @@ if __name__ == '__main__':
                         configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
-                            _service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
-                                                         client=local_client,
-                                                         params=Configuration.get(configuration_key),
-                                                         target_name=service_name)
+                            service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                                        client=local_client,
+                                                        params=Configuration.get(configuration_key),
+                                                        target_name=service_name)
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
                             ExtensionsToolbox.edit_version_file(client=local_client, package_name='alba', old_service_name=service_name)
-                    if service_manager == 'systemd':
+                    if service_manager.__class__ == Systemd:
                         local_client.run(['systemctl', 'daemon-reload'])
 
                 # Version 3: Addition of 'ExecReload' for ASD/maintenance SystemD services
-                getattr(_service_manager, 'has_service')  # Invoke ServiceManager to fill out the ImplementationClass (default None)
-                if _service_manager.ImplementationClass == Systemd:  # Upstart does not have functionality to reload a process' configuration
+                if service_manager.__class__ == Systemd:  # Upstart does not have functionality to reload a process' configuration
                     reload_daemon = False
                     asd_service_names = list(ASDController.list_asd_services())
                     maintenance_service_names = list(MaintenanceController.get_services())
                     for service_name in asd_service_names + maintenance_service_names:
-                        if not _service_manager.has_service(name=service_name, client=local_client):
+                        if not service_manager.has_service(name=service_name, client=local_client):
                             continue
 
                         path = '/lib/systemd/system/{0}.service'.format(service_name)
@@ -147,10 +145,10 @@ if __name__ == '__main__':
                                     configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
                                     if Configuration.exists(configuration_key):
                                         # No need to edit the service version file, since this change only requires a daemon-reload
-                                        _service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
-                                                                     client=local_client,
-                                                                     params=Configuration.get(configuration_key),
-                                                                     target_name=service_name)
+                                        service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                                                    client=local_client,
+                                                                    params=Configuration.get(configuration_key),
+                                                                    target_name=service_name)
                     if reload_daemon is True:
                         local_client.run(['systemctl', 'daemon-reload'])
 
@@ -173,8 +171,8 @@ if __name__ == '__main__':
                 _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
 
-        if _service_manager.has_service(asd_manager_service_name, local_client) and _service_manager.get_service_status(asd_manager_service_name, local_client) != 'active':
+        if service_manager.has_service(asd_manager_service_name, local_client) and service_manager.get_service_status(asd_manager_service_name, local_client) != 'active':
             _logger.info('Starting asd-manager service')
-            _service_manager.start_service(asd_manager_service_name, local_client)
+            service_manager.start_service(asd_manager_service_name, local_client)
 
     _logger.info('Post-update logic executed')

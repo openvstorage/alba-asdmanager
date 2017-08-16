@@ -168,12 +168,6 @@ def remove(silent=None):
         print '\n' + Interactive.boxed_message(['The ASD Manager has already been removed'])
         sys.exit(1)
 
-    print '  - Validating configuration file'
-    config = _validate_and_retrieve_pre_config()
-    if config is None:
-        print '\n' + Interactive.boxed_message(['Cannot remove the ASD manager because not all information could be retrieved from the pre-configuration file'])
-        sys.exit(1)
-
     print '  - Validating node ID'
     with open(BOOTSTRAP_FILE) as bs_file:
         try:
