@@ -34,8 +34,10 @@ if __name__ == '__main__':
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
     from source.controllers.maintenance import MaintenanceController
+    from source.dal.lists.asdlist import ASDList
     from source.tools.configuration import Configuration
     from source.tools.log_handler import LogHandler
+    from source.tools.osfactory import OSFactory
     from source.tools.servicefactory import ServiceFactory
 
     with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
@@ -43,7 +45,7 @@ if __name__ == '__main__':
         os.environ['ASD_NODE_ID'] = NODE_ID
 
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-    CURRENT_VERSION = 5
+    CURRENT_VERSION = 6
 
     _logger = LogHandler.get('asd-manager', name='post-update')
     _service_manager = ServiceFactory.get_manager()
@@ -52,30 +54,30 @@ if __name__ == '__main__':
     with file_mutex('package_update_pu'):
         from source.controllers.asd import ASDController
 
-        client = SSHClient(endpoint='127.0.0.1', username='root')
+        local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
         key = '{0}/versions'.format(CONFIG_ROOT)
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
         asd_manager_service_name = 'asd-manager'
-        if _service_manager.has_service(asd_manager_service_name, client) and _service_manager.get_service_status(asd_manager_service_name, client) == 'active':
+        if _service_manager.has_service(asd_manager_service_name, local_client) and _service_manager.get_service_status(asd_manager_service_name, local_client) == 'active':
             _logger.info('Stopping asd-manager service')
-            _service_manager.stop_service(asd_manager_service_name, client)
+            _service_manager.stop_service(asd_manager_service_name, local_client)
 
         if version < CURRENT_VERSION:
             try:
                 # DB migrations
                 from source.dal.asdbase import ASDBase
                 from source.controllers.disk import DiskController
-                if not client.file_exists('{0}/main.db'.format(ASDBase.DATABASE_FOLDER)):
+                if not local_client.file_exists('{0}/main.db'.format(ASDBase.DATABASE_FOLDER)):
                     from source.dal.objects.asd import ASD
                     from source.dal.lists.disklist import DiskList
-                    client.dir_create([ASDBase.DATABASE_FOLDER])
+                    local_client.dir_create([ASDBase.DATABASE_FOLDER])
                     DiskController.sync_disks()
                     for disk in DiskList.get_usable_disks():
                         if disk.state == 'MISSING' or disk.mountpoint is None:
                             continue
-                        for directory in client.dir_list(disk.mountpoint):
+                        for directory in local_client.dir_list(disk.mountpoint):
                             asd = ASD()
                             asd.asd_id = directory
                             asd.folder = directory
@@ -83,13 +85,12 @@ if __name__ == '__main__':
                             if asd.has_config:
                                 asd.save()
 
-                # New properties on ASD (hosts and port)
-                from source.dal.lists.asdlist import ASDList
+                # New properties on ASD (ips and port)
                 for asd in ASDList.get_asds():
-                    if (asd.port is None or asd.hosts is None) and asd.has_config:
+                    if (asd.port is None or asd.ips is None) and asd.has_config:
                         config = Configuration.get(key=asd.config_key)
+                        asd.ips = config.get('ips', [])
                         asd.port = config['port']
-                        asd.hosts = config.get('ips', [])
                         asd.save()
 
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
@@ -97,7 +98,7 @@ if __name__ == '__main__':
                 asd_service_names = list(ASDController.list_asd_services())
                 maintenance_service_names = list(MaintenanceController.get_services())
                 for service_name in asd_service_names + maintenance_service_names:
-                    if _service_manager.has_service(name=service_name, client=client):
+                    if _service_manager.has_service(name=service_name, client=local_client):
                         if service_manager == 'systemd':
                             path = '/lib/systemd/system/{0}.service'.format(service_name)
                             check = 'LimitNOFILE=8192'
@@ -118,15 +119,15 @@ if __name__ == '__main__':
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
                             _service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
-                                                         client=client,
+                                                         client=local_client,
                                                          params=Configuration.get(configuration_key),
                                                          target_name=service_name)
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
-                            ExtensionsToolbox.edit_version_file(client=client, package_name='alba', old_service_name=service_name)
+                            ExtensionsToolbox.edit_version_file(client=local_client, package_name='alba', old_service_name=service_name)
                     if service_manager == 'systemd':
-                        client.run(['systemctl', 'daemon-reload'])
+                        local_client.run(['systemctl', 'daemon-reload'])
 
                 # Version 3: Addition of 'ExecReload' for ASD/maintenance SystemD services
                 getattr(_service_manager, 'has_service')  # Invoke ServiceManager to fill out the ImplementationClass (default None)
@@ -135,7 +136,7 @@ if __name__ == '__main__':
                     asd_service_names = list(ASDController.list_asd_services())
                     maintenance_service_names = list(MaintenanceController.get_services())
                     for service_name in asd_service_names + maintenance_service_names:
-                        if not _service_manager.has_service(name=service_name, client=client):
+                        if not _service_manager.has_service(name=service_name, client=local_client):
                             continue
 
                         path = '/lib/systemd/system/{0}.service'.format(service_name)
@@ -147,17 +148,33 @@ if __name__ == '__main__':
                                     if Configuration.exists(configuration_key):
                                         # No need to edit the service version file, since this change only requires a daemon-reload
                                         _service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
-                                                                     client=client,
+                                                                     client=local_client,
                                                                      params=Configuration.get(configuration_key),
                                                                      target_name=service_name)
                     if reload_daemon is True:
-                        client.run(['systemctl', 'daemon-reload'])
+                        local_client.run(['systemctl', 'daemon-reload'])
+
+                # Introduction of Active Drive
+                all_local_ips = OSFactory.get_manager().get_ip_addresses(client=local_client)
+                for asd in ASDList.get_asds():
+                    if asd.has_config:
+                        asd_config = Configuration.get(asd.config_key)
+                        if 'multicast' not in asd_config:
+                            asd_config['multicast'] = None
+                        if 'ips' in asd_config:
+                            asd_ips = asd_config['ips'] or all_local_ips
+                        else:
+                            asd_ips = all_local_ips
+                        asd.ips = asd_ips
+                        asd_config['ips'] = asd_ips
+                        Configuration.set(asd.config_key, asd_config)
+                        asd.save()
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
         Configuration.set(key, CURRENT_VERSION)
 
-        if _service_manager.has_service(asd_manager_service_name, client) and _service_manager.get_service_status(asd_manager_service_name, client) != 'active':
+        if _service_manager.has_service(asd_manager_service_name, local_client) and _service_manager.get_service_status(asd_manager_service_name, local_client) != 'active':
             _logger.info('Starting asd-manager service')
-            _service_manager.start_service(asd_manager_service_name, client)
+            _service_manager.start_service(asd_manager_service_name, local_client)
 
     _logger.info('Post-update logic executed')

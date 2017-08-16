@@ -38,7 +38,7 @@ class ASD(ASDBase):
 
     _table = 'asd'
     _properties = [Property(name='port', property_type=int, unique=True, mandatory=True),
-                   Property(name='hosts', property_type=list, unique=False, mandatory=True),
+                   Property(name='ips', property_type=list, unique=False, mandatory=True),
                    Property(name='asd_id', property_type=str, unique=True, mandatory=True),
                    Property(name='folder', property_type=str, unique=False, mandatory=False)]
     _relations = [['disk', Disk, 'asds']]

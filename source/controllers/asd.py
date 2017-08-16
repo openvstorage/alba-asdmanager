@@ -116,9 +116,9 @@ class ASDController(object):
             asd_config.update(data)
 
         asd = ASD()
+        asd.ips = ipaddresses
         asd.disk = disk
         asd.port = asd_port
-        asd.hosts = ipaddresses
         asd.asd_id = asd_id
         asd.folder = asd_id
         asd.save()
@@ -145,16 +145,15 @@ class ASDController(object):
         :return: None
         :rtype: NoneType
         """
-        key_map = {'ips': 'hosts'}
         if not Configuration.exists(asd.config_key):
             raise ValueError('Failed to the configuration at location {0}'.format(asd.config_key))
 
         config = Configuration.get(asd.config_key)
         for key, value in update_data.iteritems():
-            if key not in key_map:  # Only updating IPs is supported for now
+            if key not in ['ips']:  # Only updating IPs is supported for now
                 raise ValueError('Unsupported property provided: {0}. Only IPs can be updated for now'.format(key))
-            setattr(asd, key_map[key], value)
-            config['ips'] = value
+            setattr(asd, key, value)
+            config[key] = value
         asd.save()
         Configuration.set(key=asd.config_key, value=config)
 
