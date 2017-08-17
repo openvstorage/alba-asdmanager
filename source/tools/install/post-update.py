@@ -85,12 +85,12 @@ if __name__ == '__main__':
                             if asd.has_config:
                                 asd.save()
 
-                # New properties on ASD (ips and port)
+                # New properties on ASD (hosts and port)
                 for asd in ASDList.get_asds():
-                    if (asd.port is None or asd.ips is None) and asd.has_config:
+                    if (asd.port is None or asd.hosts is None) and asd.has_config:
                         config = Configuration.get(key=asd.config_key)
-                        asd.ips = config.get('ips', [])
                         asd.port = config['port']
+                        asd.hosts = config.get('ips', [])
                         asd.save()
 
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                             asd_ips = asd_config['ips'] or all_local_ips
                         else:
                             asd_ips = all_local_ips
-                        asd.ips = asd_ips
+                        asd.hosts = asd_ips
                         asd_config['ips'] = asd_ips
                         Configuration.set(asd.config_key, asd_config)
                         asd.save()

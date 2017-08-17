@@ -38,7 +38,7 @@ class ASD(ASDBase):
 
     _table = 'asd'
     _properties = [Property(name='port', property_type=int, unique=True, mandatory=True),
-                   Property(name='ips', property_type=list, unique=False, mandatory=True),
+                   Property(name='hosts', property_type=list, unique=False, mandatory=True),
                    Property(name='asd_id', property_type=str, unique=True, mandatory=True),
                    Property(name='folder', property_type=str, unique=False, mandatory=False)]
     _relations = [['disk', Disk, 'asds']]
@@ -63,7 +63,10 @@ class ASD(ASDBase):
             raise RuntimeError('No configuration found for ASD {0}'.format(self.asd_id))
         data = Configuration.get(self.config_key)
         for prop in self._properties:
-            data[prop.name] = getattr(self, prop.name)
+            if prop.name == 'hosts':
+                data['ips'] = getattr(self, prop.name)
+            else:
+                data[prop.name] = getattr(self, prop.name)
         if self.disk.state == 'MISSING':
             data.update({'state': 'error',
                          'state_detail': 'missing'})
