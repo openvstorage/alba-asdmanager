@@ -29,12 +29,11 @@ BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 if __name__ == '__main__':
     import os
     import json
-    from ovs_extensions.services.interfaces.systemd import Systemd
     from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
+    from ovs_extensions.services.interfaces.systemd import Systemd
     from source.controllers.maintenance import MaintenanceController
-    from source.dal.lists.asdlist import ASDList
     from source.tools.configuration import Configuration
     from source.tools.log_handler import LogHandler
     from source.tools.osfactory import OSFactory
@@ -52,8 +51,6 @@ if __name__ == '__main__':
 
     _logger.info('Executing post-update logic of package openvstorage-sdm')
     with file_mutex('package_update_pu'):
-        from source.controllers.asd import ASDController
-
         local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
         key = '{0}/versions'.format(CONFIG_ROOT)
@@ -67,31 +64,36 @@ if __name__ == '__main__':
         if version < CURRENT_VERSION:
             try:
                 # DB migrations
-                from source.dal.asdbase import ASDBase
+                from source.controllers.asd import ASDController
                 from source.controllers.disk import DiskController
-                if not local_client.file_exists('{0}/main.db'.format(ASDBase.DATABASE_FOLDER)):
-                    from source.dal.objects.asd import ASD
-                    from source.dal.lists.disklist import DiskList
-                    local_client.dir_create([ASDBase.DATABASE_FOLDER])
-                    DiskController.sync_disks()
-                    for disk in DiskList.get_usable_disks():
-                        if disk.state == 'MISSING' or disk.mountpoint is None:
-                            continue
-                        for directory in local_client.dir_list(disk.mountpoint):
-                            asd = ASD()
-                            asd.asd_id = directory
-                            asd.folder = directory
-                            asd.disk = disk
-                            if asd.has_config:
-                                asd.save()
+                from source.dal.asdbase import ASDBase
+                from source.dal.lists.asdlist import ASDList
+                from source.dal.lists.disklist import DiskList
+                from source.dal.objects.asd import ASD
 
-                # New properties on ASD (hosts and port)
-                for asd in ASDList.get_asds():
-                    if (asd.port is None or asd.hosts is None) and asd.has_config:
-                        config = Configuration.get(key=asd.config_key)
-                        asd.port = config['port']
-                        asd.hosts = config.get('ips', [])
-                        asd.save()
+                if not local_client.file_exists('{0}/main.db'.format(ASDBase.DATABASE_FOLDER)):
+                    local_client.dir_create([ASDBase.DATABASE_FOLDER])
+
+                asd_map = dict((asd.asd_id, asd) for asd in ASDList.get_asds())
+                DiskController.sync_disks()
+                for disk in DiskList.get_usable_disks():
+                    if disk.state == 'MISSING' or disk.mountpoint is None:
+                        continue
+                    for asd_id in local_client.dir_list(disk.mountpoint):
+                        if asd_id in asd_map:
+                            asd = asd_map[asd_id]
+                        else:
+                            asd = ASD()
+
+                        asd.disk = disk
+                        asd.asd_id = asd_id
+                        asd.folder = asd_id
+                        if asd.has_config:
+                            if asd.port is None or asd.hosts is None:
+                                config = Configuration.get(key=asd.config_key)
+                                asd.port = config['port']
+                                asd.hosts = config.get('ips', [])
+                            asd.save()
 
                 # Adjustment of open file descriptors for ASD/maintenance services to 8192
                 asd_service_names = list(ASDController.list_asd_services())
@@ -152,7 +154,7 @@ if __name__ == '__main__':
                     if reload_daemon is True:
                         local_client.run(['systemctl', 'daemon-reload'])
 
-                # Introduction of Active Drive
+                # Version 6: Introduction of Active Drive
                 all_local_ips = OSFactory.get_manager().get_ip_addresses(client=local_client)
                 for asd in ASDList.get_asds():
                     if asd.has_config:
