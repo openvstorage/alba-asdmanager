@@ -26,7 +26,7 @@ from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.asdlist import ASDList
 from source.dal.objects.asd import ASD
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
@@ -40,7 +40,7 @@ class ASDController(object):
 
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
-    _logger = LogHandler.get('asd-manager', name='asd')
+    _logger = Logger('controllers')
 
     @staticmethod
     def create_asd(disk):
@@ -126,7 +126,7 @@ class ASDController(object):
         Configuration.set(asd.config_key, asd_config)
         params = {'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
                   'SERVICE_NAME': asd.service_name,
-                  'LOG_SINK': LogHandler.get_sink_path('alba-asd_{0}'.format(asd_id))}
+                  'LOG_SINK': Logger.get_sink_path('alba-asd_{0}'.format(asd_id))}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
         ASDController._service_manager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)

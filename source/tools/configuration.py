@@ -63,6 +63,9 @@ class Configuration(_Configuration):
             cls.set(key='/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key),
                     value=value,
                     raw=False)
+        cls.set(key='/ovs/alba/logging',
+                value={'target': 'console', 'level': 'DEBUG'},
+                raw=False)
         return node_id
 
     @classmethod

@@ -17,12 +17,11 @@
 """
 Service Factory for the ASD Manager
 """
-import logging
+
 from ovs_extensions.services.servicefactory import ServiceFactory as _ServiceFactory
 from source.tools.configuration import Configuration
+from source.tools.logger import Logger
 from source.tools.system import System
-
-logger = logging.getLogger(__name__)
 
 
 class ServiceFactory(_ServiceFactory):
@@ -45,3 +44,7 @@ class ServiceFactory(_ServiceFactory):
     @classmethod
     def _get_configuration(cls):
         return Configuration
+
+    @classmethod
+    def _get_logger_instance(cls):
+        return Logger('tools')

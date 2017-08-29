@@ -24,7 +24,7 @@ import sys
 import time
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 
 
 class Watcher(object):
@@ -39,7 +39,7 @@ class Watcher(object):
         """
         Dummy init method
         """
-        self._logger = LogHandler.get('extensions', name='asd-watcher')
+        self._logger = Logger('tools')
 
     def log_message(self, log_target, entry, level):
         """

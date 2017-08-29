@@ -22,7 +22,7 @@ from subprocess import CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
 
@@ -32,7 +32,7 @@ class SDMUpdateController(object):
     Update Controller class for SDM package
     """
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    _logger = LogHandler.get('asd-manager', name='update')
+    _logger = Logger('controllers')
     _packages_alba = ['alba', 'alba-ee']
     _packages_mutual_excl = [_packages_alba]
     _package_manager = PackageFactory.get_manager()

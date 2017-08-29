@@ -28,7 +28,7 @@ from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.fstab import FSTab
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 
 
 class DiskController(object):
@@ -39,7 +39,7 @@ class DiskController(object):
 
     controllers = {}
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    _logger = LogHandler.get('asd-manager', name='disk')
+    _logger = Logger('controllers')
 
     @staticmethod
     def sync_disks():

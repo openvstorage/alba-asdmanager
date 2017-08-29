@@ -23,15 +23,15 @@ from flask import request
 from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
 from source.app import app
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 
 
 class HTTPRequestDecorators(_HTTPRequestDecorators):
     """
-    Class with decorator functionality for HTTP requests 
+    Class with decorator functionality for HTTP requests
     """
     app = app
-    logger = LogHandler.get('asd-manager', name='api')
+    logger = Logger('flask')
     version = 3
 
     def __init__(self):

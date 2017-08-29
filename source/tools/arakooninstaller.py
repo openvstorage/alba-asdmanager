@@ -20,6 +20,7 @@ Generic module for managing configuration somewhere
 
 from ovs_extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig as _ArakoonClusterConfig, ArakoonInstaller as _ArakoonInstaller
 from source.tools.configuration import Configuration
+from source.tools.logger import Logger
 from source.tools.servicefactory import ServiceFactory
 from source.tools.system import System
 
@@ -60,3 +61,7 @@ class ArakoonInstaller(_ArakoonInstaller):
     @classmethod
     def _get_volatile_mutex(cls):
         raise NotImplementedError()  # Not all functionality is available here
+
+    @classmethod
+    def _get_logger_instance(cls):
+        return Logger('tools')

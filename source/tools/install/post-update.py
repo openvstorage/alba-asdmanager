@@ -35,7 +35,7 @@ if __name__ == '__main__':
     from ovs_extensions.services.interfaces.systemd import Systemd
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration import Configuration
-    from source.tools.log_handler import LogHandler
+    from source.tools.logger import Logger
     from source.tools.osfactory import OSFactory
     from source.tools.servicefactory import ServiceFactory
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
     CURRENT_VERSION = 6
 
-    _logger = LogHandler.get('asd-manager', name='post-update')
+    _logger = Logger('tools')
     service_manager = ServiceFactory.get_manager()
 
     _logger.info('Executing post-update logic of package openvstorage-sdm')

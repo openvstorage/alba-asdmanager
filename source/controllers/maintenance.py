@@ -21,7 +21,7 @@ import os
 import json
 from ovs_extensions.generic.sshclient import SSHClient
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -59,7 +59,7 @@ class MaintenanceController(object):
             alba_config = Configuration.get_configuration_path(config_location)
             node_id = os.environ.get('ASD_NODE_ID')
             params = {'ALBA_CONFIG': alba_config,
-                      'LOG_SINK': LogHandler.get_sink_path('alba_maintenance')}
+                      'LOG_SINK': Logger.get_sink_path('alba_maintenance')}
             Configuration.set(config_location, json.dumps({
                 'log_level': 'info',
                 'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
