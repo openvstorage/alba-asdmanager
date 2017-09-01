@@ -34,7 +34,7 @@ from source.controllers.update import SDMUpdateController
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
@@ -44,7 +44,7 @@ class API(object):
     NODE_ID = os.environ['ASD_NODE_ID']
     CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
 
-    _logger = LogHandler.get('asd-manager', name='api')
+    _logger = Logger('flask')
 
     get = HTTPRequestDecorators.get
     post = HTTPRequestDecorators.post

@@ -15,34 +15,25 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Contains the LogHandler module
+Contains the Logger module
 """
 
-import inspect
 from ovs_extensions.generic.configuration import NotFoundException
-from ovs_extensions.log.log_handler import LogHandler as _LogHandler
+from ovs_extensions.log.logger import Logger as _Logger
 from source.tools.configuration import Configuration
 
 
-class LogHandler(_LogHandler):
+class Logger(_Logger):
     """
-    Log handler.
-
-    WARNING: This log handler might be highly unreliable if not used correctly. It can log to redis, but if Redis is
-    not working as expected, it will result in lost log messages. If you want reliable logging, do not use Redis at all
-    or log to files and have a separate process forward them to Redis (so logs can be re-send if Redis is unavailable)
+    Logger class
     """
-
     LOG_PATH = '/var/log/asd-manager'
 
-    def __init__(self, source, name, propagate):
+    def __init__(self, name, forced_target_type=None):
         """
-        Dummy init method
+        Init method
         """
-        _ = self, source, name, propagate
-        parent_invoker = inspect.stack()[1]
-        if not __file__.startswith(parent_invoker[1]) or parent_invoker[3] != 'get':
-            raise RuntimeError('Cannot invoke instance from outside this class. Please use LogHandler.get(source, name=None) instead')
+        super(Logger, self).__init__(name, forced_target_type)
 
     @classmethod
     def get_logging_info(cls):
@@ -52,6 +43,6 @@ class LogHandler(_LogHandler):
         :rtype: dict
         """
         try:
-            return Configuration.get('/ovs/framework/logging')
-        except NotFoundException:
+            return Configuration.get('/ovs/alba/logging')
+        except (IOError, NotFoundException):
             return {}

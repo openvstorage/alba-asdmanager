@@ -29,7 +29,7 @@ from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 from source.tools.system import BOOTSTRAP_FILE
@@ -156,7 +156,6 @@ def remove(silent=None):
     :type silent: str
     :return: None
     """
-    os.environ['OVS_LOGTYPE_OVERRIDE'] = LogHandler.TARGET_TYPE_FILE
     print '\n' + Interactive.boxed_message(['ASD Manager removal'])
 
     ##############
@@ -307,8 +306,6 @@ if __name__ == '__main__':
     if 'ip' not in asd_manager_config or 'port' not in asd_manager_config:
         raise RuntimeError('IP and/or port not available in configuration for ALBA node {0}'.format(node_id))
 
-    LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
-
     from source.app import app
 
     @app.before_first_request
@@ -317,15 +314,11 @@ if __name__ == '__main__':
         Configure logging
         :return: None
         """
-        if app.debug is False:
-            _logger = LogHandler.get('asd-manager', name='flask')
-            app.logger.handlers = []
-            app.logger.addHandler(_logger.logger.handlers[0])
-            app.logger.propagate = False
-            wz_logger = logging.getLogger('werkzeug')
-            wz_logger.handlers = []
-            wz_logger.propagate = False
-            LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
+        for handler in app.logger.handlers:
+            app.logger.removeHandler(handler)
+        app.logger.addHandler(Logger('asdmanager').handlers[0])
+        wz_logger = logging.getLogger('werkzeug')
+        wz_logger.handlers = []
 
     thread = Thread(target=_sync_disks, name='sync_disks')
     thread.start()
