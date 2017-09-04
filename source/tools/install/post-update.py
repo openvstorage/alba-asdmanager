@@ -23,12 +23,8 @@ Post update script for package openvstorage-sdm
 import sys
 sys.path.append('/opt/asd-manager')
 
-BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
-
-
 if __name__ == '__main__':
     import os
-    import json
     from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -39,11 +35,9 @@ if __name__ == '__main__':
     from source.tools.osfactory import OSFactory
     from source.tools.servicefactory import ServiceFactory
 
-    with open(BOOTSTRAP_FILE, 'r') as bootstrap_file:
-        NODE_ID = json.load(bootstrap_file)['node_id']
-        os.environ['ASD_NODE_ID'] = NODE_ID
+    with open('/etc/openvstorage_sdm_id', 'r') as id_file:
+        node_id = id_file.read().strip()
 
-    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
     CURRENT_VERSION = 6
 
     _logger = Logger('tools')
@@ -53,7 +47,7 @@ if __name__ == '__main__':
     with file_mutex('package_update_pu'):
         local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
-        key = '{0}/versions'.format(CONFIG_ROOT)
+        key = '{0}/versions'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(node_id))
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
         asd_manager_service_name = 'asd-manager'
@@ -116,7 +110,7 @@ if __name__ == '__main__':
                         if restart_required is False:
                             continue
 
-                        configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
+                        configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
                             service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
@@ -144,7 +138,7 @@ if __name__ == '__main__':
                             with open(path, 'r') as system_file:
                                 if 'ExecReload' not in system_file.read():
                                     reload_daemon = True
-                                    configuration_key = '/ovs/alba/asdnodes/{0}/services/{1}'.format(NODE_ID, service_name)
+                                    configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                                     if Configuration.exists(configuration_key):
                                         # No need to edit the service version file, since this change only requires a daemon-reload
                                         service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
@@ -170,7 +164,7 @@ if __name__ == '__main__':
                         Configuration.set(asd.config_key, asd_config)
                         asd.save()
             except:
-                _logger.exception('Error while executing post-update code on node {0}'.format(NODE_ID))
+                _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)
 
         if service_manager.has_service(asd_manager_service_name, local_client) and service_manager.get_service_status(asd_manager_service_name, local_client) != 'active':

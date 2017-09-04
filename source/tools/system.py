@@ -17,10 +17,9 @@
 """
 System module for the ASD Manager
 """
-import json
-from ovs_extensions.generic.system import System as _System
 
-BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
+from ovs_extensions.generic.system import System as _System
+from source.dal.lists.settinglist import SettingList
 
 
 class System(_System):
@@ -36,11 +35,10 @@ class System(_System):
     @classmethod
     def get_my_machine_id(cls, client=None):
         """
-        Returns unique machine id, generated during the setup of the ASD Manager
+        Returns unique machine id, generated during the package install of the ASD Manager
         :param client: Local client on which to retrieve the machine ID
-        :type client: SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: Machine ID
         :rtype: str
         """
-        with open(BOOTSTRAP_FILE) as bs_file:
-            return json.loads(bs_file.read())['node_id']
+        return SettingList.get_setting_by_code(code='node_id').value

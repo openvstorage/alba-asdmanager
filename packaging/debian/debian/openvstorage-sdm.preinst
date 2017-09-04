@@ -1,4 +1,5 @@
-# Copyright (C) 2017 iNuron NV
+#!/usr/bin/env bash
+# Copyright (C) 2016 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -14,22 +15,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-This module contains the generic controller (generic logic)
-"""
+set -e
 
-from subprocess import check_output
-
-
-class GenericController(object):
-    """
-    Generic controller class
-    """
-    @staticmethod
-    def collect_logs():
-        """
-        Retrieve the ALBA and ASD related logs on this node
-        :return: The name of the local tar file containing the logs
-        :rtype: str
-        """
-        return check_output('asd-manager collect logs', shell=True).strip()
+if [ ! -f /etc/openvstorage_sdm_id ]
+then
+    echo `openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 16` > /etc/openvstorage_sdm_id
+fi
