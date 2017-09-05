@@ -38,7 +38,7 @@ if __name__ == '__main__':
     with open('/etc/openvstorage_sdm_id', 'r') as id_file:
         node_id = id_file.read().strip()
 
-    CURRENT_VERSION = 6
+    CURRENT_VERSION = 7
 
     _logger = Logger('tools')
     service_manager = ServiceFactory.get_manager()
@@ -163,6 +163,12 @@ if __name__ == '__main__':
                         asd_config['ips'] = asd_ips
                         Configuration.set(asd.config_key, asd_config)
                         asd.save()
+
+                # Version 7: Moving flask certificate files to config dir
+                for file_name in ['passphrase', 'server.crt', 'server.csr', 'server.key']:
+                    if local_client.file_exists('/opt/asd-manager/source/{0}'.format(file_name)):
+                        local_client.file_move(source_file_name='/opt/asd-manager/source/{0}'.format(file_name),
+                                               destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)
