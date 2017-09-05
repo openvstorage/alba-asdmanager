@@ -159,8 +159,8 @@ class SDMUpdateController(object):
             SDMUpdateController._logger.debug('Restarting service {0}'.format(service_name))
             try:
                 service_manager.restart_service(service_name, SDMUpdateController._local_client)
-            except CalledProcessError as cpe:
-                SDMUpdateController._logger.debug('Failed to restart service {0} {1}'.format(service_name, cpe))
+            except CalledProcessError:
+                SDMUpdateController._logger.exception('Failed to restart service {0}'.format(service_name))
 
     @staticmethod
     def execute_post_update_code():

@@ -54,18 +54,19 @@ class Configuration(_Configuration):
         :return: Node ID
         :rtype: str
         """
-        with open('/etc/openvstorage_sdm_id', 'r') as the_file:
-            node_id = the_file.read().strip()
-            cls.set(key=Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id),
-                    value={'ip': config['api_ip'],
-                           'port': config['api_port'],
-                           'node_id': node_id,
-                           'version': 0,
-                           'password': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
-                           'username': 'root'})
-            cls.set(key=Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
-                    value={'ips': config['asd_ips'],
-                           'port': config['asd_start_port']})
+        with open('/etc/openvstorage_sdm_id', 'r') as sdm_id_file:
+            node_id = sdm_id_file.read().strip()
+
+        cls.set(key=Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id),
+                value={'ip': config['api_ip'],
+                       'port': config['api_port'],
+                       'node_id': node_id,
+                       'version': 0,
+                       'password': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
+                       'username': 'root'})
+        cls.set(key=Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
+                value={'ips': config['asd_ips'],
+                       'port': config['asd_start_port']})
         cls.set(key='/ovs/alba/logging',
                 value={'target': 'console', 'level': 'DEBUG'},
                 raw=False)
