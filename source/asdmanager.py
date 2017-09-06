@@ -308,6 +308,12 @@ if __name__ == '__main__':
 
     try:
         node_id = SettingList.get_setting_by_code(code='node_id').value
+    except:
+        # For backwards compatibility
+        # After update SettingList has not been populated yet and post-update script of package will restart asd-manager
+        with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+            node_id = json.load(bstr_file)['node_id']
+    try:
         asd_manager_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
     except:
         raise RuntimeError('Configuration management unavailable')

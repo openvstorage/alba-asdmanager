@@ -37,7 +37,6 @@ class ASDController(object):
     ASD Controller class
     """
     _logger = Logger('controllers')
-    _node_id = SettingList.get_setting_by_code(code='node_id').value
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
 
@@ -52,7 +51,8 @@ class ASDController(object):
         if disk.state == 'MISSING':
             raise RuntimeError('Cannot create an ASD on missing disk {0}'.format(disk.name))
 
-        ipaddresses = Configuration.get('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(ASDController._node_id)))
+        _node_id = SettingList.get_setting_by_code(code='node_id').value
+        ipaddresses = Configuration.get('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(_node_id)))
         if len(ipaddresses) == 0:
             ipaddresses = OSFactory.get_manager().get_ip_addresses(client=ASDController._local_client)
             if len(ipaddresses) == 0:
@@ -86,7 +86,7 @@ class ASDController(object):
         ASDController._logger.info('Setting up service for disk {0}'.format(disk.name))
         asd_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         homedir = '{0}/{1}'.format(disk.mountpoint, asd_id)
-        base_port = Configuration.get('{0}|port'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(ASDController._node_id)))
+        base_port = Configuration.get('{0}|port'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(_node_id)))
 
         asd_port = base_port
         rora_port = base_port + 1
@@ -100,7 +100,7 @@ class ASDController(object):
                       'home': homedir,
                       'port': asd_port,
                       'asd_id': asd_id,
-                      'node_id': ASDController._node_id,
+                      'node_id': _node_id,
                       'capacity': asd_size,
                       'multicast': None,
                       'transport': 'tcp',
@@ -110,8 +110,8 @@ class ASDController(object):
             asd_config['rora_port'] = rora_port
             asd_config['rora_transport'] = 'rdma'
 
-        if Configuration.exists('{0}/extra'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(ASDController._node_id))):
-            data = Configuration.get('{0}/extra'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(ASDController._node_id)))
+        if Configuration.exists('{0}/extra'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(_node_id))):
+            data = Configuration.get('{0}/extra'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(_node_id)))
             asd_config.update(data)
 
         asd = ASD()
