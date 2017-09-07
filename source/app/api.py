@@ -416,15 +416,15 @@ class API(object):
         return {'version': SDMUpdateController.get_installed_version_for_package(package_name=package_name)}
 
     @staticmethod
-    @post('/update/execute_post_update_code')
-    def execute_post_update_code():
+    @post('/update/execute_migration_code')
+    def update_execute_migration_code():
         """
         Run some migration code after an update has been done
         :return: None
         :rtype: NoneType
         """
         with file_mutex('post_update'):
-            SDMUpdateController.execute_post_update_code()
+            SDMUpdateController.execute_migration_code()
 
     ####################
     # GENERIC SERVICES #
