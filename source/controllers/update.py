@@ -179,14 +179,14 @@ class SDMUpdateController(object):
                 SDMUpdateController._logger.exception('Failed to restart service {0}'.format(service_name))
 
     @staticmethod
-    def execute_post_update_code():
+    def execute_migration_code():
         """
         Run some migration code after an update has been done
         :return: None
         :rtype: NoneType
         """
         # Removal of bootstrap file and store API IP, API port and node ID in SQLite DB
-        SDMUpdateController._logger.info('Starting post update for SDM nodes')
+        SDMUpdateController._logger.info('Starting out of band migrations for SDM nodes')
 
         required_settings = ['api_ip', 'api_port', 'node_id']
         for setting in SettingList.get_settings():
@@ -219,4 +219,4 @@ class SDMUpdateController(object):
                 setting.save()
 
             SDMUpdateController._local_client.file_delete(bootstrap_file)
-        SDMUpdateController._logger.info('Finished post update for SDM nodes')
+        SDMUpdateController._logger.info('Finished out of band migrations for SDM nodes')
