@@ -404,6 +404,18 @@ class API(object):
             return {'status': 'done'}
 
     @staticmethod
+    @post('/update/installed_version_package/<package_name>')
+    def update_installed_version_package(package_name):
+        """
+        Retrieve the currently installed package version
+        :param package_name: Name of the package to retrieve the version for
+        :type package_name: str
+        :return: Version of the currently installed package
+        :rtype: str
+        """
+        return {'version': SDMUpdateController.get_installed_version_for_package(package_name=package_name)}
+
+    @staticmethod
     @post('/update/execute_post_update_code')
     def execute_post_update_code():
         """
