@@ -18,10 +18,10 @@
 API decorators
 """
 
-import os
 from flask import request
 from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
 from source.app import app
+from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 
@@ -44,8 +44,9 @@ class HTTPRequestDecorators(_HTTPRequestDecorators):
         """
         Indicates whether a call is authenticated
         """
-        node_id = os.environ['ASD_NODE_ID']
-        username = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|username'.format(node_id))
-        password = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|password'.format(node_id))
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        node_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+        username = node_config['username']
+        password = node_config['password']
         auth = request.authorization
         return auth and auth.username == username and auth.password == password

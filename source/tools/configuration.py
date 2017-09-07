@@ -17,11 +17,12 @@
 """
 Generic module for managing configuration somewhere
 """
-import os
+
 import json
 import random
 import string
 from ovs_extensions.generic.configuration import Configuration as _Configuration
+from source.dal.lists.settinglist import SettingList
 
 
 class Configuration(_Configuration):
@@ -30,7 +31,11 @@ class Configuration(_Configuration):
     """
     CACC_SOURCE = '/opt/OpenvStorage/config/arakoon_cacc.ini'
     CACC_LOCATION = '/opt/asd-manager/config/arakoon_cacc.ini'
-    BOOTSTRAP_CONFIG_LOCATION = '/opt/asd-manager/config/framework.json'
+    ASD_NODE_LOCATION = '/ovs/alba/asdnodes/{0}'
+    CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
+    ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)
+    ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)
+    ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)
 
     _unittest_data = {}
 
@@ -43,52 +48,48 @@ class Configuration(_Configuration):
     @classmethod
     def initialize(cls, config):
         """
-        Initialize general keys for this host
+        Initialize general keys for this ASD Manager
         :param config: The configuration containing API IP:port, ASD IPs and ASD start port
         :type config: dict
-        :return: Node id
+        :return: Node ID
         :rtype: str
         """
-        node_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        base_config = {'config/main': {'node_id': node_id,
-                                       'password': password,
-                                       'username': 'root',
-                                       'ip': config['api_ip'],
-                                       'port': config['api_port'],
-                                       'version': 0},
-                       'config/network': {'ips': config['asd_ips'],
-                                          'port': config['asd_start_port']}}
-        for key, value in base_config.iteritems():
-            cls.set(key='/ovs/alba/asdnodes/{0}/{1}'.format(node_id, key),
-                    value=value,
-                    raw=False)
+        with open('/etc/openvstorage_sdm_id', 'r') as sdm_id_file:
+            node_id = sdm_id_file.read().strip()
+
+        cls.set(key=Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id),
+                value={'ip': config['api_ip'],
+                       'port': config['api_port'],
+                       'node_id': node_id,
+                       'version': 0,
+                       'password': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
+                       'username': 'root'})
+        cls.set(key=Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
+                value={'ips': config['asd_ips'],
+                       'port': config['asd_start_port']})
         cls.set(key='/ovs/alba/logging',
                 value={'target': 'console', 'level': 'DEBUG'},
                 raw=False)
         return node_id
 
     @classmethod
-    def uninitialize(cls, node_id):
+    def uninitialize(cls):
         """
         Remove initially stored values from configuration store
-        :param node_id: Un-initialize this node
-        :type node_id: str
         :return: None
         :rtype: NoneType
         """
-        if cls.dir_exists('/ovs/alba/asdnodes/{0}'.format(node_id)):
-            cls.delete('/ovs/alba/asdnodes/{0}'.format(node_id))
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        if node_id is not None and cls.dir_exists(Configuration.ASD_NODE_LOCATION.format(node_id)):
+            cls.delete(Configuration.ASD_NODE_LOCATION.format(node_id))
 
     @classmethod
     def get_store_info(cls):
         """
         Retrieve the configuration store method. Currently this can only be 'arakoon'
-        :return: A tuple containing the store and params that can be passed to the configuration implementation instance
-        :rtype: tuple(str, dict)
+        :return: The store method
+        :rtype: str
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            return 'unittest', None
-        with open(cls.BOOTSTRAP_CONFIG_LOCATION) as config_file:
+        with open(cls.CONFIG_STORE_LOCATION) as config_file:
             contents = json.load(config_file)
-            return contents['configuration_store'], {'cacc_location': cls.CACC_LOCATION}
+            return contents['configuration_store']

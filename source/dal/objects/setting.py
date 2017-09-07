@@ -15,21 +15,19 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This module contains the generic controller (generic logic)
+Setting module
 """
 
-from subprocess import check_output
+from ovs_extensions.dal.structures import Property
+from source.dal.asdbase import ASDBase
 
 
-class GenericController(object):
+class Setting(ASDBase):
     """
-    Generic controller class
+    Represents a global Setting for the ALBA ASD manager
     """
-    @staticmethod
-    def collect_logs():
-        """
-        Retrieve the ALBA and ASD related logs on this node
-        :return: The name of the local tar file containing the logs
-        :rtype: str
-        """
-        return check_output('asd-manager collect logs', shell=True).strip()
+    _table = 'setting'
+    _properties = [Property(name='code', property_type=str, unique=True, mandatory=True),
+                   Property(name='value', property_type=None, unique=False, mandatory=True)]
+    _relations = []
+    _dynamics = []

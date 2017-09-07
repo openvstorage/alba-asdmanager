@@ -18,7 +18,6 @@
 API views
 """
 
-import os
 import json
 from flask import request, send_from_directory
 from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
@@ -32,6 +31,7 @@ from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.dal.lists.disklist import DiskList
+from source.dal.lists.settinglist import SettingList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
@@ -41,9 +41,6 @@ from source.tools.servicefactory import ServiceFactory
 
 class API(object):
     """ ALBA API """
-    NODE_ID = os.environ['ASD_NODE_ID']
-    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
-
     _logger = Logger('flask')
 
     get = HTTPRequestDecorators.get
@@ -62,7 +59,7 @@ class API(object):
         :return: Node ID
         :rtype: dict
         """
-        return {'node_id': API.NODE_ID}
+        return {'node_id': SettingList.get_setting_by_code(code='node_id').value}
 
     @staticmethod
     @get('/net', authenticate=False)
@@ -82,7 +79,8 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        Configuration.set('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/collect_logs')
@@ -404,6 +402,17 @@ class API(object):
             SDMUpdateController.update(package_name='alba')
             SDMUpdateController.update(package_name='openvstorage-sdm')
             return {'status': 'done'}
+
+    @staticmethod
+    @post('/update/execute_post_update_code')
+    def execute_post_update_code():
+        """
+        Run some migration code after an update has been done
+        :return: None
+        :rtype: NoneType
+        """
+        with file_mutex('post_update'):
+            SDMUpdateController.execute_post_update_code()
 
     ####################
     # GENERIC SERVICES #

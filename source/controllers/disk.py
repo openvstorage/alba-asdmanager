@@ -17,7 +17,7 @@
 """
 Disk related code
 """
-import os
+
 import re
 import json
 import time
@@ -35,8 +35,6 @@ class DiskController(object):
     """
     Disk helper methods
     """
-    NODE_ID = os.environ['ASD_NODE_ID']
-
     controllers = {}
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _logger = Logger('controllers')
