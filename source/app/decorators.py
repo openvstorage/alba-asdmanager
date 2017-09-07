@@ -18,6 +18,7 @@
 API decorators
 """
 
+import json
 from flask import request
 from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
 from source.app import app
@@ -44,7 +45,13 @@ class HTTPRequestDecorators(_HTTPRequestDecorators):
         """
         Indicates whether a call is authenticated
         """
-        node_id = SettingList.get_setting_by_code(code='node_id').value
+        # For backwards compatibility we first try to retrieve the node ID by using the bootstrap file
+        try:
+            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+                node_id = json.load(bstr_file)['node_id']
+        except:
+            node_id = SettingList.get_setting_by_code(code='node_id').value
+
         node_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
         username = node_config['username']
         password = node_config['password']

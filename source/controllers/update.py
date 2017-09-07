@@ -119,7 +119,7 @@ class SDMUpdateController(object):
 
                             did_check = True
                             if running_version is not None and LooseVersion(running_version) < binaries[mapped_package_name]:
-                                if package_name not in component_info:
+                                if mapped_package_name not in component_info:
                                     component_info[mapped_package_name] = copy.deepcopy(default_entry)
                                 component_info[mapped_package_name]['installed'] = running_version
                                 component_info[mapped_package_name]['candidate'] = str(binaries[mapped_package_name])
@@ -146,7 +146,7 @@ class SDMUpdateController(object):
         SDMUpdateController._logger.info('Installed package {0}'.format(package_name))
 
     @staticmethod
-    def get_package_version(package_name):
+    def get_installed_version_for_package(package_name):
         """
         Retrieve the currently installed package version
         :param package_name: Name of the package to retrieve the version for
@@ -194,17 +194,17 @@ class SDMUpdateController(object):
                 required_settings.remove(setting.code)
 
         if len(required_settings):
-            SDMUpdateController._logger.debug('Missing required Settings: {0}'.format(', '.join(required_settings)))
+            SDMUpdateController._logger.info('Missing required Settings: {0}'.format(', '.join(required_settings)))
             bootstrap_file = '/opt/asd-manager/config/bootstrap.json'
 
             if SDMUpdateController._local_client.file_exists(bootstrap_file):
-                SDMUpdateController._logger.debug('Bootstrap file still exists. Retrieving node ID')
+                SDMUpdateController._logger.info('Bootstrap file still exists. Retrieving node ID')
                 with open(bootstrap_file) as bstr_file:
                     node_id = json.load(bstr_file)['node_id']
             else:
                 node_id = SettingList.get_setting_by_code(code='node_id').value
 
-            SDMUpdateController._logger.debug('Node ID: {0}'.format(node_id))
+            SDMUpdateController._logger.info('Node ID: {0}'.format(node_id))
             settings_dict = {'node_id': node_id}
             if Configuration.exists(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id)):
                 main_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
@@ -212,7 +212,7 @@ class SDMUpdateController(object):
                 settings_dict['api_port'] = main_config['port']
 
             for code, value in settings_dict.iteritems():
-                SDMUpdateController._logger.debug('Modeling Setting with code {0} and value {1}'.format(code, value))
+                SDMUpdateController._logger.info('Modeling Setting with code {0} and value {1}'.format(code, value))
                 setting = Setting()
                 setting.code = code
                 setting.value = value
