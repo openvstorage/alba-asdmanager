@@ -20,11 +20,14 @@
 Post update script for package openvstorage-sdm
 """
 
+import os
 import sys
 sys.path.append('/opt/asd-manager')
 
+os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'  # Make sure we log to file during update
+
+
 if __name__ == '__main__':
-    import os
     import json
     from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
