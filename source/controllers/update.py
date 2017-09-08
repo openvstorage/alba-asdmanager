@@ -18,6 +18,7 @@
 This module contains logic related to updates
 """
 
+import os
 import copy
 import json
 from distutils.version import LooseVersion
@@ -31,6 +32,8 @@ from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
+
+os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'  # Make sure we log to file during update
 
 
 class SDMUpdateController(object):
