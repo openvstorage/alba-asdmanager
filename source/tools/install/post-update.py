@@ -25,6 +25,7 @@ sys.path.append('/opt/asd-manager')
 
 if __name__ == '__main__':
     import os
+    import json
     from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -35,17 +36,24 @@ if __name__ == '__main__':
     from source.tools.osfactory import OSFactory
     from source.tools.servicefactory import ServiceFactory
 
-    with open('/etc/openvstorage_sdm_id', 'r') as id_file:
-        node_id = id_file.read().strip()
-
     CURRENT_VERSION = 7
 
-    _logger = Logger('tools')
+    _logger = Logger('update')
     service_manager = ServiceFactory.get_manager()
 
     _logger.info('Executing post-update logic of package openvstorage-sdm')
     with file_mutex('package_update_pu'):
         local_client = SSHClient(endpoint='127.0.0.1', username='root')
+
+        # Override the created openvstorage_sdm_id during package install, with currently available SDM ID
+        if local_client.file_exists('/opt/asd-manager/config/bootstrap.json'):
+            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+                node_id = json.load(bstr_file)['node_id']
+            local_client.file_write(filename='/etc/openvstorage_sdm_id',
+                                    contents=node_id + '\n')
+        else:
+            with open('/etc/openvstorage_sdm_id', 'r') as id_file:
+                node_id = id_file.read().strip()
 
         key = '{0}/versions'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(node_id))
         version = Configuration.get(key) if Configuration.exists(key) else 0
