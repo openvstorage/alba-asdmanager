@@ -18,7 +18,6 @@
 This module contains logic related to updates
 """
 
-import os
 import copy
 import json
 from distutils.version import LooseVersion
@@ -33,15 +32,13 @@ from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
 
-os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'  # Make sure we log to file during update
-
 
 class SDMUpdateController(object):
     """
     Update Controller class for SDM package
     """
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    _logger = Logger('update')
+    _logger = Logger(name='update', forced_target_type='file')
     _packages_alba = ['alba', 'alba-ee', 'openvstorage-extensions']
     _packages_with_binaries = ['alba', 'alba-ee']
     _packages_mutual_excl = [_packages_alba]
