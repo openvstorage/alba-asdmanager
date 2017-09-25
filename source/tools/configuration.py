@@ -68,7 +68,7 @@ class Configuration(_Configuration):
                 value={'ips': config['asd_ips'],
                        'port': config['asd_start_port']})
         cls.set(key='/ovs/alba/logging',
-                value={'target': 'console', 'level': 'DEBUG'},
+                value={'target': 'console', 'level': 'INFO'},
                 raw=False)
         return node_id
 
