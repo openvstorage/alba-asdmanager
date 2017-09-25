@@ -33,7 +33,7 @@ class PackageFactory(_PackageFactory):
 
     @classmethod
     def _get_packages(cls):
-        return {'names': ['alba', 'alba-ee', 'openvstorage-sdm'],
+        return {'names': ['alba', 'alba-ee', 'openvstorage-sdm', 'openvstorage-extensions'],
                 'binaries': ['alba', 'alba-ee']}
 
     @classmethod

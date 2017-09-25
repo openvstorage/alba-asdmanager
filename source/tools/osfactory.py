@@ -15,21 +15,26 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This module contains the generic controller (generic logic)
+OS Factory module
 """
 
-from subprocess import check_output
+from ovs_extensions.os.osfactory import OSFactory as _OSFactory
+from source.tools.configuration import Configuration
+from source.tools.system import System
 
 
-class GenericController(object):
+class OSFactory(_OSFactory):
     """
-    Generic controller class
+    Factory class returning specialized classes
     """
-    @staticmethod
-    def collect_logs():
-        """
-        Retrieve the ALBA and ASD related logs on this node
-        :return: The name of the local tar file containing the logs
-        :rtype: str
-        """
-        return check_output('asd-manager collect logs', shell=True).strip()
+
+    def __init__(self):
+        raise RuntimeError('Cannot be instantiated, please use OSFactory.get_manager() instead')
+
+    @classmethod
+    def _get_configuration(cls):
+        return Configuration
+
+    @classmethod
+    def _get_system(cls):
+        return System

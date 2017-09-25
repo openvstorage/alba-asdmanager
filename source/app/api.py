@@ -18,130 +18,223 @@
 API views
 """
 
-import os
 import json
 from flask import request, send_from_directory
-from subprocess import check_output
-from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
+from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
-from source.app.decorators import get, post
-from source.app.exceptions import BadRequest
+from source.app.decorators import HTTPRequestDecorators
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
 from source.dal.lists.disklist import DiskList
+from source.dal.lists.settinglist import SettingList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
 
 class API(object):
     """ ALBA API """
-    NODE_ID = os.environ['ASD_NODE_ID']
-    CONFIG_ROOT = '/ovs/alba/asdnodes/{0}/config'.format(NODE_ID)
+    _logger = Logger('flask')
 
-    _logger = LogHandler.get('asd-manager', name='api')
+    get = HTTPRequestDecorators.get
+    post = HTTPRequestDecorators.post
+    delete = HTTPRequestDecorators.delete
 
     ###########
     # GENERIC #
     ###########
+
     @staticmethod
     @get('/')
     def index():
-        """ Return available API calls """
-        return {'node_id': API.NODE_ID}
+        """
+        Retrieve the local node ID
+        :return: Node ID
+        :rtype: dict
+        """
+        return {'node_id': SettingList.get_setting_by_code(code='node_id').value}
 
     @staticmethod
     @get('/net', authenticate=False)
     def net():
-        """ Retrieve IP information """
-        output = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True)
-        my_ips = output.split('\n')
-        return {'ips': [found_ip.strip() for found_ip in my_ips if
-                        found_ip.strip() != '127.0.0.1' and found_ip.strip() != '']}
+        """
+        Retrieve IP information
+        :return: IPs found on the local system (excluding the loop-back IPs)
+        :rtype: dict
+        """
+        return {'ips': OSFactory.get_manager().get_ip_addresses()}
 
     @staticmethod
     @post('/net')
     def set_net():
-        """ Set IP information """
-        Configuration.set('{0}/network|ips'.format(API.CONFIG_ROOT), json.loads(request.form['ips']))
+        """
+        Set IP information
+        :return: None
+        :rtype: NoneType
+        """
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        Configuration.set('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/collect_logs')
     def collect_logs():
-        """ Collect the logs """
+        """
+        Collect the logs
+        :return: The location where the file containing the logs was stored
+        :rtype: dict
+        """
         return {'filename': GenericController.collect_logs()}
 
     @staticmethod
     @app.route('/downloads/<filename>')
     def download_logs(filename):
-        """ Download the tgz containing the logs """
+        """
+        Download the tgz containing the logs
+        :param filename: Name of the file to make available for download
+        :type filename: str
+        :return: Flask response
+        :rtype: Flask response
+        """
         filename = filename.split('/')[-1]
         API._logger.info('Uploading file {0}'.format(filename))
         return send_from_directory(directory='/opt/asd-manager/downloads', filename=filename)
 
-    #########
-    # DISKS #
-    #########
-    @staticmethod
-    @get('/disks')
-    def list_disks():
-        """ List all disk information """
-        DiskController.sync_disks()
-        return dict((disk.aliases[0].split('/')[-1], disk.export()) for disk in DiskList.get_usable_disks())
+    #################
+    # STACK / SLOTS #
+    #################
 
     @staticmethod
-    @get('/disks/<disk_id>')
-    def index_disk(disk_id):
+    @get('/slots')
+    def get_slots():
         """
-        Retrieve information about a single disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: Disk information
+        Gets the current stack (slot based)
+        :return: Stack information
         :rtype: dict
         """
-        DiskController.sync_disks()
-        return DiskList.get_by_alias(disk_id).export()
+        stack = {}
+        for disk in DiskList.get_usable_disks():
+            slot_id = disk.aliases[0].split('/')[-1]
+            stack[slot_id] = disk.export()
+            stack[slot_id].update({'osds': dict((asd.asd_id, asd.export()) for asd in disk.asds)})
+        return stack
 
     @staticmethod
-    @post('/disks/<disk_id>/add')
-    def add_disk(disk_id):
+    @post('/slots/<slot_id>/asds')
+    def asd_add(slot_id):
         """
-        Add a disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: Disk information about the newly added disk
-        :rtype: dict
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        if disk.available is False:
-            raise BadRequest('Disk {0} already configured'.format(disk.name))
-        with file_mutex('add_disk'), file_mutex('disk_{0}'.format(disk_id)):
-            DiskController.prepare_disk(disk=disk)
-        return DiskList.get_by_alias(disk_id).export()
-
-    @staticmethod
-    @post('/disks/<disk_id>/delete')
-    def delete_disk(disk_id):
-        """
-        Delete a disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
+        Add an ASD to the slot specified
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
         :return: None
+        :rtype: NoneType
         """
-        disk = DiskList.get_by_alias(disk_id, raise_exception=False)
+        disk = DiskList.get_by_alias(slot_id)
+        if disk.available is True:
+            with file_mutex('add_disk'), file_mutex('disk_{0}'.format(slot_id)):
+                DiskController.prepare_disk(disk=disk)
+                disk = Disk(disk.id)
+        with file_mutex('add_asd'):
+            ASDController.create_asd(disk)
+
+    @staticmethod
+    @delete('/slots/<slot_id>/asds/<asd_id>')
+    def asd_delete_by_slot(slot_id, asd_id):
+        """
+        Delete an ASD from the slot specified
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
+        :type asd_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        disk = DiskList.get_by_alias(slot_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+        ASDController.remove_asd(asds[0])
+
+    @staticmethod
+    @post('/slots/<slot_id>/asds/<asd_id>/restart')
+    def asd_restart(slot_id, asd_id):
+        """
+        Restart an ASD
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
+        :type asd_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        disk = DiskList.get_by_alias(slot_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+        ASDController.restart_asd(asds[0])
+
+    @staticmethod
+    @post('/slots/<slot_id>/asds/<asd_id>/update')
+    def asd_update(slot_id, asd_id):
+        """
+        Restart an ASD
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
+        :type asd_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        disk = DiskList.get_by_alias(slot_id)
+        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
+        if len(asds) != 1:
+            raise HttpNotFoundException(error='asd_not_found',
+                                        error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
+        ASDController.update_asd(asd=asds[0], update_data=json.loads(request.form['update_data']))
+
+    @staticmethod
+    @post('/slots/<slot_id>/restart')
+    def slot_restart(slot_id):
+        """
+       Restart a slot
+       :param slot_id: Identifier of the slot  (eg: 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
+       :type slot_id: str
+       :return: None
+       """
+        disk = DiskList.get_by_alias(slot_id)
+        with file_mutex('slot_{0}'.format(slot_id)):
+            API._logger.info('Got lock for restarting slot {0}'.format(slot_id))
+            for asd in disk.asds:
+                ASDController.stop_asd(asd=asd)
+            DiskController.remount_disk(disk=disk)
+            for asd in disk.asds:
+                ASDController.start_asd(asd=asd)
+
+    @staticmethod
+    @delete('/slots/<slot_id>')
+    def clear_slot(slot_id):
+        """
+        Clears a slot
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        """
+        disk = DiskList.get_by_alias(slot_id, raise_exception=False)
         if disk is None:
-            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(disk_id))
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
             return None
 
         if disk.available is True:
-            raise BadRequest('Disk not yet configured')
+            raise HttpNotAcceptableException(error='disk_not_configured', error_description='Disk not yet configured')
 
-        with file_mutex('disk_{0}'.format(disk_id)):
+        with file_mutex('disk_{0}'.format(slot_id)):
             last_exception = None
             for asd in disk.asds:
                 try:
@@ -154,149 +247,98 @@ class API(object):
             elif last_exception is not None:
                 raise last_exception
             else:
-                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(disk_id))
+                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(slot_id))
+
+    #########
+    # DISKS #
+    #########
+
+    @staticmethod
+    @get('/disks')
+    def list_disks():
+        """ Obsolete """
+        return {}
+
+    @staticmethod
+    @get('/disks/<disk_id>')
+    def index_disk(disk_id):
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found.'.format(disk_id))
+
+    @staticmethod
+    @post('/disks/<disk_id>/add')
+    def add_disk(disk_id):
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
+
+    @staticmethod
+    @post('/disks/<disk_id>/delete')
+    def delete_disk(disk_id):
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/restart')
     def restart_disk(disk_id):
-        """
-        Restart a disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: None
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        with file_mutex('disk_{0}'.format(disk_id)):
-            API._logger.info('Got lock for restarting disk {0}'.format(disk_id))
-            for asd in disk.asds:
-                ASDController.stop_asd(asd=asd)
-            DiskController.remount_disk(disk=disk)
-            for asd in disk.asds:
-                ASDController.start_asd(asd=asd)
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     ########
     # ASDS #
     ########
+
     @staticmethod
     @get('/asds')
     def list_asds():
-        """
-        List all ASDs
-        :return: Information about all ASDs on local node
-        :rtype: dict
-        """
-        asds = {}
-        for disk in DiskList.get_usable_disks():
-            if len(disk.asds) > 0:
-                asds[disk.partition_aliases[0]] = dict((asd.asd_id, asd.export()) for asd in disk.asds)
-        return asds
+        """ Obsolete """
+        return {}
 
     @staticmethod
     @get('/asds/services')
     def list_asd_services():
-        """ List all ASD service names """
-        return {'services': list(ASDController.list_asd_services())}
+        """ Obsolete """
+        return {'services': []}
 
     @staticmethod
     @get('/disks/<disk_id>/asds')
     def list_asds_disk(disk_id):
-        """
-        Lists all ASDs on a given disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: ASD information for the specified disk
-        :rtype: dict
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        return dict((asd.asd_id, asd.export()) for asd in disk.asds)
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @get('/disks/<disk_id>/get_claimed_asds')
     def get_claimed_asds(disk_id):
-        """
-        Retrieve all ASDs which have been claimed by any Backend
-        :param disk_id: Identifier of the disk  (eg: 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: Mapping between ASDs and the Backends they're linked to
-        :rtype: dict
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        asds_in_use = {}
-        for asd in disk.asds:
-            alba_info = asd.alba_info  # Dynamic property, so only retrieving this once, because no caching for dynamics
-            if alba_info['loaded'] is False or alba_info['result'] is not None:
-                asds_in_use[asd.asd_id] = alba_info['result']
-        return asds_in_use
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/asds')
     def add_asd_disk(disk_id):
-        """
-        Adds an ASD to a disk
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :return: None
-        """
-        DiskController.sync_disks()
-        disk = DiskList.get_by_alias(disk_id)
-        with file_mutex('add_asd'):
-            ASDController.create_asd(disk)
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @get('/disks/<disk_id>/asds/<asd_id>')
     def get_asd(disk_id, asd_id):
-        """
-        Gets an ASD
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
-        :type asd_id: str
-        :return: ASD information
-        :rtype: dict
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
-        if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
-        return asds[0].export()
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/restart')
     def restart_asd(disk_id, asd_id):
-        """
-        Restart an ASD
-        :param disk_id: Identifier of the disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
-        :type asd_id: str
-        :return: None
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
-        if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
-        ASDController.restart_asd(asds[0])
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     @staticmethod
     @post('/disks/<disk_id>/asds/<asd_id>/delete')
     def asd_delete(disk_id, asd_id):
-        """
-        Deletes an ASD on a given disk
-        :param disk_id: Identifier of the Disk  (eg: '/dev/disk/by-path/pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0' or 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
-        :type disk_id: str
-        :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
-        :type asd_id: str
-        :return: None
-        """
-        disk = DiskList.get_by_alias(disk_id)
-        asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
-        if len(asds) != 1:
-            raise BadRequest('Could not find ASD {0} on Disk {1}'.format(asd_id, disk_id))
-        ASDController.remove_asd(asds[0])
+        """ Obsolete """
+        raise RuntimeError('Disk {0} not found'.format(disk_id))
 
     ##########
     # UPDATE #
     ##########
+
     @staticmethod
     @get('/update/package_information')
     def get_package_information_new():
@@ -304,6 +346,8 @@ class API(object):
         Retrieve update information
         This call is used by the new framework code (as off 30 Nov 2016)
         In case framework has new code, but SDM runs old code, the asdmanager.py plugin will adjust the old format to the new format
+        :return: Installed and candidate for install version for all SDM related packages
+        :rtype: dict
         """
         with file_mutex('package_update'):
             API._logger.info('Locking in place for package update')
@@ -316,6 +360,8 @@ class API(object):
         Retrieve update information
         This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
         Old code tries to call /update/information and expects data formatted in the old style
+        :return: Installed and candidate for install version for all SDM related packages
+        :rtype: dict
         """
         return_value = {'version': '', 'installed': ''}
         with file_mutex('package_update'):
@@ -334,9 +380,11 @@ class API(object):
     def update(package_name):
         """
         Install the specified package
+        :return: None
+        :rtype: NoneType
         """
         with file_mutex('package_update'):
-            return SDMUpdateController.update(package_name=package_name)
+            SDMUpdateController.update(package_name=package_name)
 
     @staticmethod
     @post('/update/execute/<status>')
@@ -346,6 +394,8 @@ class API(object):
         Old code tries to initiate update providing a status, while new code no longer requires this status
         :param status: Unused
         :type status: str
+        :return: The status of the ongoing update
+        :rtype: dict
         """
         _ = status
         with file_mutex('package_update'):
@@ -353,15 +403,43 @@ class API(object):
             SDMUpdateController.update(package_name='openvstorage-sdm')
             return {'status': 'done'}
 
+    @staticmethod
+    @post('/update/installed_version_package/<package_name>')
+    def update_installed_version_package(package_name):
+        """
+        Retrieve the currently installed package version
+        :param package_name: Name of the package to retrieve the version for
+        :type package_name: str
+        :return: Version of the currently installed package
+        :rtype: str
+        """
+        return {'version': SDMUpdateController.get_installed_version_for_package(package_name=package_name)}
+
+    @staticmethod
+    @post('/update/execute_migration_code')
+    def update_execute_migration_code():
+        """
+        Run some migration code after an update has been done
+        :return: None
+        :rtype: NoneType
+        """
+        with file_mutex('post_update'):
+            SDMUpdateController.execute_migration_code()
+
     ####################
     # GENERIC SERVICES #
     ####################
+
     @staticmethod
     @post('/update/restart_services')
     def restart_services():
-        """ Restart services """
+        """
+        Restart services
+        :return: None
+        :rtype: NoneType
+        """
         with file_mutex('package_update'):
-            return SDMUpdateController.restart_services()
+            SDMUpdateController.restart_services()
 
     @staticmethod
     @get('/service_status/<name>')
@@ -371,7 +449,7 @@ class API(object):
         :param name: Name of the service to check
         :type name: str
         :return: Status of the service
-        :rtype: str
+        :rtype: dict
         """
         client = SSHClient(endpoint='127.0.0.1', username='root')
         service_manager = ServiceFactory.get_manager()
@@ -383,10 +461,15 @@ class API(object):
     ########################
     # MAINTENANCE SERVICES #
     ########################
+
     @staticmethod
     @get('/maintenance')
     def list_maintenance_services():
-        """ List all maintenance information """
+        """
+        List all maintenance information
+        :return: The names of all maintenance services found on the system
+        :rtype: dict
+        """
         return {'services': list(MaintenanceController.get_services())}
 
     @staticmethod
@@ -396,6 +479,8 @@ class API(object):
         Add a maintenance service with a specific name
         :param name: Name of the maintenance service
         :type name: str
+        :return: None
+        :rtype: NoneType
         """
         alba_backend_guid = request.form['alba_backend_guid']
         abm_name = request.form['abm_name']
@@ -408,5 +493,7 @@ class API(object):
         Remove a maintenance service with a specific name
         :param name: Name of the maintenance service
         :type name: str
+        :return: None
+        :rtype: NoneType
         """
         MaintenanceController.remove_maintenance_service(name)

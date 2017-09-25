@@ -18,99 +18,42 @@
 API decorators
 """
 
-import os
 import json
-import time
-import subprocess
-from flask import request, Response
+from flask import request
+from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
 from source.app import app
-from source.app.exceptions import APIException
+from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
-
-NODE_ID = os.environ['ASD_NODE_ID']
-_logger = LogHandler.get('asd-manager', name='api')
+from source.tools.logger import Logger
 
 
-def post(route, authenticate=True):
+class HTTPRequestDecorators(_HTTPRequestDecorators):
     """
-    POST decorator
+    Class with decorator functionality for HTTP requests
     """
-    def wrap(f):
+    app = app
+    logger = Logger('flask')
+    version = 3
+
+    def __init__(self):
         """
-        Wrapper function
+        Dummy init method
         """
-        return app.route(route, methods=['POST'])(_build_function(f, authenticate, route, 'POST'))
-    return wrap
 
-
-def get(route, authenticate=True):
-    """
-    GET decorator
-    """
-    def wrap(f):
+    @classmethod
+    def authorized(cls):
         """
-        Wrapper function
+        Indicates whether a call is authenticated
         """
-        return app.route(route, methods=['GET'])(_build_function(f, authenticate, route, 'GET'))
-    return wrap
+        # For backwards compatibility we first try to retrieve the node ID by using the bootstrap file
+        try:
+            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+                node_id = json.load(bstr_file)['node_id']
+        except:
+            node_id = SettingList.get_setting_by_code(code='node_id').value
 
-
-def _build_function(f, authenticate, route, method):
-    """
-    Wrapping generator
-    """
-    def new_function(*args, **kwargs):
-        """
-        Wrapped function
-        """
-        start = time.time()
-        if authenticate is True and not _authorized():
-            data, status = {'_success': False,
-                            '_error': 'Invalid credentials'}, 401
-        else:
-            try:
-                if args or kwargs:
-                    _logger.info('{0} {1} - Entering with {2} {3}'.format(method, route, json.dumps(args), json.dumps(kwargs)))
-                else:
-                    _logger.info('{0} {1} - Entering'.format(method, route))
-                return_data = f(*args, **kwargs)
-                _logger.debug('{0} {1} - Leaving'.format(method, route))
-                if return_data is None:
-                    return_data = {}
-                if isinstance(return_data, tuple):
-                    data, status = return_data[0], return_data[1]
-                else:
-                    data, status = return_data, 200
-                data['_success'] = True
-                data['_error'] = ''
-            except APIException as ex:
-                _logger.exception('API exception')
-                data, status = {'_success': False,
-                                '_error': str(ex)}, ex.status_code
-            except subprocess.CalledProcessError as ex:
-                _logger.exception('CPE exception')
-                data, status = {'_success': False,
-                                '_error': ex.output if ex.output != '' else str(ex)}, 500
-            except Exception as ex:
-                _logger.exception('Unexpected exception')
-                data, status = {'_success': False,
-                                '_error': str(ex)}, 500
-        data['_version'] = 2
-        data['_duration'] = time.time() - start
-        return Response(json.dumps(data), content_type='application/json', status=status)
-
-    new_function.original = f
-    new_function.__name__ = f.__name__
-    new_function.__module__ = f.__module__
-    return new_function
-
-
-def _authorized():
-    """
-    Indicates whether a call is authenticated
-    """
-    username = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|username'.format(NODE_ID))
-    password = Configuration.get('/ovs/alba/asdnodes/{0}/config/main|password'.format(NODE_ID))
-    auth = request.authorization
-    return auth and auth.username == username and auth.password == password
+        node_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+        username = node_config['username']
+        password = node_config['password']
+        auth = request.authorization
+        return auth and auth.username == username and auth.password == password

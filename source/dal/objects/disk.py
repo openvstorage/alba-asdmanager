@@ -18,10 +18,10 @@
 This is the Disk's module
 """
 
-import os
 from ovs_extensions.dal.structures import Property
 from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.asdbase import ASDBase
+from source.dal.lists.settinglist import SettingList
 
 
 class Disk(ASDBase):
@@ -60,13 +60,13 @@ class Disk(ASDBase):
             if mountpoint is not None:
                 mountpoints.append(mountpoint)
         if len(mountpoints) > 1:
-            return False  # Multiple mountpoints: Not supported
+            return False  # Multiple mount points: Not supported
         if self.mountpoint is not None:
-            # Only one mountpoint. Accept if it managed by us
+            # Only one mount point. Accept if it managed by us
             if not self.mountpoint.startswith('/mnt/alba-asd/'):
                 return False
             return True
-        # No mountpoint(s): Search for "forbidden" partition types
+        # No mount point(s): Search for "forbidden" partition types
         for partition in self.partitions:
             partition_filesystem = partition['filesystem']
             if partition_filesystem in ['swap', 'linux_raid_member', 'LVM2_member']:
@@ -84,6 +84,8 @@ class Disk(ASDBase):
             if 'Input/output error' in output:
                 return {'state': 'error',
                         'detail': 'io_error'}
+        if len(self.asds) == 0:
+            return {'state': 'empty'}
         return {'state': 'ok'}
 
     def _usage(self):
@@ -114,7 +116,7 @@ class Disk(ASDBase):
                 'state': self.status['state'],
                 'device': '/dev/{0}'.format(self.name),
                 'aliases': self.aliases,
-                'node_id': os.environ['ASD_NODE_ID'],
+                'node_id': SettingList.get_setting_by_code(code='node_id').value,
                 'available': self.available,
                 'mountpoint': self.mountpoint,
                 'state_detail': self.status.get('detail', ''),

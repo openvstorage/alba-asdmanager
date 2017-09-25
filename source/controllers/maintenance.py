@@ -17,11 +17,12 @@
 """
 This module contains the maintenance controller (maintenance service logic)
 """
-import os
+
 import json
 from ovs_extensions.generic.sshclient import SSHClient
+from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -57,13 +58,14 @@ class MaintenanceController(object):
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
             alba_config = Configuration.get_configuration_path(config_location)
-            node_id = os.environ.get('ASD_NODE_ID')
+            node_id = SettingList.get_setting_by_code(code='node_id').value
             params = {'ALBA_CONFIG': alba_config,
-                      'LOG_SINK': LogHandler.get_sink_path('alba_maintenance')}
+                      'LOG_SINK': Logger.get_sink_path('alba_maintenance')}
             Configuration.set(config_location, json.dumps({
                 'log_level': 'info',
                 'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
-                'read_preference': [] if node_id is None else [node_id]
+                'read_preference': [] if node_id is None else [node_id],
+                'multicast_discover_osds': False
             }, indent=4), raw=True)
 
             MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,

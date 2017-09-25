@@ -22,130 +22,143 @@ Module for ASD Manager SetupController
 import os
 import sys
 import json
+import time
 import logging
-from subprocess import check_output
+from threading import Thread
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from source.dal.lists.settinglist import SettingList
+from source.dal.objects.setting import Setting
 from source.tools.configuration import Configuration
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
+from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
-from source.tools.system import BOOTSTRAP_FILE
 
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
+
+asd_manager_logger = Logger('asd_manager')
 
 
 def setup():
     """
     Interactive setup part for initial asd manager configuration
     """
+    _print_and_log(message=Interactive.boxed_message(['ASD Manager setup']))
 
-    print Interactive.boxed_message(['ASD Manager setup'])
-    print '- Verifying distribution'
-    service_manager = ServiceFactory.get_manager()
-    local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    if service_manager.has_service(MANAGER_SERVICE, local_client):
-        print ''  # Spacing
-        print Interactive.boxed_message(['The ASD Manager is already installed.'])
+    # Gather information
+    ipaddresses = OSFactory.get_manager().get_ip_addresses()
+    if not ipaddresses:
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['Could not retrieve IP information on local node']))
         sys.exit(1)
 
-    ipaddresses = check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()
-    ipaddresses = [found_ip.strip() for found_ip in ipaddresses if found_ip.strip() != '127.0.0.1']
-    if not ipaddresses:
-        print Interactive.boxed_message(['Could not retrieve IP information on local node'])
+    local_client = SSHClient(endpoint='127.0.0.1', username='root')
+    service_manager = ServiceFactory.get_manager()
+    if service_manager.has_service(MANAGER_SERVICE, local_client):
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['The ASD Manager is already installed.']))
         sys.exit(1)
 
     config = _validate_and_retrieve_pre_config()
-    if config is None:
-        api_ip = Interactive.ask_choice(ipaddresses, 'Select the public IP address to be used for the API')
+    interactive = len(config) == 0
+    if interactive is False:
+        api_ip = config['api_ip']
+        api_port = config.get('api_port', 8500)
+        asd_ips = config.get('asd_ips', [])
+        asd_start_port = config.get('asd_start_port', 8600)
+        configuration_store = config.get('configuration_store', 'arakoon')
+    else:
+        api_ip = Interactive.ask_choice(choice_options=ipaddresses,
+                                        question='Select the public IP address to be used for the API',
+                                        sort_choices=True)
+        api_port = Interactive.ask_integer(question="Select the port to be used for the API",
+                                           min_value=1025,
+                                           max_value=65535,
+                                           default_value=8500)
         asd_ips = []
         add_ips = True
-        api_port = Interactive.ask_integer("Select the port to be used for the API", 1025, 65535, 8500)
         ipaddresses.append('All')
         while add_ips:
             current_ips = ' - Current selected IPs: {0}'.format(asd_ips)
-            new_asd_ip = Interactive.ask_choice(ipaddresses,
-                                                "Select an IP address to be used for the ASDs or 'All' (All current and future interfaces: 0.0.0.0){0}".format(current_ips if len(asd_ips) > 0 else ''),
+            new_asd_ip = Interactive.ask_choice(choice_options=ipaddresses,
+                                                question="Select an IP address to be used for the ASDs or 'All' (All current and future interfaces: 0.0.0.0){0}".format(current_ips if len(asd_ips) > 0 else ''),
                                                 default_value='All')
             if new_asd_ip == 'All':
                 ipaddresses.remove('All')
-                asd_ips = []
+                asd_ips = []  # Empty list maps to all IPs - checked when configuring ASDs
                 add_ips = False
             else:
                 asd_ips.append(new_asd_ip)
                 ipaddresses.remove(new_asd_ip)
                 add_ips = Interactive.ask_yesno("Do you want to add another IP?")
-        asd_start_port = Interactive.ask_integer("Select the port to be used for the ASDs", 1025, 65435, 8600)
-    else:
-        api_ip = config['api_ip']
-        api_port = config.get('api_port', 8500)
-        asd_ips = config.get('asd_ips', [])
-        asd_start_port = config.get('asd_start_port', 8600)
+        asd_start_port = Interactive.ask_integer(question="Select the port to be used for the ASDs",
+                                                 min_value=1025,
+                                                 max_value=65435,
+                                                 default_value=8600)
+        configuration_store = 'arakoon'
 
-        if api_ip not in ipaddresses:
-            print Interactive.boxed_message(['Unknown API IP provided, please choose from: {0}'.format(', '.join(ipaddresses))])
-            sys.exit(1)
-        if set(asd_ips).difference(set(ipaddresses)):
-            print Interactive.boxed_message(['Unknown ASD IP provided, please choose from: {0}'.format(', '.join(ipaddresses))])
-            sys.exit(1)
+    if api_ip not in ipaddresses:
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(lines=['Invalid API IP {0} specified. Please choose from:'.format(api_ip)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
+        sys.exit(1)
+    different_ips = set(asd_ips).difference(set(ipaddresses))
+    if different_ips:
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(lines=['Invalid ASD IPs {0} specified. Please choose from:'.format(asd_ips)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
+        sys.exit(1)
 
     if api_port in range(asd_start_port, asd_start_port + 100):
-        print Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100'])
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100']))
         sys.exit(1)
 
-    # Make sure to always have the information stored
-    config = {'api_ip': api_ip,
-              'asd_ips': asd_ips,
-              'api_port': api_port,
-              'asd_start_port': asd_start_port}
-    with open(PRECONFIG_FILE, 'w') as preconfig:
-        preconfig.write(json.dumps({'asdmanager': config}, indent=4))
-
-    file_location = Configuration.CACC_LOCATION
-    source_location = Configuration.CACC_SOURCE
-    if not local_client.file_exists(file_location) and local_client.file_exists(source_location):
-        # Try to copy automatically
+    # Write necessary files
+    if not local_client.file_exists(Configuration.CACC_LOCATION) and local_client.file_exists(Configuration.CACC_SOURCE):  # Try to copy automatically
         try:
-            local_client.file_upload(file_location, source_location)
+            local_client.file_upload(Configuration.CACC_LOCATION, Configuration.CACC_SOURCE)
         except Exception:
             pass
-    while not local_client.file_exists(file_location):
-        print 'Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(file_location)
-        Interactive.ask_continue()
-    bootstrap_location = Configuration.BOOTSTRAP_CONFIG_LOCATION
-    if not local_client.file_exists(bootstrap_location):
-        local_client.file_create(bootstrap_location)
-    local_client.file_write(bootstrap_location, json.dumps({'configuration_store': 'arakoon'}, indent=4))
+    if interactive is True:
+        while not local_client.file_exists(Configuration.CACC_LOCATION):
+            _print_and_log(level='warning',
+                           message=' - Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(Configuration.CACC_LOCATION))
+            Interactive.ask_continue()
 
+    local_client.file_write(filename=Configuration.CONFIG_STORE_LOCATION,
+                            contents=json.dumps({'configuration_store': configuration_store},
+                                                indent=4))
+
+    # Model settings
+    _print_and_log(message=' - Store settings in DB')
+    for code, value in {'api_ip': api_ip,
+                        'api_port': api_port,
+                        'configuration_store': configuration_store,
+                        'node_id': Configuration.initialize(config={'api_ip': api_ip,
+                                                                    'asd_ips': asd_ips,
+                                                                    'api_port': api_port,
+                                                                    'asd_start_port': asd_start_port})}.iteritems():
+        setting = Setting()
+        setting.code = code
+        setting.value = value
+        setting.save()
+
+    # Deploy/start services
+    _print_and_log(message=' - Deploying and starting services')
+    service_manager.add_service(name=MANAGER_SERVICE, client=local_client)
+    service_manager.add_service(name=WATCHER_SERVICE, client=local_client)
+    _print_and_log(message=' - Starting watcher service')
     try:
-        alba_node_id = Configuration.initialize(config=config)
-    except:
-        print ''
-        print Interactive.boxed_message(['Could not connect to Arakoon'])
+        service_manager.start_service(name=WATCHER_SERVICE, client=local_client)
+    except Exception:
+        Configuration.uninitialize()
+        _print_and_log(level='exception',
+                       message='\n' + Interactive.boxed_message(['Starting watcher failed']))
         sys.exit(1)
 
-    with open(BOOTSTRAP_FILE, 'w') as bs_file:
-        json.dump({'node_id': alba_node_id}, bs_file)
-
-    try:
-        service_manager.add_service(MANAGER_SERVICE, local_client)
-        service_manager.add_service(WATCHER_SERVICE, local_client)
-    except Exception as ex:
-        Configuration.uninitialize(alba_node_id)
-        print Interactive.boxed_message(['Adding services failed with error:', str(ex)])
-        sys.exit(1)
-
-    print '- Starting watcher service'
-    try:
-        service_manager.start_service(WATCHER_SERVICE, local_client)
-    except Exception as ex:
-        Configuration.uninitialize(alba_node_id)
-        print Interactive.boxed_message(['Starting watcher failed with error:', str(ex)])
-        sys.exit(1)
-
-    print Interactive.boxed_message(['ASD Manager setup completed'])
+    _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager setup completed']))
 
 
 def remove(silent=None):
@@ -154,97 +167,78 @@ def remove(silent=None):
     :param silent: If silent == '--force-yes' no question will be asked to confirm the removal
     :type silent: str
     :return: None
+    :rtype: NoneType
     """
-    os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'
-    print '\n' + Interactive.boxed_message(['ASD Manager removal'])
+    _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager removal']))
 
-    ##############
-    # VALIDATION #
-    ##############
     local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    service_manager = ServiceFactory.get_manager()
-    if not local_client.file_exists(filename=BOOTSTRAP_FILE):
-        print '\n' + Interactive.boxed_message(['The ASD Manager has already been removed'])
+    if not local_client.file_exists(filename='{0}/main.db'.format(Setting.DATABASE_FOLDER)):
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['The ASD Manager has already been removed']))
         sys.exit(1)
 
-    print '  - Validating configuration file'
-    config = _validate_and_retrieve_pre_config()
-    if config is None:
-        print '\n' + Interactive.boxed_message(['Cannot remove the ASD manager because not all information could be retrieved from the pre-configuration file'])
-        sys.exit(1)
-
-    print '  - Validating node ID'
-    with open(BOOTSTRAP_FILE) as bs_file:
-        try:
-            alba_node_id = json.loads(bs_file.read())['node_id']
-        except:
-            print '\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(BOOTSTRAP_FILE)])
-            sys.exit(1)
-
-    print '  - Validating configuration management'
+    _print_and_log(message=' - Validating configuration management')
     try:
         Configuration.list(key='ovs')
     except:
-        print '\n' + Interactive.boxed_message(['Could not connect to Arakoon'])
+        _print_and_log(level='exception',
+                       message='\n' + Interactive.boxed_message(['Could not connect to Arakoon']))
         sys.exit(1)
 
-    ################
-    # CONFIRMATION #
-    ################
-    os.environ['ASD_NODE_ID'] = alba_node_id
     from source.app.api import API
-    print '  - Retrieving ASD information'
+    _print_and_log(message='  - Retrieving ASD information')
     all_asds = {}
     try:
         all_asds = API.list_asds.original()
     except:
-        print '  - ERROR: Failed to retrieve the ASD information'
+        _print_and_log(level='exception',
+                       message='  - Failed to retrieve the ASD information')
 
     interactive = silent != '--force-yes'
     if interactive is True:
         message = 'Are you sure you want to continue?'
         if len(all_asds) > 0:
-            print '\n\n+++ ALERT +++\n'
+            _print_and_log(message='\n\n+++ ALERT +++\n', level='warning')
             message = 'DATA LOSS possible if proceeding! Continue?'
 
         proceed = Interactive.ask_yesno(message=message, default_value=False)
         if proceed is False:
-            print '\n' + Interactive.boxed_message(['Abort removal'])
+            _print_and_log(level='error',
+                           message='\n' + Interactive.boxed_message(['Abort removal']))
             sys.exit(1)
 
-    ###########
-    # REMOVAL #
-    ###########
-    print '  - Removing from configuration management'
-    Configuration.uninitialize(node_id=alba_node_id)
+    _print_and_log(message=' - Removing from configuration management')
+    Configuration.uninitialize()
 
     if len(all_asds) > 0:
-        print '  - Removing disks'
+        _print_and_log(message=' - Removing disks')
         for device_id, disk_info in API.list_disks.original().iteritems():
             if disk_info['available'] is True:
                 continue
             try:
-                print '    - Retrieving ASD information for disk {0}'.format(disk_info['device'])
+                _print_and_log(message='    - Retrieving ASD information for disk {0}'.format(disk_info['device']))
                 for asd_id, asd_info in API.list_asds_disk.original(disk_id=device_id).iteritems():
-                    print '      - Removing ASD {0}'.format(asd_id)
+                    _print_and_log(message='      - Removing ASD {0}'.format(asd_id))
                     API.asd_delete.original(disk_id=device_id, asd_id=asd_id)
                 API.delete_disk.original(disk_id=device_id)
-            except Exception as ex:
-                print '    - Deleting ASDs failed: {0}'.format(ex)
+            except Exception:
+                _print_and_log(level='exception',
+                               message='    - Deleting ASDs failed')
 
-    print '  - Removing services'
+    _print_and_log(message=' - Removing services')
+    service_manager = ServiceFactory.get_manager()
     for service_name in API.list_maintenance_services.original()['services']:
-        print '    - Removing service {0}'.format(service_name)
+        _print_and_log(message='    - Removing service {0}'.format(service_name))
         API.remove_maintenance_service.original(name=service_name)
     for service_name in [WATCHER_SERVICE, MANAGER_SERVICE]:
         if service_manager.has_service(name=service_name, client=local_client):
-            print '    - Removing service {0}'.format(service_name)
+            _print_and_log(message='   - Removing service {0}'.format(service_name))
             service_manager.stop_service(name=service_name, client=local_client)
             service_manager.remove_service(name=service_name, client=local_client)
 
     local_client.file_delete(filenames=Configuration.CACC_LOCATION)
-    local_client.file_delete(filenames=BOOTSTRAP_FILE)
-    print '\n' + Interactive.boxed_message(['ASD Manager removal completed'])
+    local_client.file_delete(filenames='{0}/main.db'.format(Setting.DATABASE_FOLDER))
+    _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager removal completed']))
 
 
 def _validate_and_retrieve_pre_config():
@@ -253,32 +247,35 @@ def _validate_and_retrieve_pre_config():
     :return: JSON contents
     """
     if not os.path.exists(PRECONFIG_FILE):
-        return
+        return {}
 
     with open(PRECONFIG_FILE) as pre_config:
         try:
             config = json.loads(pre_config.read())
-        except Exception as ex:
-            print Interactive.boxed_message(['JSON contents could not be retrieved from file {0}.\nError message: {1}'.format(PRECONFIG_FILE, ex)])
+        except Exception:
+            _print_and_log(level='exception',
+                           message='\n' + Interactive.boxed_message(['JSON contents could not be retrieved from file {0}'.format(PRECONFIG_FILE)]))
             sys.exit(1)
 
     if 'asdmanager' not in config or not isinstance(config['asdmanager'], dict):
-        print Interactive.boxed_message(['The ASD manager pre-configuration file must contain a "asdmanager" key with a dictionary as value'])
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['The ASD manager pre-configuration file must contain a "asdmanager" key with a dictionary as value']))
         sys.exit(1)
 
     errors = []
     config = config['asdmanager']
     actual_keys = config.keys()
-    expected_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port']
+    allowed_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'configuration_store']
     for key in actual_keys:
-        if key not in expected_keys:
+        if key not in allowed_keys:
             errors.append('Key {0} is not supported by the ASD manager'.format(key))
     if len(errors) > 0:
-        print Interactive.boxed_message(['Errors found while verifying pre-configuration:',
-                                         ' - {0}'.format('\n - '.join(errors)),
-                                         '',
-                                         'Allowed keys:\n'
-                                         ' - {0}'.format('\n - '.join(expected_keys))])
+        _print_and_log(level='error',
+                       message='\n' + Interactive.boxed_message(['Errors found while verifying pre-configuration:',
+                                                                 ' - {0}'.format('\n - '.join(errors)),
+                                                                 '',
+                                                                 'Allowed keys:\n'
+                                                                 ' - {0}'.format('\n - '.join(allowed_keys))]))
         sys.exit(1)
 
     try:
@@ -286,27 +283,43 @@ def _validate_and_retrieve_pre_config():
                                                  required_params={'api_ip': (str, ExtensionsToolbox.regex_ip, True),
                                                                   'asd_ips': (list, ExtensionsToolbox.regex_ip, False),
                                                                   'api_port': (int, {'min': 1025, 'max': 65535}, False),
-                                                                  'asd_start_port': (int, {'min': 1025, 'max': 65435}, False)})
-    except RuntimeError as rte:
-        print Interactive.boxed_message(['The asd-manager pre-configuration file does not contain correct information\n{0}'.format(rte)])
+                                                                  'asd_start_port': (int, {'min': 1025, 'max': 65435}, False),
+                                                                  'configuration_store': (str, ['arakoon'], False)})
+    except RuntimeError:
+        _print_and_log(message='\n' + Interactive.boxed_message(['The asd-manager pre-configuration file does not contain correct information']),
+                       level='exception')
         sys.exit(1)
     return config
 
 
+def _print_and_log(message, level='info'):
+    """
+    Print the message and log it using the logger instance
+    """
+    getattr(asd_manager_logger, level)(message, extra={'print_msg': True})
+
+
 if __name__ == '__main__':
-    with open(BOOTSTRAP_FILE) as bootstrap_file:
-        node_id = json.load(bootstrap_file)['node_id']
-    os.environ['ASD_NODE_ID'] = node_id
+    def _sync_disks():
+        from source.controllers.disk import DiskController
+        while True:
+            DiskController.sync_disks()
+            time.sleep(60)
 
     try:
-        asd_manager_config = Configuration.get('/ovs/alba/asdnodes/{0}/config/main'.format(node_id))
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+    except:
+        # For backwards compatibility
+        # After update SettingList has not been populated yet and post-update script of package will restart asd-manager
+        with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+            node_id = json.load(bstr_file)['node_id']
+    try:
+        asd_manager_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
     except:
         raise RuntimeError('Configuration management unavailable')
 
     if 'ip' not in asd_manager_config or 'port' not in asd_manager_config:
         raise RuntimeError('IP and/or port not available in configuration for ALBA node {0}'.format(node_id))
-
-    LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
 
     from source.app import app
 
@@ -316,18 +329,17 @@ if __name__ == '__main__':
         Configure logging
         :return: None
         """
-        if app.debug is False:
-            _logger = LogHandler.get('asd-manager', name='flask')
-            app.logger.handlers = []
-            app.logger.addHandler(_logger.handler)
-            app.logger.propagate = False
-            wz_logger = logging.getLogger('werkzeug')
-            wz_logger.handlers = []
-            wz_logger.propagate = False
-            LogHandler.get('extensions', name='ovs_extensions')  # Initiate extensions logger
+        for handler in app.logger.handlers:
+            app.logger.removeHandler(handler)
+        app.logger.addHandler(asd_manager_logger.handlers[0])
+        wz_logger = logging.getLogger('werkzeug')
+        wz_logger.handlers = []
+
+    thread = Thread(target=_sync_disks, name='sync_disks')
+    thread.start()
 
     app.debug = False
     app.run(host=asd_manager_config['ip'],
             port=asd_manager_config['port'],
-            ssl_context=('server.crt', 'server.key'),
+            ssl_context=('../config/server.crt', '../config/server.key'),
             threaded=True)

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright (C) 2016 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
@@ -14,14 +15,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-Exceptions
-"""
+set -e
 
-
-class APIException(Exception):
-    status_code = 400
-
-
-class BadRequest(APIException):
-    status_code = 400
+if [ ! -f /etc/openvstorage_sdm_id ]
+then
+    echo `openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 16` > /etc/openvstorage_sdm_id
+fi

@@ -17,7 +17,7 @@
 """
 Disk related code
 """
-import os
+
 import re
 import json
 import time
@@ -28,18 +28,16 @@ from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
 from source.tools.fstab import FSTab
-from source.tools.log_handler import LogHandler
+from source.tools.logger import Logger
 
 
 class DiskController(object):
     """
     Disk helper methods
     """
-    NODE_ID = os.environ['ASD_NODE_ID']
-
     controllers = {}
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
-    _logger = LogHandler.get('asd-manager', name='disk')
+    _logger = Logger('controllers')
 
     @staticmethod
     def sync_disks():
@@ -227,7 +225,6 @@ class DiskController(object):
         counter = 0
         already_mounted = False
         while True:
-            DiskController.sync_disks()
             disk = Disk(disk.id)
             if len(disk.partitions) == 1:
                 try:
@@ -244,6 +241,7 @@ class DiskController(object):
                         DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
                         break
             DiskController._logger.info('Partition for disk {0} not ready yet'.format(disk.name))
+            DiskController.sync_disks()
             time.sleep(0.2)
             counter += 1
             if counter > 10:

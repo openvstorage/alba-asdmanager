@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (C) 2016 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
@@ -14,29 +15,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-Redis log handler
-"""
-import logging
+set -e
 
-
-class RedisListHandler(logging.Handler):
-    """
-    Publish messages to Redis channel using a list
-    """
-
-    def __init__(self, queue, client, level=logging.NOTSET):
-        """
-        Create a new logger for the given channel and Redis client.
-        """
-        logging.Handler.__init__(self, level)
-        self.queue = queue
-        self.client = client
-
-    def emit(self, record):
-        """
-        Publish record to Redis logging list
-        """
-        self.client.rpush(self.queue, self.format(record))
-
-
+if [ ! -f /etc/openvstorage_sdm_id ]
+then
+    echo `openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 16` > /etc/openvstorage_sdm_id
+fi

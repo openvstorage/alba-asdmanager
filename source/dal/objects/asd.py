@@ -15,10 +15,9 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This is the ASD's module
+This is the ASD module
 """
 
-import json
 from ovs_extensions.dal.structures import Property
 from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.asdbase import ASDBase
@@ -43,7 +42,7 @@ class ASD(ASDBase):
                    Property(name='asd_id', property_type=str, unique=True, mandatory=True),
                    Property(name='folder', property_type=str, unique=False, mandatory=False)]
     _relations = [['disk', Disk, 'asds']]
-    _dynamics = ['service_name', 'config_key', 'has_config', 'alba_info']
+    _dynamics = ['service_name', 'config_key', 'has_config']
 
     def _service_name(self):
         return ASD.ASD_SERVICE_PREFIX.format(self.asd_id)
@@ -54,31 +53,20 @@ class ASD(ASDBase):
     def _has_config(self):
         return Configuration.exists(self.config_key)
 
-    def _alba_info(self):
-        host = self.hosts[0] if len(self.hosts) > 0 else '127.0.0.1'
-        info = {'loaded': False,
-                'result': None}
-        try:
-            output = json.loads(ASD._local_client.run(allow_nonzero=True,
-                                                      command=['alba', 'get-osd-claimed-by', '--host={0}'.format(host), '--port={0}'.format(self.port), '--to-json']))
-            if output.get('success') is True:
-                info['loaded'] = True
-                info['result'] = output.get('result')
-            else:
-                info['result'] = 'Failed to retrieve ALBA info for ASD {0}:{1}'.format(host, self.port)
-        except ValueError:
-            info['result'] = 'Could not json parse ALBA output for ASD {0}:{1}'.format(host, self.port)
-        return info
-
     def export(self):
         """
-        Exports this ASD's information to a dict structure
+        Exports the ASD information to a dict structure
         :return: Representation of the ASD as dict
         :rtype: dict
         """
         if not self.has_config:
             raise RuntimeError('No configuration found for ASD {0}'.format(self.asd_id))
         data = Configuration.get(self.config_key)
+        for prop in self._properties:
+            if prop.name == 'hosts':
+                data['ips'] = getattr(self, prop.name)
+            else:
+                data[prop.name] = getattr(self, prop.name)
         if self.disk.state == 'MISSING':
             data.update({'state': 'error',
                          'state_detail': 'missing'})
