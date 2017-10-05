@@ -18,7 +18,6 @@
 This module contains the maintenance controller (maintenance service logic)
 """
 
-import json
 from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
@@ -61,12 +60,11 @@ class MaintenanceController(object):
             node_id = SettingList.get_setting_by_code(code='node_id').value
             params = {'ALBA_CONFIG': alba_config,
                       'LOG_SINK': Logger.get_sink_path('alba_maintenance')}
-            Configuration.set(config_location, json.dumps({
-                'log_level': 'info',
-                'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
-                'read_preference': [] if node_id is None else [node_id],
-                'multicast_discover_osds': False
-            }, indent=4), raw=True)
+            Configuration.set(key=config_location,
+                              value={'log_level': 'info',
+                                     'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
+                                     'read_preference': [] if node_id is None else [node_id],
+                                     'multicast_discover_osds': False})
 
             MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
                                                                client=MaintenanceController._local_client,
