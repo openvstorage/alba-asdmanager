@@ -17,8 +17,8 @@
 """
 Package Factory module
 """
-from source.tools.configuration import Configuration
 from ovs_extensions.packages.packagefactory import PackageFactory as _PackageFactory
+from source.tools.configuration import Configuration
 
 
 class PackageFactory(_PackageFactory):
@@ -26,7 +26,7 @@ class PackageFactory(_PackageFactory):
     Factory class returning specialized classes
     """
 
-    universal_packages = ['openvstorage - sdm', 'openvstorage - extensions']
+    universal_packages = ['openvstorage-sdm', 'openvstorage-extensions']
     ose_only_packages = ['alba']
     ee_only_packages = ['alba-ee']
 
