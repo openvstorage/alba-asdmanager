@@ -17,6 +17,7 @@
 """
 Package Factory module
 """
+from source.tools.configuration import Configuration
 from ovs_extensions.packages.packagefactory import PackageFactory as _PackageFactory
 
 
@@ -24,6 +25,14 @@ class PackageFactory(_PackageFactory):
     """
     Factory class returning specialized classes
     """
+
+    universal_packages = ['openvstorage - sdm', 'openvstorage - extensions']
+    ose_only_packages = ['alba']
+    ee_only_packages = ['alba-ee']
+
+    universal_binaries = []
+    ose_only_binaries = ['alba']
+    ee_only_binaries = ['alba-ee']
 
     def __init__(self):
         """
@@ -33,8 +42,24 @@ class PackageFactory(_PackageFactory):
 
     @classmethod
     def _get_packages(cls):
-        return {'names': ['alba', 'alba-ee', 'openvstorage-sdm', 'openvstorage-extensions'],
-                'binaries': ['alba', 'alba-ee']}
+        if Configuration.exists('/ovs/framework/edition'):
+            edition = Configuration.get('/ovs/framework/edition')
+            print(edition)
+            if edition == 'community':
+                package_names = cls.ose_only_packages
+                binaries = cls.ose_only_binaries
+            elif edition == 'enterprise':
+                package_names = cls.ee_only_packages
+                binaries = cls.ee_only_binaries
+            else:
+                raise ValueError('Edition could not be found in configuration')
+        else:
+            print('all packages')
+            package_names = cls.ose_only_packages + cls.ee_only_packages
+            binaries = cls.ee_only_binaries + cls.ee_only_binaries
+
+        return {'names': package_names + cls.universal_packages,
+                'binaries': binaries + cls.universal_binaries}
 
     @classmethod
     def _get_versions(cls):
