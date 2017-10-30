@@ -54,7 +54,7 @@ class PackageFactory(_PackageFactory):
                 raise ValueError('Edition could not be found in configuration')
         else:
             package_names = cls.ose_only_packages + cls.ee_only_packages
-            binaries = cls.ee_only_binaries + cls.ee_only_binaries
+            binaries = cls.ose_only_binaries + cls.ee_only_binaries
 
         return {'names': package_names + cls.universal_packages,
                 'binaries': binaries + cls.universal_binaries}
