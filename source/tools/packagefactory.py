@@ -44,7 +44,6 @@ class PackageFactory(_PackageFactory):
     def _get_packages(cls):
         if Configuration.exists('/ovs/framework/edition'):
             edition = Configuration.get('/ovs/framework/edition')
-            print(edition)
             if edition == 'community':
                 package_names = cls.ose_only_packages
                 binaries = cls.ose_only_binaries
@@ -54,7 +53,6 @@ class PackageFactory(_PackageFactory):
             else:
                 raise ValueError('Edition could not be found in configuration')
         else:
-            print('all packages')
             package_names = cls.ose_only_packages + cls.ee_only_packages
             binaries = cls.ee_only_binaries + cls.ee_only_binaries
 
