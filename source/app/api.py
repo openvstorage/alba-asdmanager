@@ -293,11 +293,6 @@ class API(object):
     ########
 
     @staticmethod
-    @get('/asds/<asd_id>')
-    def get_asd(asd_id):
-        pass
-
-    @staticmethod
     @get('/asds')
     def list_asds():
         """ Obsolete """
