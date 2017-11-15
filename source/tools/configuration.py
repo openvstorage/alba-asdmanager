@@ -21,7 +21,7 @@ Generic module for managing configuration somewhere
 import json
 import random
 import string
-from  ovs_extensions.dal.base import ObjectNotFoundException
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.configuration import Configuration as _Configuration
 from source.dal.lists.settinglist import SettingList
 

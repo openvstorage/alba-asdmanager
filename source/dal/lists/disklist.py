@@ -17,8 +17,8 @@
 """
 DiskList module
 """
-from ovs_extensions.dal.datalist import DataList
 from ovs_extensions.dal.base import ObjectNotFoundException
+from ovs_extensions.dal.datalist import DataList
 from source.dal.objects.disk import Disk
 
 
