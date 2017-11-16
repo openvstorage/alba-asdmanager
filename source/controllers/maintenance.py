@@ -59,7 +59,7 @@ class MaintenanceController(object):
         :rtype: NoneType
         """
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
-            alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')
+            alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
             config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
             alba_config = Configuration.get_configuration_path(config_location)
             node_id = SettingList.get_setting_by_code(code='node_id').value
