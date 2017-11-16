@@ -21,6 +21,7 @@ Generic module for managing configuration somewhere
 import json
 import random
 import string
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.configuration import Configuration as _Configuration
 from source.dal.lists.settinglist import SettingList
 
@@ -79,8 +80,11 @@ class Configuration(_Configuration):
         :return: None
         :rtype: NoneType
         """
-        node_id = SettingList.get_setting_by_code(code='node_id').value
-        if node_id is not None and cls.dir_exists(Configuration.ASD_NODE_LOCATION.format(node_id)):
+        try:
+            node_id = SettingList.get_setting_by_code(code='node_id').value
+        except ObjectNotFoundException:
+            return
+        if cls.dir_exists(Configuration.ASD_NODE_LOCATION.format(node_id)):
             cls.delete(Configuration.ASD_NODE_LOCATION.format(node_id))
 
     @classmethod
