@@ -37,9 +37,10 @@ if __name__ == '__main__':
     from source.tools.configuration import Configuration
     from source.tools.logger import Logger
     from source.tools.osfactory import OSFactory
+    from source.tools.packagefactory import PackageFactory
     from source.tools.servicefactory import ServiceFactory
 
-    CURRENT_VERSION = 7
+    CURRENT_VERSION = 8
 
     _logger = Logger('update')
     service_manager = ServiceFactory.get_manager()
@@ -131,7 +132,9 @@ if __name__ == '__main__':
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
-                            ExtensionsToolbox.edit_version_file(client=local_client, package_name='alba', old_service_name=service_name)
+                            ExtensionsToolbox.edit_version_file(client=local_client,
+                                                                package_name='alba',
+                                                                old_run_file='{0}/{1}.version'.format(ServiceFactory.RUN_FILE_DIR, service_name))
                     if service_manager.__class__ == Systemd:
                         local_client.run(['systemctl', 'daemon-reload'])
 
@@ -180,6 +183,19 @@ if __name__ == '__main__':
                     if local_client.file_exists('/opt/asd-manager/source/{0}'.format(file_name)):
                         local_client.file_move(source_file_name='/opt/asd-manager/source/{0}'.format(file_name),
                                                destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
+
+                # Version 8: Additional string replacements in the service files
+                alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')
+                for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
+                    config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                    if Configuration.exists(key=config_key):
+                        config = Configuration.get(key=config_key)
+                        if 'RUN_FILE_DIR' in config:
+                            continue
+                        config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
+                        config['ALBA_PKG_NAME'] = alba_pkg_name
+                        config['ALBA_VERSION_CMD'] = alba_version_cmd
+                        Configuration.set(key=config_key, value=config)
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)
