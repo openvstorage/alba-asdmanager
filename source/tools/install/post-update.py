@@ -184,8 +184,15 @@ if __name__ == '__main__':
                         local_client.file_move(source_file_name='/opt/asd-manager/source/{0}'.format(file_name),
                                                destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
 
-                # Version 8: Additional string replacements in the service files
+                # Version 8: Add installed package_name in version files and additional string replacements in service files
                 alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
+                for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
+                    version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
+                    contents = local_client.file_read(filename=version_file_path)
+                    if alba_pkg_name == PackageFactory.PKG_ALBA_EE and '{0}='.format(PackageFactory.PKG_ALBA) in contents:
+                        contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
+                        local_client.file_write(filename=version_file_path, contents=contents)
+
                 for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
                     config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                     if Configuration.exists(key=config_key):
