@@ -185,24 +185,25 @@ if __name__ == '__main__':
                                                destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
 
                 # Version 8: Add installed package_name in version files and additional string replacements in service files
-                alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
-                for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
-                    version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
-                    contents = local_client.file_read(filename=version_file_path)
-                    if alba_pkg_name == PackageFactory.PKG_ALBA_EE and '{0}='.format(PackageFactory.PKG_ALBA) in contents:
-                        contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
-                        local_client.file_write(filename=version_file_path, contents=contents)
+                package_manager = PackageFactory.get_manager()
+                if PackageFactory.PKG_ALBA_EE in package_manager.get_installed_versions(client=local_client, package_names=[PackageFactory.PKG_ALBA_EE]):
+                    for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
+                        version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
+                        contents = local_client.file_read(filename=version_file_path)
+                        if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
+                            contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
+                            local_client.file_write(filename=version_file_path, contents=contents)
 
-                for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
-                    config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
-                    if Configuration.exists(key=config_key):
-                        config = Configuration.get(key=config_key)
-                        if 'RUN_FILE_DIR' in config:
-                            continue
-                        config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
-                        config['ALBA_PKG_NAME'] = alba_pkg_name
-                        config['ALBA_VERSION_CMD'] = alba_version_cmd
-                        Configuration.set(key=config_key, value=config)
+                    for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
+                        config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                        if Configuration.exists(key=config_key):
+                            config = Configuration.get(key=config_key)
+                            if 'RUN_FILE_DIR' in config:
+                                continue
+                            config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
+                            config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
+                            config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
+                            Configuration.set(key=config_key, value=config)
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)
