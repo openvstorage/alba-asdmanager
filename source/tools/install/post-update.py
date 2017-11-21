@@ -29,6 +29,7 @@ os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'  # Make sure we log to file during u
 
 if __name__ == '__main__':
     import json
+    from subprocess import check_output
     from ovs_extensions.generic.filemutex import file_mutex
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -185,8 +186,9 @@ if __name__ == '__main__':
                                                destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
 
                 # Version 8: Add installed package_name in version files and additional string replacements in service files
-                package_manager = PackageFactory.get_manager()
-                if PackageFactory.PKG_ALBA_EE in package_manager.get_installed_versions(client=local_client, package_names=[PackageFactory.PKG_ALBA_EE]):
+                command = "dpkg -s 'alba-ee' | grep Version | awk '{{print $2}}'"  # Don't use PackageFactory here, because of missing /ovs/framework/edition key at this point
+                output = check_output(command, shell=True, stderr=open(os.devnull, 'w')).strip()  # Suppress error logging in case package is not installed
+                if output:
                     for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
                         version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
                         contents = local_client.file_read(filename=version_file_path)
