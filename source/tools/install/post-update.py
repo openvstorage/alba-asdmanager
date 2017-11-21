@@ -188,33 +188,27 @@ if __name__ == '__main__':
                 # Version 8: Add installed package_name in version files and additional string replacements in service files
                 command = "dpkg -s 'alba-ee' | grep Version | awk '{{print $2}}'"  # Don't use PackageFactory here, because of missing /ovs/framework/edition key at this point
                 output = check_output(command, shell=True, stderr=open(os.devnull, 'w')).strip()  # Suppress error logging in case package is not installed
-                _logger.info('Output: {0}'.format(output))
-                _logger.info('run dir: {0}'.format(ServiceFactory.RUN_FILE_DIR))
                 if output:
                     for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
                         version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
                         contents = local_client.file_read(filename=version_file_path)
-                        _logger.info('file: {0}'.format(version_file_name))
-                        _logger.info('path: {0}'.format(version_file_path))
-                        _logger.info('contents: {0}'.format(contents))
                         if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
                             contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
                             local_client.file_write(filename=version_file_path, contents=contents)
-                            _logger.info('new contents: {0}'.format(contents))
 
                     for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
-                        _logger.info('service: {0}'.format(service_name))
                         config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                         if Configuration.exists(key=config_key):
-                            _logger.info('service exists')
                             config = Configuration.get(key=config_key)
-                            _logger.info('service config: {0}'.format(config))
                             if 'RUN_FILE_DIR' in config:
                                 continue
                             config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
                             config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
                             config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
                             Configuration.set(key=config_key, value=config)
+                            service_manager.regenerate_service(name='alba-asd',
+                                                               client=local_client,
+                                                               target_name=service_name)
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)
