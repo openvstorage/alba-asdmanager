@@ -14,7 +14,7 @@ Environment=ALBA_LWT_ENGINE=libev
 Environment=OCAMLRUNPARAM='b,a=1,s=4096k,O=50'
 LimitNOFILE=8192
 LimitMEMLOCK=infinity
-ExecStartPre=/bin/sh -c "if [ ! -d /opt/asd-manager/run ]; then mkdir /opt/asd-manager/run; chown alba:alba /opt/asd-manager/run; fi; echo alba=`alba version --terse` > /opt/asd-manager/run/<SERVICE_NAME>.version"
+ExecStartPre=/bin/sh -c "if [ ! -d <RUN_FILE_DIR> ]; then mkdir <RUN_FILE_DIR>; chown alba:alba <RUN_FILE_DIR>; fi; echo <ALBA_PKG_NAME>=`<ALBA_VERSION_CMD>` > <RUN_FILE_DIR>/<SERVICE_NAME>.version"
 ExecStart=/usr/bin/alba maintenance --config <ALBA_CONFIG> --log-sink <LOG_SINK>
 ExecReload=/bin/bash -c "kill -s SIGUSR1 $MAINPID"
 

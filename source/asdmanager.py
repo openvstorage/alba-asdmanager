@@ -36,6 +36,7 @@ from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
 
@@ -318,7 +319,7 @@ if __name__ == '__main__':
     except:
         # For backwards compatibility
         # After update SettingList has not been populated yet and post-update script of package will restart asd-manager
-        with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+        with open(BOOTSTRAP_FILE) as bstr_file:
             node_id = json.load(bstr_file)['node_id']
     try:
         asd_manager_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))

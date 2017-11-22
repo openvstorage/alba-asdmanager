@@ -21,6 +21,7 @@ This module contains the maintenance controller (maintenance service logic)
 from ovs_extensions.generic.sshclient import SSHClient
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
+from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -36,8 +37,8 @@ class MaintenanceController(object):
     @staticmethod
     def get_services():
         """
-        Retrieve all configured maintenance service running on this node for each backend
-        :return: All maintenance services for each ALBA Backend
+        Retrieve all configured maintenance services running on this node for each backend
+        :return: The maintenance services present on this ALBA Node
         :rtype: generator
         """
         for service_name in MaintenanceController._service_manager.list_services(MaintenanceController._local_client):
@@ -48,7 +49,7 @@ class MaintenanceController(object):
     def add_maintenance_service(name, alba_backend_guid, abm_name, read_preferences=None):
         """
         Add a maintenance service with a specific name
-        :param name: Name of the service to add
+        :param name: Name of the maintenance service to add
         :type name: str
         :param alba_backend_guid: ALBA Backend GUID for which the maintenance service needs to run
         :type alba_backend_guid: str
@@ -60,9 +61,12 @@ class MaintenanceController(object):
         :rtype: NoneType
         """
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
+            alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
             config_location = '{0}/config'.format(MaintenanceController.MAINTENANCE_KEY.format(alba_backend_guid, name))
-            params = {'ALBA_CONFIG': Configuration.get_configuration_path(config_location),
-                      'LOG_SINK': Logger.get_sink_path('alba_maintenance')}
+            params = {'LOG_SINK': Logger.get_sink_path('alba_maintenance'),
+                      'ALBA_CONFIG': Configuration.get_configuration_path(config_location),
+                      'ALBA_PKG_NAME': alba_pkg_name,
+                      'ALBA_VERSION_CMD': alba_version_cmd}
             Configuration.set(key=config_location,
                               value={'log_level': 'info',
                                      'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
@@ -79,7 +83,7 @@ class MaintenanceController(object):
     def remove_maintenance_service(name, alba_backend_guid=None):
         """
         Remove a maintenance service with a specific name
-        :param name: Name of the service
+        :param name: Name of the service to remove
         :type name: str
         :param alba_backend_guid: ALBA Backend GUID for which the maintenance service needs to be removed
                                   Defaults to None for backwards compatibility
