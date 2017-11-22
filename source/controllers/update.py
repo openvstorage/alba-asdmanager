@@ -22,6 +22,7 @@ import json
 from subprocess import CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from source.asdmanager import BOOTSTRAP_FILE
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
 from source.dal.lists.settinglist import SettingList
@@ -135,11 +136,9 @@ class SDMUpdateController(object):
 
         if len(required_settings):
             cls._logger.info('Missing required Settings: {0}'.format(', '.join(required_settings)))
-            bootstrap_file = '/opt/asd-manager/config/bootstrap.json'
-
-            if cls._local_client.file_exists(bootstrap_file):
+            if cls._local_client.file_exists(BOOTSTRAP_FILE):
                 cls._logger.info('Bootstrap file still exists. Retrieving node ID')
-                with open(bootstrap_file) as bstr_file:
+                with open(BOOTSTRAP_FILE) as bstr_file:
                     node_id = json.load(bstr_file)['node_id']
             else:
                 node_id = SettingList.get_setting_by_code(code='node_id').value
@@ -158,5 +157,5 @@ class SDMUpdateController(object):
                 setting.value = value
                 setting.save()
 
-            cls._local_client.file_delete(bootstrap_file)
+            cls._local_client.file_delete(BOOTSTRAP_FILE)
         cls._logger.info('Finished out of band migrations for SDM nodes')

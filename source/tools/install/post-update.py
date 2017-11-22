@@ -34,6 +34,7 @@ if __name__ == '__main__':
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
     from ovs_extensions.services.interfaces.systemd import Systemd
+    from source.asdmanager import BOOTSTRAP_FILE
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration import Configuration
     from source.tools.logger import Logger
@@ -51,8 +52,8 @@ if __name__ == '__main__':
         local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
         # Override the created openvstorage_sdm_id during package install, with currently available SDM ID
-        if local_client.file_exists('/opt/asd-manager/config/bootstrap.json'):
-            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+        if local_client.file_exists(BOOTSTRAP_FILE):
+            with open(BOOTSTRAP_FILE) as bstr_file:
                 node_id = json.load(bstr_file)['node_id']
             local_client.file_write(filename='/etc/openvstorage_sdm_id',
                                     contents=node_id + '\n')

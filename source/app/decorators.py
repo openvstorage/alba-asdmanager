@@ -22,6 +22,7 @@ import json
 from flask import request
 from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
 from source.app import app
+from source.asdmanager import BOOTSTRAP_FILE
 from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
@@ -47,7 +48,7 @@ class HTTPRequestDecorators(_HTTPRequestDecorators):
         """
         # For backwards compatibility we first try to retrieve the node ID by using the bootstrap file
         try:
-            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+            with open(BOOTSTRAP_FILE) as bstr_file:
                 node_id = json.load(bstr_file)['node_id']
         except:
             node_id = SettingList.get_setting_by_code(code='node_id').value
