@@ -487,9 +487,10 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        alba_backend_guid = request.form['alba_backend_guid']
-        abm_name = request.form['abm_name']
-        MaintenanceController.add_maintenance_service(name, alba_backend_guid, abm_name)
+        MaintenanceController.add_maintenance_service(name=name,
+                                                      abm_name=request.form['abm_name'],
+                                                      alba_backend_guid=request.form['alba_backend_guid'],
+                                                      read_preferences=json.loads(request.form.get('read_preferences', "[]")))
 
     @staticmethod
     @post('/maintenance/<name>/remove')
@@ -501,4 +502,5 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        MaintenanceController.remove_maintenance_service(name)
+        MaintenanceController.remove_maintenance_service(name=name,
+                                                         alba_backend_guid=request.form.get('alba_backend_guid'))
