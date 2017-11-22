@@ -61,19 +61,15 @@ class PackageFactory(_PackageFactory):
         :return: A dictionary containing information about the expected packages to be installed
         :rtype: dict
         """
-        edition_key = '/ovs/framework/edition'
-        if Configuration.exists(key=edition_key) is False:
-            raise ValueError('Edition configuration key "{0}" does not exist'.format(edition_key))
-
-        edition = str(Configuration.get(key=edition_key))
-        if edition == 'community':
+        edition = Configuration.get_edition()
+        if edition == cls.EDITION_COMMUNITY:
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA}},
                     'blocking': {cls.PKG_MGR_SDM, cls.PKG_OVS_EXTENSIONS},
                     'version_commands': {cls.PKG_ALBA: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA_EE}}
-        elif edition == 'enterprise':
+        elif edition == cls.EDITION_ENTERPRISE:
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA_EE, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA_EE}},
@@ -81,4 +77,4 @@ class PackageFactory(_PackageFactory):
                     'version_commands': {cls.PKG_ALBA_EE: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA}}
         else:
-            raise ValueError('Unsupported edition found in "{0}"'.format(edition_key))
+            raise ValueError('Unsupported edition found: "{0}"'.format(edition))
