@@ -19,7 +19,6 @@ This module contains the maintenance controller (maintenance service logic)
 """
 
 from ovs_extensions.generic.sshclient import SSHClient
-from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
@@ -30,6 +29,7 @@ class MaintenanceController(object):
     """
     Maintenance controller class
     """
+    MAINTENANCE_KEY = '/ovs/alba/backends/{0}/maintenance/{1}'
     MAINTENANCE_PREFIX = 'alba-maintenance'
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
@@ -46,31 +46,31 @@ class MaintenanceController(object):
                 yield service_name
 
     @staticmethod
-    def add_maintenance_service(name, backend_guid, abm_name):
+    def add_maintenance_service(name, alba_backend_guid, abm_name, read_preferences=None):
         """
         Add a maintenance service with a specific name
         :param name: Name of the maintenance service to add
         :type name: str
-        :param backend_guid: Backend for which the maintenance service needs to run
-        :type backend_guid: str
+        :param alba_backend_guid: ALBA Backend GUID for which the maintenance service needs to run
+        :type alba_backend_guid: str
         :param abm_name: Name of the ABM cluster
         :type abm_name: str
+        :param read_preferences: List of ALBA Node IDs (LOCAL) or ALBA IDs of linked ALBA Backends (GLOBAL) for the maintenance services where they should prioritize the READ actions
+        :type read_preferences: list[str]
         :return: None
         :rtype: NoneType
         """
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
             alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
-            config_location = '/ovs/alba/backends/{0}/maintenance/config'.format(backend_guid)
-            alba_config = Configuration.get_configuration_path(config_location)
-            node_id = SettingList.get_setting_by_code(code='node_id').value
+            config_location = '{0}/config'.format(MaintenanceController.MAINTENANCE_KEY.format(alba_backend_guid, name))
             params = {'LOG_SINK': Logger.get_sink_path('alba_maintenance'),
-                      'ALBA_CONFIG': alba_config,
+                      'ALBA_CONFIG': Configuration.get_configuration_path(config_location),
                       'ALBA_PKG_NAME': alba_pkg_name,
                       'ALBA_VERSION_CMD': alba_version_cmd}
             Configuration.set(key=config_location,
                               value={'log_level': 'info',
                                      'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
-                                     'read_preference': [] if node_id is None else [node_id],
+                                     'read_preference': [] if read_preferences is None else read_preferences,
                                      'multicast_discover_osds': False})
 
             MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
@@ -80,14 +80,22 @@ class MaintenanceController(object):
         MaintenanceController._service_manager.start_service(name, MaintenanceController._local_client)
 
     @staticmethod
-    def remove_maintenance_service(name):
+    def remove_maintenance_service(name, alba_backend_guid=None):
         """
         Remove a maintenance service with a specific name
         :param name: Name of the service to remove
         :type name: str
+        :param alba_backend_guid: ALBA Backend GUID for which the maintenance service needs to be removed
+                                  Defaults to None for backwards compatibility
+        :type alba_backend_guid: str
         :return: None
         :rtype: NoneType
         """
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client):
             MaintenanceController._service_manager.stop_service(name, MaintenanceController._local_client)
             MaintenanceController._service_manager.remove_service(name, MaintenanceController._local_client)
+
+        if alba_backend_guid is not None:
+            key = MaintenanceController.MAINTENANCE_KEY.format(alba_backend_guid, name)
+            if Configuration.dir_exists(key=key):
+                Configuration.delete(key=key)

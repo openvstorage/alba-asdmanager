@@ -178,8 +178,8 @@ class ASDController(object):
             ASDController._service_manager.remove_service(asd.service_name, ASDController._local_client)
         try:
             ASDController._local_client.dir_delete('{0}/{1}'.format(asd.disk.mountpoint, asd.asd_id))
-        except Exception as ex:
-            ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
+        except Exception:
+            ASDController._logger.exception('Could not clean ASD data')
         Configuration.delete(asd.config_key)
         asd.delete()
 

@@ -21,6 +21,7 @@ API views
 import json
 from flask import request, send_from_directory
 from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
@@ -50,7 +51,6 @@ class API(object):
     ###########
     # GENERIC #
     ###########
-
     @staticmethod
     @get('/')
     def index():
@@ -155,6 +155,8 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
+        # If the disk would be missing, this will still return a disk object and the asds should be able to be found
+        # Sync disk will only remove disks once they have no more asds linked to them
         disk = DiskList.get_by_alias(slot_id)
         asds = [asd for asd in disk.asds if asd.asd_id == asd_id]
         if len(asds) != 1:
@@ -225,9 +227,12 @@ class API(object):
         Clears a slot
         :param slot_id: Identifier of the slot
         :type slot_id: str
+        :return: None
+        :rtype: NoneType
         """
-        disk = DiskList.get_by_alias(slot_id, raise_exception=False)
-        if disk is None:
+        try:
+            disk = DiskList.get_by_alias(slot_id)
+        except ObjectNotFoundException:
             API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
             return None
 
@@ -482,9 +487,10 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        alba_backend_guid = request.form['alba_backend_guid']
-        abm_name = request.form['abm_name']
-        MaintenanceController.add_maintenance_service(name, alba_backend_guid, abm_name)
+        MaintenanceController.add_maintenance_service(name=name,
+                                                      abm_name=request.form['abm_name'],
+                                                      alba_backend_guid=request.form['alba_backend_guid'],
+                                                      read_preferences=json.loads(request.form.get('read_preferences', "[]")))
 
     @staticmethod
     @post('/maintenance/<name>/remove')
@@ -496,4 +502,5 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        MaintenanceController.remove_maintenance_service(name)
+        MaintenanceController.remove_maintenance_service(name=name,
+                                                         alba_backend_guid=request.form.get('alba_backend_guid'))

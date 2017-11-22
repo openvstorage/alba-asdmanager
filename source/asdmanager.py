@@ -230,7 +230,14 @@ def remove(silent=None):
     service_manager = ServiceFactory.get_manager()
     for service_name in API.list_maintenance_services.original()['services']:
         _print_and_log(message='    - Removing service {0}'.format(service_name))
-        API.remove_maintenance_service.original(name=service_name)
+        guid = None
+        for alba_backend_guid in Configuration.list(key='/ovs/alba/backends'):
+            for maintenance_service_name in Configuration.list(key='/ovs/alba/backends/{0}/maintenance/'.format(alba_backend_guid)):
+                if maintenance_service_name == service_name:
+                    guid = alba_backend_guid
+                    break
+        API.remove_maintenance_service.original(name=service_name, alba_backend_guid=guid)
+
     for service_name in [WATCHER_SERVICE, MANAGER_SERVICE]:
         if service_manager.has_service(name=service_name, client=local_client):
             _print_and_log(message='   - Removing service {0}'.format(service_name))

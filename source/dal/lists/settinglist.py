@@ -18,6 +18,7 @@
 SettingList module
 """
 
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.dal.datalist import DataList
 from source.dal.objects.setting import Setting
 
@@ -42,5 +43,5 @@ class SettingList(object):
         """
         settings = DataList.query(object_type=Setting, query='SELECT id FROM {table} WHERE code=:code', parameters={'code': code})
         if len(settings) == 0:
-            return
+            raise ObjectNotFoundException('No setting found for code {0}'.format(code))
         return settings[0]
