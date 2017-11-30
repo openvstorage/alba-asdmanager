@@ -444,7 +444,7 @@ class API(object):
         :rtype: NoneType
         """
         with file_mutex('package_update'):
-            SDMUpdateController.restart_services()
+            SDMUpdateController.restart_services(service_names=json.loads(request.form.get('service_names', "[]")))
 
     @staticmethod
     @get('/service_status/<name>')

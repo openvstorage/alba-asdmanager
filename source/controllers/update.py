@@ -81,10 +81,7 @@ class SDMUpdateController(object):
 
             for package_name in package_names:
                 cls._logger.debug('Validating package {0}'.format(package_name))
-                if package_name == PackageFactory.PKG_MGR_SDM and package_name in pkg_component_info:
-                    cls._logger.debug('Adding ASD watcher service to post-update services')
-                    svc_component_info['services_post_update'][10].append('asd-watcher')  # Watcher restarts manager service too
-                elif package_name in [PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE]:
+                if package_name in [PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE]:
                     for service_name in sorted(list(ASDController.list_asd_services())) + sorted(list(MaintenanceController.get_services())):
                         service_version = ServiceFactory.verify_restart_required(client=cls._local_client, service_name=service_name, binary_versions=binaries)
                         cls._logger.debug('Service {0} has version: {1}'.format(service_name, service_version))
@@ -127,15 +124,20 @@ class SDMUpdateController(object):
             return str(installed_version[package_name])
 
     @classmethod
-    def restart_services(cls):
+    def restart_services(cls, service_names):
         """
-        Restart the services ASD services and the Maintenance services
+        Restart the services specified
+        :param service_names: Names of the services to restart
+        :type service_names: list[str]
         :return: None
         :rtype: NoneType
         """
-        service_names = [service_name for service_name in ASDController.list_asd_services()]
-        service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+        if len(service_names) == 0:
+            service_names = [service_name for service_name in ASDController.list_asd_services()]
+            service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+
         for service_name in service_names:
+            cls._logger.warning('Verifying whether service {0} needs to be restarted'.format(service_name))
             if cls._service_manager.get_service_status(service_name, cls._local_client) != 'active':
                 cls._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue

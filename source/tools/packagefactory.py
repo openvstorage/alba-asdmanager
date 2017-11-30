@@ -45,7 +45,7 @@ class PackageFactory(_PackageFactory):
     def get_package_info(cls):
         """
         Retrieve the package information related to the ASD Manager
-        This must return a dictionary with keys: 'names', 'edition', 'binaries', 'blocking', 'version_commands' and 'mutually_exclusive'
+        This must return a dictionary with keys: 'names', 'edition', 'binaries', 'version_commands' and 'mutually_exclusive'
             Names: These are the names of the packages split up per component related to this repository (alba-asdmanager)
                 * Alba
                     * PKG_MGR_SDM        --> The code itself to deploy and run the ASD Manager
@@ -66,14 +66,12 @@ class PackageFactory(_PackageFactory):
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA}},
-                    'blocking': {cls.PKG_MGR_SDM, cls.PKG_OVS_EXTENSIONS},
                     'version_commands': {cls.PKG_ALBA: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA_EE}}
         elif edition == cls.EDITION_ENTERPRISE:
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA_EE, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA_EE}},
-                    'blocking': {cls.PKG_MGR_SDM, cls.PKG_OVS_EXTENSIONS},
                     'version_commands': {cls.PKG_ALBA_EE: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA}}
         else:
