@@ -45,7 +45,7 @@ class PackageFactory(_PackageFactory):
     def get_package_info(cls):
         """
         Retrieve the package information related to the ASD Manager
-        This must return a dictionary with keys: 'names', 'edition', 'binaries', 'version_commands' and 'mutually_exclusive'
+        This must return a dictionary with keys: 'names', 'edition', 'binaries', 'non_blocking', 'version_commands' and 'mutually_exclusive'
             Names: These are the names of the packages split up per component related to this repository (alba-asdmanager)
                 * Alba
                     * PKG_MGR_SDM        --> The code itself to deploy and run the ASD Manager
@@ -53,9 +53,9 @@ class PackageFactory(_PackageFactory):
                     * PKG_OVS_EXTENSIONS --> Extensions code is used by the alba-asdmanager
             Edition: Used for different purposes
             Binaries: The names of the packages that come with a binary (also split up per component)
-            Blocking: Update will stop (block) in case the update fails for any of these packages
-            Version_commands: The commandos used to determine which binary version is currently active
-            Mutually_exclusive: Packages which are not allowed to be installed depending on the edition. Eg: ALBA_EE cannot be installed on a 'community' edition
+            Non Blocking: Packages which are potentially not yet available on all releases. These should be removed once every release contains these packages by default
+            Version Commands: The commandos used to determine which binary version is currently active
+            Mutually Exclusive: Packages which are not allowed to be installed depending on the edition. Eg: ALBA_EE cannot be installed on a 'community' edition
         :raises ValueError: * When configuration management key 'ovs/framework/edition' does not exists
                             * When 'ovs/framework/edition' does not contain 'community' or 'enterprise'
         :return: A dictionary containing information about the expected packages to be installed
@@ -66,12 +66,14 @@ class PackageFactory(_PackageFactory):
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA}},
+                    'non_blocking': {cls.PKG_OVS_EXTENSIONS},
                     'version_commands': {cls.PKG_ALBA: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA_EE}}
         elif edition == cls.EDITION_ENTERPRISE:
             return {'names': {cls.COMP_ALBA: {cls.PKG_MGR_SDM, cls.PKG_ALBA_EE, cls.PKG_OVS_EXTENSIONS}},
                     'edition': edition,
                     'binaries': {cls.COMP_ALBA: {cls.PKG_ALBA_EE}},
+                    'non_blocking': {cls.PKG_OVS_EXTENSIONS},
                     'version_commands': {cls.PKG_ALBA_EE: cls.VERSION_CMD_ALBA},
                     'mutually_exclusive': {cls.PKG_ALBA}}
         else:
