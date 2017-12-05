@@ -48,7 +48,7 @@ class SDMUpdateController(object):
         Retrieve the installed and candidate versions of all packages relevant for this repository (See PackageFactory.get_package_info)
         If installed version is lower than candidate version, this information is stored
         If installed version is equal or higher than candidate version we verify whether all relevant services have the correct binary active
-        Whether a service has the correct binary version in use, we use the ServiceFactory.verify_restart_required functionality
+        Whether a service has the correct binary version in use, we use the ServiceFactory.get_service_update_versions functionality
 
         In this function the services for each component / package combination are defined
         This service information consists out of:
@@ -83,7 +83,7 @@ class SDMUpdateController(object):
                 cls._logger.debug('Validating package {0}'.format(package_name))
                 if package_name in [PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE]:
                     for service_name in sorted(list(ASDController.list_asd_services())) + sorted(list(MaintenanceController.get_services())):
-                        service_version = ServiceFactory.verify_restart_required(client=cls._local_client, service_name=service_name, binary_versions=binaries)
+                        service_version = ServiceFactory.get_service_update_versions(client=cls._local_client, service_name=service_name, binary_versions=binaries)
                         cls._logger.debug('Service {0} has version: {1}'.format(service_name, service_version))
                         # If package_name in pkg_component_info --> update available (installed <--> candidate)
                         # If service_version is not None --> service is running an older binary version
