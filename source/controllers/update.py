@@ -18,10 +18,10 @@
 This module contains logic related to updates
 """
 
+import copy
 import json
 from subprocess import CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.asdmanager import BOOTSTRAP_FILE
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
@@ -45,35 +45,59 @@ class SDMUpdateController(object):
     @classmethod
     def get_package_information(cls):
         """
-        Called by GenericController.refresh_package_information() every hour
+        Retrieve the installed and candidate versions of all packages relevant for this repository (See PackageFactory.get_package_info)
+        If installed version is lower than candidate version, this information is stored
+        If installed version is equal or higher than candidate version we verify whether all relevant services have the correct binary active
+        Whether a service has the correct binary version in use, we use the ServiceFactory.get_service_update_versions functionality
 
-        Retrieve information about the currently installed versions of the core packages
-        Retrieve information about the versions to which each package can potentially be updated
-        If installed version is different from candidate version --> store this information in model
+        In this function the services for each component / package combination are defined
+        This service information consists out of:
+            * Services to stop (before update) and start (after update of packages) -> 'services_stop_start'
+            * Services to restart after update (post-update logic)                  -> 'services_post_update'
+            * Down-times which will be caused due to service restarts               -> 'downtime'
+            * Prerequisites that have not been met                                  -> 'prerequisites'
 
-        Additionally if installed version is identical to candidate version, check the services with a 'run' file
-        Verify whether the running version is identical to the candidate version
-        If different --> store this information in the model
+        The installed vs candidate version which is displayed always gives priority to the versions effectively installed on the system
+        and not the versions as reported by the service files
 
-        Result: Every package with updates or which requires services to be restarted is stored in the model
-
-        :return: Package information
+        This combined information is then stored in the 'package_information' of the ALBA Node DAL object
+        :return: Update information
         :rtype: dict
         """
-        binaries = cls._package_manager.get_binary_versions(client=cls._local_client)
-        service_info = ServiceFactory.get_services_with_version_files()
-        packages_to_update = PackageFactory.get_packages_to_update(client=cls._local_client)
-        services_to_update = ServiceFactory.get_services_to_update(client=cls._local_client,
-                                                                   binaries=binaries,
-                                                                   service_info=service_info)
+        cls._logger.info('Refreshing update information')
 
-        # First we merge in the services
-        package_info = ExtensionsToolbox.merge_dicts(dict1={},
-                                                     dict2=services_to_update)
-        # Then the packages merge can potentially overrule the installed/candidate version, because these versions need priority over the service versions
-        package_info = ExtensionsToolbox.merge_dicts(dict1=package_info,
-                                                     dict2=packages_to_update)
-        return package_info
+        binaries = cls._package_manager.get_binary_versions(client=cls._local_client)
+        update_info = {}
+        package_info = PackageFactory.get_packages_to_update(client=cls._local_client)  # {'alba': {'openvstorage-sdm': {'installed': 'ee-1.6.1', 'candidate': 'ee-1.6.2'}}}
+        cls._logger.debug('Binary versions found: {0}'.format(binaries))
+        cls._logger.debug('Package info found: {0}'.format(package_info))
+        for component, package_names in PackageFactory.get_package_info()['names'].iteritems():
+            package_names = sorted(package_names)
+            cls._logger.debug('Validating component {0} and related packages: {1}'.format(component, package_names))
+            if component not in update_info:
+                update_info[component] = copy.deepcopy(ServiceFactory.DEFAULT_UPDATE_ENTRY)
+            svc_component_info = update_info[component]
+            pkg_component_info = package_info.get(component, {})
+
+            for package_name in package_names:
+                cls._logger.debug('Validating package {0}'.format(package_name))
+                if package_name in [PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE]:
+                    for service_name in sorted(list(ASDController.list_asd_services())) + sorted(list(MaintenanceController.get_services())):
+                        service_version = ServiceFactory.get_service_update_versions(client=cls._local_client, service_name=service_name, binary_versions=binaries)
+                        cls._logger.debug('Service {0} has version: {1}'.format(service_name, service_version))
+                        # If package_name in pkg_component_info --> update available (installed <--> candidate)
+                        # If service_version is not None --> service is running an older binary version
+                        if package_name in pkg_component_info or service_version is not None:
+                            svc_component_info['services_post_update'][20].append(service_name)
+                            if service_version is not None and package_name not in svc_component_info['packages']:
+                                svc_component_info['packages'][package_name] = service_version
+
+                # Extend the service information with the package information related to this repository for current ALBA Node
+                if package_name in pkg_component_info and package_name not in svc_component_info['packages']:
+                    cls._logger.debug('Adding package {0} because it has an update available'.format(package_name))
+                    svc_component_info['packages'][package_name] = pkg_component_info[package_name]
+        cls._logger.info('Refreshed update information')
+        return update_info
 
     @classmethod
     def update(cls, package_name):
@@ -100,15 +124,20 @@ class SDMUpdateController(object):
             return str(installed_version[package_name])
 
     @classmethod
-    def restart_services(cls):
+    def restart_services(cls, service_names):
         """
-        Restart the services ASD services and the Maintenance services
+        Restart the services specified
+        :param service_names: Names of the services to restart
+        :type service_names: list[str]
         :return: None
         :rtype: NoneType
         """
-        service_names = [service_name for service_name in ASDController.list_asd_services()]
-        service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+        if len(service_names) == 0:
+            service_names = [service_name for service_name in ASDController.list_asd_services()]
+            service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+
         for service_name in service_names:
+            cls._logger.warning('Verifying whether service {0} needs to be restarted'.format(service_name))
             if cls._service_manager.get_service_status(service_name, cls._local_client) != 'active':
                 cls._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue

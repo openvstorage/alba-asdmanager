@@ -409,7 +409,7 @@ class API(object):
             return {'status': 'done'}
 
     @staticmethod
-    @post('/update/installed_version_package/<package_name>')
+    @get('/update/installed_version_package/<package_name>')
     def update_installed_version_package(package_name):
         """
         Retrieve the currently installed package version
@@ -444,7 +444,7 @@ class API(object):
         :rtype: NoneType
         """
         with file_mutex('package_update'):
-            SDMUpdateController.restart_services()
+            SDMUpdateController.restart_services(service_names=json.loads(request.form.get('service_names', "[]")))
 
     @staticmethod
     @get('/service_status/<name>')
