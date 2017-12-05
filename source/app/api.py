@@ -409,7 +409,7 @@ class API(object):
             return {'status': 'done'}
 
     @staticmethod
-    @post('/update/installed_version_package/<package_name>')
+    @get('/update/installed_version_package/<package_name>')
     def update_installed_version_package(package_name):
         """
         Retrieve the currently installed package version
