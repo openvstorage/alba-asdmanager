@@ -158,7 +158,7 @@ class SDMUpdateController(object):
         # Removal of bootstrap file and store API IP, API port and node ID in SQLite DB
         cls._logger.info('Starting out of band migrations for SDM nodes')
 
-        required_settings = ['api_ip', 'api_port', 'node_id']
+        required_settings = ['api_ip', 'api_port', 'node_id', 'migration_version']
         for setting in SettingList.get_settings():
             if setting.code in required_settings:
                 required_settings.remove(setting.code)
@@ -188,31 +188,44 @@ class SDMUpdateController(object):
 
             cls._local_client.file_delete(BOOTSTRAP_FILE)
 
+        # Introduce version for ASD Manager migration code
+        if 'migration_version' in required_settings:
+            setting = Setting()
+            setting.code = 'migration_version'
+            setting.value = 0
+            setting.save()
+
         # Add installed package_name in version files and additional string replacements in service files
         try:
-            edition = Configuration.get_edition()
-            if edition == PackageFactory.EDITION_ENTERPRISE:
-                for version_file_name in cls._local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
-                    version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
-                    contents = cls._local_client.file_read(filename=version_file_path)
-                    if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
-                        contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
-                        cls._local_client.file_write(filename=version_file_path, contents=contents)
+            migration_setting = SettingList.get_setting_by_code(code='migration_version')
+            if migration_setting.value < 1:
+                edition = Configuration.get_edition()
+                if edition == PackageFactory.EDITION_ENTERPRISE:
+                    for version_file_name in cls._local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
+                        version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
+                        contents = cls._local_client.file_read(filename=version_file_path)
+                        if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
+                            contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
+                            cls._local_client.file_write(filename=version_file_path, contents=contents)
 
-                node_id = SettingList.get_setting_by_code(code='node_id').value
-                for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
-                    config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
-                    if Configuration.exists(key=config_key):
-                        config = Configuration.get(key=config_key)
-                        if 'RUN_FILE_DIR' in config:
-                            continue
-                        config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
-                        config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
-                        config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
-                        Configuration.set(key=config_key, value=config)
-                        cls._service_manager.regenerate_service(name='alba-asd',
-                                                                client=cls._local_client,
-                                                                target_name=service_name)
+                    node_id = SettingList.get_setting_by_code(code='node_id').value
+                    asd_services = list(ASDController.list_asd_services())
+                    maint_services = list(MaintenanceController.get_services())
+                    for service_name in asd_services + maint_services:
+                        config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                        if Configuration.exists(key=config_key):
+                            config = Configuration.get(key=config_key)
+                            if 'RUN_FILE_DIR' in config:
+                                continue
+                            config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
+                            config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
+                            config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
+                            Configuration.set(key=config_key, value=config)
+                            cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX if service_name in asd_services else MaintenanceController.MAINTENANCE_PREFIX,
+                                                                    client=cls._local_client,
+                                                                    target_name=service_name)
+                migration_setting.value = 1
+                migration_setting.save()
         except Exception:
             cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
 

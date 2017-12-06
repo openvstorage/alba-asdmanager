@@ -126,7 +126,7 @@ if __name__ == '__main__':
                         configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
-                            service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                            service_manager.add_service(name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
                                                         client=local_client,
                                                         params=Configuration.get(configuration_key),
                                                         target_name=service_name)
@@ -156,7 +156,7 @@ if __name__ == '__main__':
                                     configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                                     if Configuration.exists(configuration_key):
                                         # No need to edit the service version file, since this change only requires a daemon-reload
-                                        service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                        service_manager.add_service(name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
                                                                     client=local_client,
                                                                     params=Configuration.get(configuration_key),
                                                                     target_name=service_name)

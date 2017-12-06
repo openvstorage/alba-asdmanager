@@ -37,6 +37,7 @@ class ASDController(object):
     """
     ASD Controller class
     """
+    ASD_PREFIX = 'alba-asd'
     _logger = Logger('controllers')
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
@@ -135,7 +136,10 @@ class ASDController(object):
                   'ALBA_VERSION_CMD': alba_version_cmd}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
-        ASDController._service_manager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
+        ASDController._service_manager.add_service(name=ASDController.ASD_PREFIX,
+                                                   client=ASDController._local_client,
+                                                   params=params,
+                                                   target_name=asd.service_name)
         ASDController.start_asd(asd)
 
     @staticmethod
