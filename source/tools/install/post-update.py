@@ -38,10 +38,9 @@ if __name__ == '__main__':
     from source.tools.configuration import Configuration
     from source.tools.logger import Logger
     from source.tools.osfactory import OSFactory
-    from source.tools.packagefactory import PackageFactory
     from source.tools.servicefactory import ServiceFactory
 
-    CURRENT_VERSION = 8
+    CURRENT_VERSION = 7
 
     _logger = Logger('update')
     service_manager = ServiceFactory.get_manager()
@@ -68,6 +67,7 @@ if __name__ == '__main__':
             _logger.info('Stopping asd-manager service')
             service_manager.stop_service(asd_manager_service_name, local_client)
 
+        # @TODO: Move these migrations to alba_node.client.update_execute_migration_code()
         if version < CURRENT_VERSION:
             try:
                 # DB migrations
@@ -184,30 +184,6 @@ if __name__ == '__main__':
                     if local_client.file_exists('/opt/asd-manager/source/{0}'.format(file_name)):
                         local_client.file_move(source_file_name='/opt/asd-manager/source/{0}'.format(file_name),
                                                destination_file_name='/opt/asd-manager/config/{0}'.format(file_name))
-
-                # Version 8: Add installed package_name in version files and additional string replacements in service files
-                edition = Configuration.get_edition()
-                if edition == PackageFactory.EDITION_ENTERPRISE:
-                    for version_file_name in local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
-                        version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
-                        contents = local_client.file_read(filename=version_file_path)
-                        if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
-                            contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
-                            local_client.file_write(filename=version_file_path, contents=contents)
-
-                    for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
-                        config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
-                        if Configuration.exists(key=config_key):
-                            config = Configuration.get(key=config_key)
-                            if 'RUN_FILE_DIR' in config:
-                                continue
-                            config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
-                            config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
-                            config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
-                            Configuration.set(key=config_key, value=config)
-                            service_manager.regenerate_service(name='alba-asd',
-                                                               client=local_client,
-                                                               target_name=service_name)
             except:
                 _logger.exception('Error while executing post-update code on node {0}'.format(node_id))
         Configuration.set(key, CURRENT_VERSION)

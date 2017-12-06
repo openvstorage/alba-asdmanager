@@ -187,4 +187,33 @@ class SDMUpdateController(object):
                 setting.save()
 
             cls._local_client.file_delete(BOOTSTRAP_FILE)
+
+        # Add installed package_name in version files and additional string replacements in service files
+        try:
+            edition = Configuration.get_edition()
+            if edition == PackageFactory.EDITION_ENTERPRISE:
+                for version_file_name in cls._local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
+                    version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
+                    contents = cls._local_client.file_read(filename=version_file_path)
+                    if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
+                        contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
+                        cls._local_client.file_write(filename=version_file_path, contents=contents)
+
+                node_id = SettingList.get_setting_by_code(code='node_id').value
+                for service_name in list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()):
+                    config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                    if Configuration.exists(key=config_key):
+                        config = Configuration.get(key=config_key)
+                        if 'RUN_FILE_DIR' in config:
+                            continue
+                        config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
+                        config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
+                        config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
+                        Configuration.set(key=config_key, value=config)
+                        cls._service_manager.regenerate_service(name='alba-asd',
+                                                                client=cls._local_client,
+                                                                target_name=service_name)
+        except Exception:
+            cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
+
         cls._logger.info('Finished out of band migrations for SDM nodes')
