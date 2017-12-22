@@ -158,15 +158,11 @@ class DiskController(object):
 
         # Check names to avoid a unique constraint exception
         for disk_name, disk_info in configuration.iteritems():
-            import pprint
-            pprint.pprint(disk_info)
-            print [disk.name for disk in DiskList.get_disks()]
             if len(disk_info['aliases']) >= 1:
                 try:
                     disk = DiskList.get_by_alias(disk_info['aliases'][0])
                     if disk_name != disk.name:
                         DiskController._logger.info('Detected moved disks, changing disk names to circumvent unique constraints')
-                        # Disk name has changed, save with temp name to avoid unique constraints
                         disk.name = str(uuid.uuid4())
                         disk.save()
                 except ObjectNotFoundException:
