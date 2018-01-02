@@ -162,7 +162,7 @@ class DiskController(object):
                 try:
                     disk = DiskList.get_by_alias(disk_info['aliases'][0])
                     if disk_name != disk.name:
-                        DiskController._logger.info('Detected with alias{0} its name has changed from {1} to {2}, \
+                        DiskController._logger.info('Disk with alias{0} its name has changed from {1} to {2}, \
                         changing disk names to circumvent unique constraints'.format(disk_info['aliases'][0], disk_name, disk.name))
                         disk.name = str(uuid.uuid4())
                         disk.save()
