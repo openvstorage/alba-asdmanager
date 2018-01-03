@@ -21,9 +21,11 @@ Disk related code
 import re
 import json
 import time
+import uuid
 import random
 import string
 from subprocess import CalledProcessError
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
@@ -69,13 +71,15 @@ class DiskController(object):
         command = ['lsblk', '--pairs', '--bytes', '--noheadings', '--exclude', '1,2,11']
         output = '--output=KNAME,SIZE,MODEL,STATE,MAJ:MIN,FSTYPE,TYPE,ROTA,MOUNTPOINT,LOG-SEC{0}'
         regex = '^KNAME="(?P<name>.*)" SIZE="(?P<size>\d*)" MODEL="(?P<model>.*)" STATE="(?P<state>.*)" MAJ:MIN="(?P<dev_nr>.*)" FSTYPE="(?P<fstype>.*)" TYPE="(?P<type>.*)" ROTA="(?P<rota>[0,1])" MOUNTPOINT="(?P<mtpt>.*)" LOG-SEC="(?P<sector_size>\d*)"( SERIAL="(?P<serial>.*)")?$'
+        DiskController._logger.info(command + [output.format(',SERIAL')])
         try:
             devices = DiskController._local_client.run(command + [output.format(',SERIAL')]).splitlines()
-        except:
+        except Exception:
             devices = DiskController._local_client.run(command + [output.format('')]).splitlines()
         device_regex = re.compile(regex)
         configuration = {}
         parsed_devices = []
+        DiskController._logger.info('Starting to iterate over disks')
         for device in devices:
             match = re.match(device_regex, device)
             if match is None:
@@ -152,8 +156,22 @@ class DiskController(object):
                                                                     'filesystem': fs_type if fs_type != '' else None,
                                                                     'mountpoint': mount_point})
 
+        # Check names to avoid a unique constraint exception
+        for disk_name, disk_info in configuration.iteritems():
+            if len(disk_info['aliases']) >= 1:
+                try:
+                    disk = DiskList.get_by_alias(disk_info['aliases'][0])
+                    if disk_name != disk.name:
+                        DiskController._logger.info('Disk with alias{0} its name has changed from {1} to {2}, \
+                        changing disk names to circumvent unique constraints'.format(disk_info['aliases'][0], disk_name, disk.name))
+                        disk.name = str(uuid.uuid4())
+                        disk.save()
+                except ObjectNotFoundException:
+                    pass
         # Sync the model
+        DiskController._logger.info('Starting to sync disks')
         for disk in DiskList.get_disks():
+            DiskController._logger.info('Syncing disk {0}'.format(disk.name))
             disk_info = None
             for alias in disk.aliases:
                 if alias in alias_name_mapping:
@@ -183,6 +201,7 @@ class DiskController(object):
             else:  # Update existing disks and their partitions
                 DiskController._update_disk(disk, disk_info)
         # Create all disks and their partitions not yet modeled
+        DiskController._logger.info('Creating disks if necessary')
         for disk_name in configuration:
             DiskController._logger.info('Disk {0} - Creating disk - {1}'.format(disk_name, configuration[disk_name]))
             disk = Disk()
