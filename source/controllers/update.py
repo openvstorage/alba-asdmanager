@@ -20,9 +20,9 @@ This module contains logic related to updates
 
 import copy
 import json
-from distutils.version import LooseVersion
 from subprocess import CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
+from source.asdmanager import BOOTSTRAP_FILE
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
 from source.dal.lists.settinglist import SettingList
@@ -39,114 +39,79 @@ class SDMUpdateController(object):
     """
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _logger = Logger(name='update', forced_target_type='file')
-    _packages_alba = ['alba', 'alba-ee', 'openvstorage-extensions']
-    _packages_with_binaries = ['alba', 'alba-ee']
-    _packages_mutual_excl = [_packages_alba]
     _package_manager = PackageFactory.get_manager()
+    _service_manager = ServiceFactory.get_manager()
 
-    @staticmethod
-    def get_package_information():
+    @classmethod
+    def get_package_information(cls):
         """
-        Retrieve information about the currently installed versions of the core packages
-        Retrieve information about the versions to which each package can potentially be updated
-        If installed version is different from candidate version --> store this information in model
+        Retrieve the installed and candidate versions of all packages relevant for this repository (See PackageFactory.get_package_info)
+        If installed version is lower than candidate version, this information is stored
+        If installed version is equal or higher than candidate version we verify whether all relevant services have the correct binary active
+        Whether a service has the correct binary version in use, we use the ServiceFactory.get_service_update_versions functionality
 
-        Additionally if installed version is identical to candidate version, check the services with a 'run' file
-        Verify whether the running version is identical to the candidate version
-        If different --> store this information in the model
+        In this function the services for each component / package combination are defined
+        This service information consists out of:
+            * Services to stop (before update) and start (after update of packages) -> 'services_stop_start'
+            * Services to restart after update (post-update logic)                  -> 'services_post_update'
+            * Down-times which will be caused due to service restarts               -> 'downtime'
+            * Prerequisites that have not been met                                  -> 'prerequisites'
 
-        Result: Every package with updates or which requires services to be restarted is stored in the model
+        The installed vs candidate version which is displayed always gives priority to the versions effectively installed on the system
+        and not the versions as reported by the service files
 
-        :return: Package information
+        This combined information is then stored in the 'package_information' of the ALBA Node DAL object
+        :return: Update information
         :rtype: dict
         """
-        sdm_package_names = SDMUpdateController._package_manager.package_names
-        binaries = SDMUpdateController._package_manager.get_binary_versions(client=SDMUpdateController._local_client, package_names=SDMUpdateController._packages_with_binaries)
-        installed = SDMUpdateController._package_manager.get_installed_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
-        candidate = SDMUpdateController._package_manager.get_candidate_versions(client=SDMUpdateController._local_client, package_names=sdm_package_names)
-        not_installed = set(sdm_package_names) - set(installed.keys())
-        candidate_difference = set(sdm_package_names) - set(candidate.keys())
+        cls._logger.info('Refreshing update information')
 
-        for package_name in not_installed:
-            found = False
-            for entry in SDMUpdateController._packages_mutual_excl:
-                if package_name in entry:
-                    found = True
-                    if entry[1 - entry.index(package_name)] in not_installed:
-                        raise RuntimeError('Conflicting packages installed: {0}'.format(entry))
-            if found is False:
-                raise RuntimeError('Missing non-installed package: {0}'.format(package_name))
-            if package_name not in candidate_difference:
-                raise RuntimeError('Unexpected difference in missing installed/candidates: {0}'.format(package_name))
-            candidate_difference.remove(package_name)
-        if len(candidate_difference) > 0:
-            raise RuntimeError('No candidates available for some packages: {0}'.format(candidate_difference))
+        binaries = cls._package_manager.get_binary_versions(client=cls._local_client)
+        update_info = {}
+        package_info = PackageFactory.get_packages_to_update(client=cls._local_client)  # {'alba': {'openvstorage-sdm': {'installed': 'ee-1.6.1', 'candidate': 'ee-1.6.2'}}}
+        cls._logger.debug('Binary versions found: {0}'.format(binaries))
+        cls._logger.debug('Package info found: {0}'.format(package_info))
+        for component, package_names in PackageFactory.get_package_info()['names'].iteritems():
+            package_names = sorted(package_names)
+            cls._logger.debug('Validating component {0} and related packages: {1}'.format(component, package_names))
+            if component not in update_info:
+                update_info[component] = copy.deepcopy(ServiceFactory.DEFAULT_UPDATE_ENTRY)
+            svc_component_info = update_info[component]
+            pkg_component_info = package_info.get(component, {})
 
-        alba_package = 'alba' if 'alba' in installed.keys() else 'alba-ee'
-        version_mapping = {'alba': ['alba', 'alba-ee']}
+            for package_name in package_names:
+                cls._logger.debug('Validating package {0}'.format(package_name))
+                if package_name in [PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE]:
+                    for service_name in sorted(list(ASDController.list_asd_services())) + sorted(list(MaintenanceController.get_services())):
+                        service_version = ServiceFactory.get_service_update_versions(client=cls._local_client, service_name=service_name, binary_versions=binaries)
+                        cls._logger.debug('Service {0} has version: {1}'.format(service_name, service_version))
+                        # If package_name in pkg_component_info --> update available (installed <--> candidate)
+                        # If service_version is not None --> service is running an older binary version
+                        if package_name in pkg_component_info or service_version is not None:
+                            svc_component_info['services_post_update'][20].append(service_name)
+                            if service_version is not None and package_name not in svc_component_info['packages']:
+                                svc_component_info['packages'][package_name] = service_version
 
-        package_info = {}
-        default_entry = {'candidate': None,
-                         'installed': None,
-                         'services_to_restart': []}
+                # Extend the service information with the package information related to this repository for current ALBA Node
+                if package_name in pkg_component_info and package_name not in svc_component_info['packages']:
+                    cls._logger.debug('Adding package {0} because it has an update available'.format(package_name))
+                    svc_component_info['packages'][package_name] = pkg_component_info[package_name]
+        cls._logger.info('Refreshed update information')
+        return update_info
 
-        #                     component: package_name: services_with_run_file
-        for component, info in {'alba': {alba_package: list(ASDController.list_asd_services()) + list(MaintenanceController.get_services()),
-                                         'openvstorage-sdm': [],
-                                         'openvstorage-extensions': []}}.iteritems():
-            component_info = {}
-            for package, services in info.iteritems():
-                for service in services:
-                    version_file = '/opt/asd-manager/run/{0}.version'.format(service)
-                    if not SDMUpdateController._local_client.file_exists(version_file):
-                        SDMUpdateController._logger.warning('Failed to find a version file in /opt/asd-manager/run for service {0}'.format(service))
-                        continue
-                    package_name = package
-                    running_versions = SDMUpdateController._local_client.file_read(version_file).strip()
-                    for version in running_versions.split(';'):
-                        if '=' in version:
-                            package_name = version.split('=')[0]
-                            running_version = version.split('=')[1]
-                        else:
-                            running_version = version
-
-                        did_check = False
-                        for mapped_package_name in version_mapping.get(package_name, [package_name]):
-                            if mapped_package_name not in sdm_package_names:
-                                raise ValueError('Unknown package dependency found in {0}'.format(version_file))
-                            if mapped_package_name not in binaries or mapped_package_name not in installed:
-                                continue
-
-                            did_check = True
-                            if running_version is not None and LooseVersion(running_version) < binaries[mapped_package_name]:
-                                if mapped_package_name not in component_info:
-                                    component_info[mapped_package_name] = copy.deepcopy(default_entry)
-                                component_info[mapped_package_name]['installed'] = running_version
-                                component_info[mapped_package_name]['candidate'] = str(binaries[mapped_package_name])
-                                component_info[mapped_package_name]['services_to_restart'].append(service)
-                                break
-                        if did_check is False:
-                            raise RuntimeError('Binary version for package {0} was not retrieved'.format(package_name))
-
-                if installed[package] < candidate[package] and package not in component_info:
-                    component_info[package] = copy.deepcopy(default_entry)
-                    component_info[package]['installed'] = str(installed[package])
-                    component_info[package]['candidate'] = str(candidate[package])
-            if component_info:
-                package_info[component] = component_info
-        return package_info
-
-    @staticmethod
-    def update(package_name):
+    @classmethod
+    def update(cls, package_name):
         """
         Update the package on the local node
+        :return: None
+        :rtype: NoneType
         """
-        SDMUpdateController._logger.info('Installing package {0}'.format(package_name))
-        SDMUpdateController._package_manager.install(package_name=package_name, client=SDMUpdateController._local_client)
-        SDMUpdateController._logger.info('Installed package {0}'.format(package_name))
+        cls._logger.info('Installing package {0}'.format(package_name))
+        cls._package_manager.install(package_name=package_name, client=cls._local_client)
+        cls._logger.info('Installed package {0}'.format(package_name))
 
-    @staticmethod
-    def get_installed_version_for_package(package_name):
+    @classmethod
+    def get_installed_version_for_package(cls, package_name):
         """
         Retrieve the currently installed package version
         :param package_name: Name of the package to retrieve the version for
@@ -154,57 +119,60 @@ class SDMUpdateController(object):
         :return: Version of the currently installed package
         :rtype: str
         """
-        installed_version = SDMUpdateController._package_manager.get_installed_versions(client=None, package_names=[package_name])
+        installed_version = cls._package_manager.get_installed_versions(client=None, package_names=[package_name])
         if package_name in installed_version:
             return str(installed_version[package_name])
 
-    @staticmethod
-    def restart_services():
+    @classmethod
+    def restart_services(cls, service_names):
         """
-        Restart the services ASD services and the Maintenance services
+        Restart the services specified
+        :param service_names: Names of the services to restart
+        :type service_names: list[str]
         :return: None
+        :rtype: NoneType
         """
-        service_names = [service_name for service_name in ASDController.list_asd_services()]
-        service_names.extend([service_name for service_name in MaintenanceController.get_services()])
-        service_manager = ServiceFactory.get_manager()
+        if len(service_names) == 0:
+            service_names = [service_name for service_name in ASDController.list_asd_services()]
+            service_names.extend([service_name for service_name in MaintenanceController.get_services()])
+
         for service_name in service_names:
-            if service_manager.get_service_status(service_name, SDMUpdateController._local_client) != 'active':
-                SDMUpdateController._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
+            cls._logger.warning('Verifying whether service {0} needs to be restarted'.format(service_name))
+            if cls._service_manager.get_service_status(service_name, cls._local_client) != 'active':
+                cls._logger.warning('Found stopped service {0}. Will not start it.'.format(service_name))
                 continue
 
-            SDMUpdateController._logger.info('Restarting service {0}'.format(service_name))
+            cls._logger.info('Restarting service {0}'.format(service_name))
             try:
-                service_manager.restart_service(service_name, SDMUpdateController._local_client)
+                cls._service_manager.restart_service(service_name, cls._local_client)
             except CalledProcessError:
-                SDMUpdateController._logger.exception('Failed to restart service {0}'.format(service_name))
+                cls._logger.exception('Failed to restart service {0}'.format(service_name))
 
-    @staticmethod
-    def execute_migration_code():
+    @classmethod
+    def execute_migration_code(cls):
         """
         Run some migration code after an update has been done
         :return: None
         :rtype: NoneType
         """
         # Removal of bootstrap file and store API IP, API port and node ID in SQLite DB
-        SDMUpdateController._logger.info('Starting out of band migrations for SDM nodes')
+        cls._logger.info('Starting out of band migrations for SDM nodes')
 
-        required_settings = ['api_ip', 'api_port', 'node_id']
+        required_settings = ['api_ip', 'api_port', 'node_id', 'migration_version']
         for setting in SettingList.get_settings():
             if setting.code in required_settings:
                 required_settings.remove(setting.code)
 
         if len(required_settings):
-            SDMUpdateController._logger.info('Missing required Settings: {0}'.format(', '.join(required_settings)))
-            bootstrap_file = '/opt/asd-manager/config/bootstrap.json'
-
-            if SDMUpdateController._local_client.file_exists(bootstrap_file):
-                SDMUpdateController._logger.info('Bootstrap file still exists. Retrieving node ID')
-                with open(bootstrap_file) as bstr_file:
+            cls._logger.info('Missing required Settings: {0}'.format(', '.join(required_settings)))
+            if cls._local_client.file_exists(BOOTSTRAP_FILE):
+                cls._logger.info('Bootstrap file still exists. Retrieving node ID')
+                with open(BOOTSTRAP_FILE) as bstr_file:
                     node_id = json.load(bstr_file)['node_id']
             else:
                 node_id = SettingList.get_setting_by_code(code='node_id').value
 
-            SDMUpdateController._logger.info('Node ID: {0}'.format(node_id))
+            cls._logger.info('Node ID: {0}'.format(node_id))
             settings_dict = {'node_id': node_id}
             if Configuration.exists(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id)):
                 main_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
@@ -212,11 +180,53 @@ class SDMUpdateController(object):
                 settings_dict['api_port'] = main_config['port']
 
             for code, value in settings_dict.iteritems():
-                SDMUpdateController._logger.info('Modeling Setting with code {0} and value {1}'.format(code, value))
+                cls._logger.info('Modeling Setting with code {0} and value {1}'.format(code, value))
                 setting = Setting()
                 setting.code = code
                 setting.value = value
                 setting.save()
 
-            SDMUpdateController._local_client.file_delete(bootstrap_file)
-        SDMUpdateController._logger.info('Finished out of band migrations for SDM nodes')
+            cls._local_client.file_delete(BOOTSTRAP_FILE)
+
+        # Introduce version for ASD Manager migration code
+        if 'migration_version' in required_settings:
+            setting = Setting()
+            setting.code = 'migration_version'
+            setting.value = 0
+            setting.save()
+
+        # Add installed package_name in version files and additional string replacements in service files
+        try:
+            migration_setting = SettingList.get_setting_by_code(code='migration_version')
+            if migration_setting.value < 1:
+                edition = Configuration.get_edition()
+                if edition == PackageFactory.EDITION_ENTERPRISE:
+                    for version_file_name in cls._local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
+                        version_file_path = '{0}/{1}'.format(ServiceFactory.RUN_FILE_DIR, version_file_name)
+                        contents = cls._local_client.file_read(filename=version_file_path)
+                        if '{0}='.format(PackageFactory.PKG_ALBA) in contents:
+                            contents = contents.replace(PackageFactory.PKG_ALBA, PackageFactory.PKG_ALBA_EE)
+                            cls._local_client.file_write(filename=version_file_path, contents=contents)
+
+                    node_id = SettingList.get_setting_by_code(code='node_id').value
+                    asd_services = list(ASDController.list_asd_services())
+                    maint_services = list(MaintenanceController.get_services())
+                    for service_name in asd_services + maint_services:
+                        config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                        if Configuration.exists(key=config_key):
+                            config = Configuration.get(key=config_key)
+                            if 'RUN_FILE_DIR' in config:
+                                continue
+                            config['RUN_FILE_DIR'] = ServiceFactory.RUN_FILE_DIR
+                            config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
+                            config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
+                            Configuration.set(key=config_key, value=config)
+                            cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX if service_name in asd_services else MaintenanceController.MAINTENANCE_PREFIX,
+                                                                    client=cls._local_client,
+                                                                    target_name=service_name)
+                migration_setting.value = 1
+                migration_setting.save()
+        except Exception:
+            cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
+
+        cls._logger.info('Finished out of band migrations for SDM nodes')

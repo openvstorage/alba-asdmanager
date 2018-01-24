@@ -36,6 +36,7 @@ from source.tools.osfactory import OSFactory
 from source.tools.servicefactory import ServiceFactory
 
 PRECONFIG_FILE = '/opt/asd-manager/config/preconfig.json'
+BOOTSTRAP_FILE = '/opt/asd-manager/config/bootstrap.json'
 MANAGER_SERVICE = 'asd-manager'
 WATCHER_SERVICE = 'asd-watcher'
 
@@ -229,7 +230,14 @@ def remove(silent=None):
     service_manager = ServiceFactory.get_manager()
     for service_name in API.list_maintenance_services.original()['services']:
         _print_and_log(message='    - Removing service {0}'.format(service_name))
-        API.remove_maintenance_service.original(name=service_name)
+        guid = None
+        for alba_backend_guid in Configuration.list(key='/ovs/alba/backends'):
+            for maintenance_service_name in Configuration.list(key='/ovs/alba/backends/{0}/maintenance/'.format(alba_backend_guid)):
+                if maintenance_service_name == service_name:
+                    guid = alba_backend_guid
+                    break
+        API.remove_maintenance_service.original(name=service_name, alba_backend_guid=guid)
+
     for service_name in [WATCHER_SERVICE, MANAGER_SERVICE]:
         if service_manager.has_service(name=service_name, client=local_client):
             _print_and_log(message='   - Removing service {0}'.format(service_name))
@@ -311,7 +319,7 @@ if __name__ == '__main__':
     except:
         # For backwards compatibility
         # After update SettingList has not been populated yet and post-update script of package will restart asd-manager
-        with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+        with open(BOOTSTRAP_FILE) as bstr_file:
             node_id = json.load(bstr_file)['node_id']
     try:
         asd_manager_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))

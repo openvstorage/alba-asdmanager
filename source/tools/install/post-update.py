@@ -33,6 +33,7 @@ if __name__ == '__main__':
     from ovs_extensions.generic.sshclient import SSHClient
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
     from ovs_extensions.services.interfaces.systemd import Systemd
+    from source.asdmanager import BOOTSTRAP_FILE
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration import Configuration
     from source.tools.logger import Logger
@@ -49,8 +50,8 @@ if __name__ == '__main__':
         local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
         # Override the created openvstorage_sdm_id during package install, with currently available SDM ID
-        if local_client.file_exists('/opt/asd-manager/config/bootstrap.json'):
-            with open('/opt/asd-manager/config/bootstrap.json') as bstr_file:
+        if local_client.file_exists(BOOTSTRAP_FILE):
+            with open(BOOTSTRAP_FILE) as bstr_file:
                 node_id = json.load(bstr_file)['node_id']
             local_client.file_write(filename='/etc/openvstorage_sdm_id',
                                     contents=node_id + '\n')
@@ -66,6 +67,7 @@ if __name__ == '__main__':
             _logger.info('Stopping asd-manager service')
             service_manager.stop_service(asd_manager_service_name, local_client)
 
+        # @TODO: Move these migrations to alba_node.client.update_execute_migration_code()
         if version < CURRENT_VERSION:
             try:
                 # DB migrations
@@ -124,14 +126,16 @@ if __name__ == '__main__':
                         configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                         if Configuration.exists(configuration_key):
                             # Rewrite the service file
-                            service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                            service_manager.add_service(name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
                                                         client=local_client,
                                                         params=Configuration.get(configuration_key),
                                                         target_name=service_name)
 
                             # Let the update know that the ASD / maintenance services need to be restarted
                             # Inside `if Configuration.exists`, because useless to rapport restart if we haven't rewritten service file
-                            ExtensionsToolbox.edit_version_file(client=local_client, package_name='alba', old_service_name=service_name)
+                            ExtensionsToolbox.edit_version_file(client=local_client,
+                                                                package_name='alba',
+                                                                old_run_file='{0}/{1}.version'.format(ServiceFactory.RUN_FILE_DIR, service_name))
                     if service_manager.__class__ == Systemd:
                         local_client.run(['systemctl', 'daemon-reload'])
 
@@ -152,7 +156,7 @@ if __name__ == '__main__':
                                     configuration_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
                                     if Configuration.exists(configuration_key):
                                         # No need to edit the service version file, since this change only requires a daemon-reload
-                                        service_manager.add_service(name='alba-asd' if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                        service_manager.add_service(name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
                                                                     client=local_client,
                                                                     params=Configuration.get(configuration_key),
                                                                     target_name=service_name)

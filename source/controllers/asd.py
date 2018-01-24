@@ -29,6 +29,7 @@ from source.dal.objects.asd import ASD
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
+from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -36,6 +37,7 @@ class ASDController(object):
     """
     ASD Controller class
     """
+    ASD_PREFIX = 'alba-asd'
     _logger = Logger('controllers')
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
@@ -47,7 +49,9 @@ class ASDController(object):
         :param disk: Disk on which to create an ASD
         :type disk: source.dal.objects.disk.Disk
         :return: None
+        :rtype: NoneType
         """
+        # Validations
         if disk.state == 'MISSING':
             raise RuntimeError('Cannot create an ASD on missing disk {0}'.format(disk.name))
 
@@ -57,6 +61,8 @@ class ASDController(object):
             ipaddresses = OSFactory.get_manager().get_ip_addresses(client=ASDController._local_client)
             if len(ipaddresses) == 0:
                 raise RuntimeError('Could not find any IP on the local node')
+
+        alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')  # Call here, because this potentially raises error, which should happen before actually making changes
 
         # Fetch disk information
         disk_size = int(ASDController._local_client.run(['df', '-B', '1', '--output=size', disk.mountpoint], timeout=5).splitlines()[1])
@@ -123,12 +129,17 @@ class ASDController(object):
         asd.save()
 
         Configuration.set(asd.config_key, asd_config)
-        params = {'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
+        params = {'LOG_SINK': Logger.get_sink_path('alba-asd_{0}'.format(asd_id)),
+                  'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
                   'SERVICE_NAME': asd.service_name,
-                  'LOG_SINK': Logger.get_sink_path('alba-asd_{0}'.format(asd_id))}
+                  'ALBA_PKG_NAME': alba_pkg_name,
+                  'ALBA_VERSION_CMD': alba_version_cmd}
         os.mkdir(homedir)
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
-        ASDController._service_manager.add_service('alba-asd', ASDController._local_client, params, asd.service_name)
+        ASDController._service_manager.add_service(name=ASDController.ASD_PREFIX,
+                                                   client=ASDController._local_client,
+                                                   params=params,
+                                                   target_name=asd.service_name)
         ASDController.start_asd(asd)
 
     @staticmethod
@@ -160,28 +171,30 @@ class ASDController(object):
     @staticmethod
     def remove_asd(asd):
         """
-        Removes an ASD
+        Remove an ASD
         :param asd: ASD to remove
         :type asd: source.dal.objects.asd.ASD
         :return: None
+        :rtype: NoneType
         """
         if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
             ASDController._service_manager.stop_service(asd.service_name, ASDController._local_client)
             ASDController._service_manager.remove_service(asd.service_name, ASDController._local_client)
         try:
             ASDController._local_client.dir_delete('{0}/{1}'.format(asd.disk.mountpoint, asd.asd_id))
-        except Exception as ex:
-            ASDController._logger.warning('Could not clean ASD data: {0}'.format(ex))
+        except Exception:
+            ASDController._logger.exception('Could not clean ASD data')
         Configuration.delete(asd.config_key)
         asd.delete()
 
     @staticmethod
     def start_asd(asd):
         """
-        Starts an ASD
+        Start an ASD
         :param asd: ASD to start
         :type asd: source.dal.objects.asd.ASD
         :return: None
+        :rtype: NoneType
         """
         if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
             ASDController._service_manager.start_service(asd.service_name, ASDController._local_client)
@@ -189,10 +202,11 @@ class ASDController(object):
     @staticmethod
     def stop_asd(asd):
         """
-        Stops an ASD
+        Stop an ASD
         :param asd: ASD to stop
         :type asd: source.dal.objects.asd.ASD
         :return: None
+        :rtype: NoneType
         """
         if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
             ASDController._service_manager.stop_service(asd.service_name, ASDController._local_client)
@@ -201,9 +215,10 @@ class ASDController(object):
     def restart_asd(asd):
         """
         Restart an ASD
-        :param asd: ASD to remove
+        :param asd: ASD to restart
         :type asd: source.dal.objects.asd.ASD
         :return: None
+        :rtype: NoneType
         """
         if ASDController._service_manager.has_service(asd.service_name, ASDController._local_client):
             ASDController._service_manager.restart_service(asd.service_name, ASDController._local_client)
@@ -212,7 +227,8 @@ class ASDController(object):
     def list_asd_services():
         """
         Retrieve all ASD services
-        :return: generator
+        :return: The ASD Services present on this ALBA Node
+        :rtype: generator
         """
         for service_name in ASDController._service_manager.list_services(ASDController._local_client):
             if service_name.startswith(ASD.ASD_SERVICE_PREFIX.format('')):
