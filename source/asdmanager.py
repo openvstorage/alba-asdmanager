@@ -103,7 +103,6 @@ def setup():
                                                  default_value=8600)
         configuration_store = 'arakoon'
 
-    print api_ip, validation_ip_addresses
     if api_ip not in validation_ip_addresses:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid API IP {0} specified. Please choose from:'.format(api_ip)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
