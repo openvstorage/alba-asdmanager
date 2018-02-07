@@ -21,6 +21,7 @@ Module for ASD Manager SetupController
 """
 import os
 import sys
+import copy
 import json
 import time
 import logging
@@ -55,6 +56,7 @@ def setup():
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(['Could not retrieve IP information on local node']))
         sys.exit(1)
+    validation_ip_addresses = copy.deepcopy(ipaddresses)
 
     local_client = SSHClient(endpoint='127.0.0.1', username='root')
     service_manager = ServiceFactory.get_manager()
@@ -101,11 +103,11 @@ def setup():
                                                  default_value=8600)
         configuration_store = 'arakoon'
 
-    if api_ip not in ipaddresses:
+    if api_ip not in validation_ip_addresses:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid API IP {0} specified. Please choose from:'.format(api_ip)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
         sys.exit(1)
-    different_ips = set(asd_ips).difference(set(ipaddresses))
+    different_ips = set(asd_ips).difference(set(validation_ip_addresses))
     if different_ips:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid ASD IPs {0} specified. Please choose from:'.format(asd_ips)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
