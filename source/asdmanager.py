@@ -28,8 +28,13 @@ from threading import Thread
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from source.dal.lists.asdlist import ASDList
+from source.dal.lists.disklist import DiskList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
+from source.controllers.asd import ASDController
+from source.controllers.disk import DiskController
+from source.controllers.maintenance import MaintenanceController
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
@@ -186,11 +191,10 @@ def remove(silent=None):
                        message='\n' + Interactive.boxed_message(['Could not connect to Arakoon']))
         sys.exit(1)
 
-    from source.app.api import API
     _print_and_log(message='  - Retrieving ASD information')
     all_asds = {}
     try:
-        all_asds = API.list_asds.original()
+        all_asds = ASDList.get_asds()
     except:
         _print_and_log(level='exception',
                        message='  - Failed to retrieve the ASD information')
@@ -213,22 +217,23 @@ def remove(silent=None):
 
     if len(all_asds) > 0:
         _print_and_log(message=' - Removing disks')
-        for device_id, disk_info in API.list_disks.original().iteritems():
-            if disk_info['available'] is True:
+        for disk in DiskList.get_disks():
+            if disk.available is True:
                 continue
             try:
-                _print_and_log(message='    - Retrieving ASD information for disk {0}'.format(disk_info['device']))
-                for asd_id, asd_info in API.list_asds_disk.original(disk_id=device_id).iteritems():
-                    _print_and_log(message='      - Removing ASD {0}'.format(asd_id))
-                    API.asd_delete.original(disk_id=device_id, asd_id=asd_id)
-                API.delete_disk.original(disk_id=device_id)
+                _print_and_log(message='    - Retrieving ASD information for disk {0}'.format(disk.name))
+                for asd in disk.asds:
+                    _print_and_log(message='      - Removing ASD {0}'.format(asd.name))
+                    ASDController.remove_asd(asd)
+                DiskController.clean_disk(disk)
             except Exception:
                 _print_and_log(level='exception',
                                message='    - Deleting ASDs failed')
 
     _print_and_log(message=' - Removing services')
     service_manager = ServiceFactory.get_manager()
-    for service_name in API.list_maintenance_services.original()['services']:
+    for service in MaintenanceController.get_services():
+        service_name = service
         _print_and_log(message='    - Removing service {0}'.format(service_name))
         guid = None
         for alba_backend_guid in Configuration.list(key='/ovs/alba/backends'):
@@ -236,7 +241,7 @@ def remove(silent=None):
                 if maintenance_service_name == service_name:
                     guid = alba_backend_guid
                     break
-        API.remove_maintenance_service.original(name=service_name, alba_backend_guid=guid)
+        MaintenanceController.remove_maintenance_service(name=service_name, alba_backend_guid=guid)
 
     for service_name in [WATCHER_SERVICE, MANAGER_SERVICE]:
         if service_manager.has_service(name=service_name, client=local_client):
