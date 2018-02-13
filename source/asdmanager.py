@@ -29,6 +29,7 @@ from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.dal.lists.asdlist import ASDList
+from source.dal.lists.disklist import DiskList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
 from source.controllers.asd import ASDController
@@ -216,15 +217,15 @@ def remove(silent=None):
 
     if len(all_asds) > 0:
         _print_and_log(message=' - Removing disks')
-        for device_id, disk_info in ASDList.get_asds().iteritems():
-            if disk_info['available'] is True:
+        for disk in DiskList.get_disks():
+            if disk.available is True:
                 continue
             try:
-                _print_and_log(message='    - Retrieving ASD information for disk {0}'.format(disk_info['device']))
-                for asd in ASDList.get_asds():
+                _print_and_log(message='    - Retrieving ASD information for disk {0}'.format(disk.name))
+                for asd in disk.asds:
                     _print_and_log(message='      - Removing ASD {0}'.format(asd.name))
                     ASDController.remove_asd(asd)
-                DiskController.clean_disk(device_id)
+                DiskController.clean_disk(disk)
             except Exception:
                 _print_and_log(level='exception',
                                message='    - Deleting ASDs failed')
@@ -232,7 +233,7 @@ def remove(silent=None):
     _print_and_log(message=' - Removing services')
     service_manager = ServiceFactory.get_manager()
     for service in MaintenanceController.get_services():
-        service_name = service.name
+        service_name = service
         _print_and_log(message='    - Removing service {0}'.format(service_name))
         guid = None
         for alba_backend_guid in Configuration.list(key='/ovs/alba/backends'):
