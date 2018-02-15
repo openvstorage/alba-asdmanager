@@ -31,6 +31,7 @@ from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
+from source.controllers.maintenance import MaintenanceController
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
 from source.controllers.asd import ASDController
@@ -123,6 +124,15 @@ def setup():
                        message='\n' + Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100']))
         sys.exit(1)
 
+    # IPMI info retrieval
+    ipmi_info = {}
+    message = 'Do you want to set IPMI configuration keys?'
+    proceed = Interactive.ask_yesno(message=message, default_value=False)
+    if proceed is True:
+        ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
+        ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
+        ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
+
     # Write necessary files
     if not local_client.file_exists(Configuration.CACC_LOCATION) and local_client.file_exists(Configuration.CACC_SOURCE):  # Try to copy automatically
         try:
@@ -139,15 +149,18 @@ def setup():
                             contents=json.dumps({'configuration_store': configuration_store},
                                                 indent=4))
 
+    node_id = Configuration.initialize(config={'api_ip': api_ip,
+                                               'asd_ips': asd_ips,
+                                               'api_port': api_port,
+                                               'asd_start_port': asd_start_port,
+                                               'ipmi': ipmi_info})
+
     # Model settings
     _print_and_log(message=' - Store settings in DB')
     for code, value in {'api_ip': api_ip,
                         'api_port': api_port,
                         'configuration_store': configuration_store,
-                        'node_id': Configuration.initialize(config={'api_ip': api_ip,
-                                                                    'asd_ips': asd_ips,
-                                                                    'api_port': api_port,
-                                                                    'asd_start_port': asd_start_port})}.iteritems():
+                        'node_id': node_id}.iteritems():
         setting = Setting()
         setting.code = code
         setting.value = value
