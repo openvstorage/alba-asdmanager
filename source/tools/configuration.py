@@ -36,6 +36,7 @@ class Configuration(_Configuration):
     CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
     ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)
     ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)
+    ASD_NODE_CONFIG_IPMI_LOCATION = '{0}/config/ipmi'.format(ASD_NODE_LOCATION)
     ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)
 
     _unittest_data = {}
@@ -68,6 +69,12 @@ class Configuration(_Configuration):
         cls.set(key=Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
                 value={'ips': config['asd_ips'],
                        'port': config['asd_start_port']})
+
+        ipmi = {'ip': config.get('ipmi', {}).get('ip'),
+                'username': config.get('ipmi', {}).get('username'),
+                'password': config.get('ipmi', {}).get('pwd')}
+        cls.set(key=Configuration.ASD_NODE_CONFIG_IPMI_LOCATION.format(node_id), value=ipmi)
+
         cls.set(key='/ovs/alba/logging',
                 value={'target': 'console', 'level': 'DEBUG'},
                 raw=False)
