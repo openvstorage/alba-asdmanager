@@ -31,7 +31,6 @@ from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
-from source.controllers.maintenance import MaintenanceController
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
 from source.controllers.asd import ASDController
