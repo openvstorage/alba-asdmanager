@@ -125,13 +125,15 @@ def setup():
 
     # IPMI info retrieval
     ipmi_info = {}
-    message = 'Do you want to set IPMI configuration keys?'
-    proceed = Interactive.ask_yesno(message=message, default_value=False)
-    if proceed is True:
-        ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
-        ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
-        ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
-
+    if 'ipmi' in config.keys():
+        ipmi_info = config['ipmi']
+    else:
+        message = 'Do you want to set IPMI configuration keys?'
+        proceed = Interactive.ask_yesno(message=message, default_value=False)
+        if proceed is True:
+            ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
+            ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
+            ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
     # Write necessary files
     if not local_client.file_exists(Configuration.CACC_LOCATION) and local_client.file_exists(Configuration.CACC_SOURCE):  # Try to copy automatically
         try:
@@ -292,7 +294,7 @@ def _validate_and_retrieve_pre_config():
     errors = []
     config = config['asdmanager']
     actual_keys = config.keys()
-    allowed_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'configuration_store']
+    allowed_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'configuration_store', 'ipmi']
     for key in actual_keys:
         if key not in allowed_keys:
             errors.append('Key {0} is not supported by the ASD manager'.format(key))
@@ -312,6 +314,11 @@ def _validate_and_retrieve_pre_config():
                                                                   'api_port': (int, {'min': 1025, 'max': 65535}, False),
                                                                   'asd_start_port': (int, {'min': 1025, 'max': 65435}, False),
                                                                   'configuration_store': (str, ['arakoon'], False)})
+        if config.get('ipmi') is not None:
+            ExtensionsToolbox.verify_required_params(actual_params=config.get('ipmi'),
+                                                     required_params={'ip': (str, ExtensionsToolbox.regex_ip, True),
+                                                                      'username': (str, None, True),
+                                                                      'pwd': (str, None, True)})
     except RuntimeError:
         _print_and_log(message='\n' + Interactive.boxed_message(['The asd-manager pre-configuration file does not contain correct information']),
                        level='exception')
