@@ -70,12 +70,9 @@ class Configuration(_Configuration):
                 value={'ips': config['asd_ips'],
                        'port': config['asd_start_port']})
 
-        if config.get('ipmi') in (None, {}):
-            ipmi = {}
-        else:
-            ipmi = {'ip': config['ipmi']['ip'],
-                    'username': config['ipmi']['username'],
-                    'password': config['ipmi']['pwd']}
+        ipmi = {'ip': config.get('ipmi', {}).get('ip'),
+                'username': config.get('ipmi', {}).get('username'),
+                'password': config.get('ipmi', {}).get('pwd')}
         cls.set(key=Configuration.ASD_NODE_CONFIG_IPMI_LOCATION.format(node_id), value=ipmi)
 
         cls.set(key='/ovs/alba/logging',
