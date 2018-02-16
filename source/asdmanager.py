@@ -72,12 +72,17 @@ def setup():
 
     config = _validate_and_retrieve_pre_config()
     interactive = len(config) == 0
+    ipmi_info = {'ip': None,
+                 'username': None,
+                 'pwd': None}
+
     if interactive is False:
         api_ip = config['api_ip']
         api_port = config.get('api_port', 8500)
         asd_ips = config.get('asd_ips', [])
         asd_start_port = config.get('asd_start_port', 8600)
         configuration_store = config.get('configuration_store', 'arakoon')
+        ipmi_info = config.get('ipmi', ipmi_info)
     else:
         api_ip = Interactive.ask_choice(choice_options=ipaddresses,
                                         question='Select the public IP address to be used for the API',
@@ -108,6 +113,13 @@ def setup():
                                                  default_value=8600)
         configuration_store = 'arakoon'
 
+        message = 'Do you want to set IPMI configuration keys?'
+        proceed = Interactive.ask_yesno(message=message, default_value=False)
+        if proceed is True:
+            ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
+            ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
+            ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
+
     if api_ip not in validation_ip_addresses:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid API IP {0} specified. Please choose from:'.format(api_ip)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
@@ -123,17 +135,6 @@ def setup():
                        message='\n' + Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100']))
         sys.exit(1)
 
-    # IPMI info retrieval
-    ipmi_info = {}
-    if 'ipmi' in config.keys():
-        ipmi_info = config['ipmi']
-    else:
-        message = 'Do you want to set IPMI configuration keys?'
-        proceed = Interactive.ask_yesno(message=message, default_value=False)
-        if proceed is True:
-            ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
-            ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
-            ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
     # Write necessary files
     if not local_client.file_exists(Configuration.CACC_LOCATION) and local_client.file_exists(Configuration.CACC_SOURCE):  # Try to copy automatically
         try:
