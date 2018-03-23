@@ -135,6 +135,15 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
+        # Check for 'active' and 'passive' for Dual Controller implementations
+        active = request.form.get('active', True)
+        # @Todo setup active and passive side
+        # Active side should be extended with registering ownership in the config mgmt
+        # Passive side
+        #   Registers the ASD in the SQLite
+        #   Create the fstab entry
+        #   Creates the ASD service file on the controller (see bove)
+
         disk = DiskList.get_by_alias(slot_id)
         if disk.available is True:
             with file_mutex('add_disk'), file_mutex('disk_{0}'.format(slot_id)):

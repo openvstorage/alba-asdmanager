@@ -43,11 +43,14 @@ class ASDController(object):
     _service_manager = ServiceFactory.get_manager()
 
     @staticmethod
-    def create_asd(disk):
+    def create_asd(disk, active=True):
         """
         Creates and starts an ASD on a given disk
         :param disk: Disk on which to create an ASD
         :type disk: source.dal.objects.disk.Disk
+        :param active: Actively create the ASD. When set to false, only the services are registered and the DAL entries are made
+        This is a part of the Dual Controller feature to have high-available ASDs
+        :type active: bool
         :return: None
         :rtype: NoneType
         """
