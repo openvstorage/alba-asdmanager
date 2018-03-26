@@ -23,23 +23,26 @@ class FSTab(object):
     """
     Class to modify the /etc/fstab file
     """
-    _entry = '{0}  {1}  xfs  defaults,nofail,noatime,discard  0  2'
+    _entry = '{0}  {1}  xfs  defaultsnoatime,discard{2}  0  2'
     _file_name = '/etc/fstab'
     _separators = ('# BEGIN ALBA ASDs', '# END ALBA ASDs')  # Don't change, for backwards compatibility
 
     @staticmethod
-    def add(partition_aliases, mountpoint):
+    def add(partition_aliases, mountpoint, no_fail=True, no_auto=False):
         """
         Add an entry for 1 of the partition_aliases if none present yet
         :param partition_aliases: Aliases of the partition to add to fstab
         :type partition_aliases: list
         :param mountpoint: Mountpoint on which the ASD is mounted
         :type mountpoint: str
+        :param no_fail: Enable the nofail option. (Do not report errors for this device if it does not exist)
+        :type no_fail: bool
+        :param no_auto: Avoid automatic mounting
+        :type no_auto: bool
         :return: None
         """
         if len(partition_aliases) == 0:
             raise ValueError('No aliases provided for partition')
-
         lines = FSTab._read()
         found = False
         for line in lines:
@@ -50,7 +53,13 @@ class FSTab(object):
             if found is True:
                 break
         if found is False:
-            lines.append(FSTab._entry.format(partition_aliases[0], mountpoint))
+            options = []
+            if no_fail is True:
+                options.append('nofail')
+            if no_auto is True:
+                options.append('noauto')
+            options_string = ',{0}'.format(','.join(options)) if len(options) > 0 else ''
+            lines.append(FSTab._entry.format(partition_aliases[0], mountpoint, options_string))
             FSTab._write(lines)
 
     @staticmethod

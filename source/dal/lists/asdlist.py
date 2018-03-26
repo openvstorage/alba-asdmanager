@@ -17,6 +17,7 @@
 """
 ASDList module
 """
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.dal.datalist import DataList
 from source.dal.objects.asd import ASD
 
@@ -33,3 +34,17 @@ class ASDList(object):
         Returns a list of all ASDs
         """
         return DataList.query(ASD, "SELECT id FROM {table}")
+
+    @staticmethod
+    def get_by_asd_id(asd_id):
+        """
+        Returns an ASD with the given ASD ID
+        :param asd_id:
+        :return:
+        """
+        asds = DataList.query(object_type=ASD, query="SELECT id FROM {table} WHERE asd_id=:asd_id", parameters={'asd_id': asd_id})
+        if len(asds) > 1:
+            raise ValueError('Multiple ASDs found with ASD ID {0}'.format(asd_id))
+        if len(asds) == 0:
+            raise ObjectNotFoundException('ASD with ASD ID {0} not found'.format(asd_id))
+        return asds[0]

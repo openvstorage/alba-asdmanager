@@ -24,6 +24,7 @@ from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFou
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.app import app
 from source.app.decorators import HTTPRequestDecorators
 from source.controllers.asd import ASDController
@@ -136,10 +137,8 @@ class API(object):
         :rtype: NoneType
         """
         # Check for 'active' and 'passive' for Dual Controller implementations
-        active = request.form.get('active', True)
-        # @Todo setup active and passive side
         # Active side should be extended with registering ownership in the config mgmt
-        # Passive side
+        # Passive side will be filled in with the sync API
         #   Registers the ASD in the SQLite
         #   Create the fstab entry
         #   Creates the ASD service file on the controller (see bove)
@@ -513,3 +512,13 @@ class API(object):
         """
         MaintenanceController.remove_maintenance_service(name=name,
                                                          alba_backend_guid=request.form.get('alba_backend_guid'))
+
+    ###################
+    # Dual Controller #
+    ###################
+
+    @staticmethod
+    @post('/dual_controller/sync_stack')
+    def sync_stack():
+        stack_data = request.form.get('stack', {})
+

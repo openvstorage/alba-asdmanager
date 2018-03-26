@@ -219,60 +219,72 @@ class DiskController(object):
         disk.save()
 
     @staticmethod
-    def prepare_disk(disk):
+    def prepare_disk(disk, disk_config=None):
         """
         Prepare a disk for use with ALBA
         :param disk: Disk object to prepare
         :type disk: source.dal.objects.disk.Disk
+        :param disk_config: Configuration of the disk. When None: actively prepare the disk else only the fstab entries are made
+        This is a part of the Dual Controller feature to have high-available ASDs
+        :type disk_config: dict
         :return: None
         """
-
         if disk.usable is False:
             raise RuntimeError('Cannot prepare disk {0}'.format(disk.name))
+
         DiskController._logger.info('Preparing disk {0}'.format(disk.name))
-
-        # Create partition
-        mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
-        alias = disk.aliases[0]
-        DiskController._locate(device_alias=alias, start=False)
-        DiskController._local_client.run(['umount', disk.mountpoint], allow_nonzero=True)
-        DiskController._local_client.run(['parted', alias, '-s', 'mklabel', 'gpt'])
-        DiskController._local_client.run(['parted', alias, '-s', 'mkpart', alias.split('/')[-1], '2MB', '100%'])
-        DiskController._local_client.run(['udevadm', 'settle'])  # Waits for all udev rules to have finished
-
-        # Wait for partition to be ready by attempting to add filesystem
-        counter = 0
+        active_prepare = disk_config is None
         already_mounted = False
-        while True:
-            disk = Disk(disk.id)
-            if len(disk.partitions) == 1:
-                try:
-                    DiskController._local_client.run(['mkfs.xfs', '-qf', disk.partition_aliases[0]])
-                    break
-                except CalledProcessError:
-                    mountpoint = disk.mountpoint
-                    if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
-                        # Some OSes have auto-mount functionality making mkfs.xfs to fail when the mountpoint has already been mounted
-                        # This can occur when the exact same partition gets created on the device
-                        already_mounted = True
-                        if mountpoint.startswith('/mnt/alba-asd'):
-                            DiskController._local_client.run('rm -rf {0}/*'.format(mountpoint), allow_insecure=True)
-                        DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
-                        break
-            DiskController._logger.info('Partition for disk {0} not ready yet'.format(disk.name))
-            DiskController.sync_disks()
-            time.sleep(0.2)
-            counter += 1
-            if counter > 10:
-                raise RuntimeError('Partition for disk {0} not ready in 2 seconds'.format(disk.name))
 
+        if active_prepare is True:
+            # Create partition
+            mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
+            alias = disk.aliases[0]
+            DiskController._locate(device_alias=alias, start=False)
+            DiskController._local_client.run(['umount', disk.mountpoint], allow_nonzero=True)
+            DiskController._local_client.run(['parted', alias, '-s', 'mklabel', 'gpt'])
+            DiskController._local_client.run(['parted', alias, '-s', 'mkpart', alias.split('/')[-1], '2MB', '100%'])
+            DiskController._local_client.run(['udevadm', 'settle'])  # Waits for all udev rules to have finished
+
+            # Wait for partition to be ready by attempting to add filesystem
+            counter = 0
+            already_mounted = False
+            while True:
+                disk = Disk(disk.id)
+                if len(disk.partitions) == 1:
+                    try:
+                        DiskController._local_client.run(['mkfs.xfs', '-qf', disk.partition_aliases[0]])
+                        break
+                    except CalledProcessError:
+                        mountpoint = disk.mountpoint
+                        if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
+                            # Some OSes have auto-mount functionality making mkfs.xfs to fail when the mountpoint has already been mounted
+                            # This can occur when the exact same partition gets created on the device
+                            already_mounted = True
+                            if mountpoint.startswith('/mnt/alba-asd'):
+                                DiskController._local_client.run('rm -rf {0}/*'.format(mountpoint), allow_insecure=True)
+                            DiskController._logger.warning('Device has already been used by ALBA, re-using mountpoint {0}'.format(mountpoint))
+                            break
+                DiskController._logger.info('Partition for disk {0} not ready yet'.format(disk.name))
+                DiskController.sync_disks()
+                time.sleep(0.2)
+                counter += 1
+                if counter > 10:
+                    raise RuntimeError('Partition for disk {0} not ready in 2 seconds'.format(disk.name))
+        else:
+            # Syncing should provide all information as the same hardware is accessed
+            DiskController.sync_disks()
+            mountpoint = disk.mountpoint
         # Create mountpoint and mount
         DiskController._local_client.run(['mkdir', '-p', mountpoint])
-        FSTab.add(partition_aliases=[disk.partition_aliases[0]], mountpoint=mountpoint)
-        if already_mounted is False:
-            DiskController._local_client.run(['mount', mountpoint])
-        DiskController.sync_disks()
         DiskController._local_client.run(['chown', '-R', 'alba:alba', mountpoint])
+        # Dual Controller feature does not require the 'nofail' and 'noauto' entry
+        # An FSTAB entry is required for both active and passive side
+        FSTab.add(partition_aliases=[disk.partition_aliases[0]], mountpoint=mountpoint, no_fail=False, no_auto=True)
+        if active_prepare is True:
+            if already_mounted is False:
+                DiskController._local_client.run(['mount', mountpoint])
+            DiskController.sync_disks()
         DiskController._logger.info('Prepare disk {0} complete'.format(disk.name))
 
     @staticmethod

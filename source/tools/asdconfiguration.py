@@ -48,17 +48,25 @@ class ASDConfigurationManager(object):
         node_asd_ownership_location = cls.NODE_ASD_OWNERSHIP_LOCATION.format(node_id)
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
         with cls._get_lock():
-            node_asd_overview = Configuration.get(node_asd_ownership_location)
-            asd_node_overview = Configuration.get(asd_node_ownership_location)
+            node_asd_overview = Configuration.get(node_asd_ownership_location, default={})
+            asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
             old_node_asd_overview = copy.deepcopy(node_asd_overview)
             old_asd_node_overview = copy.deepcopy(asd_node_overview)
             # Search for potential different owners
             owner_node_id = asd_node_overview.get(asd_id)
             if owner_node_id is not None:
-                # Filter out the asd
                 owner_node_asd_list = node_asd_overview.get(owner_node_id, [])
-                new_owner_node_asd_list = [i for i in owner_node_asd_list if i != asd_id]
-                node_asd_overview[owner_node_id] = new_owner_node_asd_list
+                if owner_node_id == node_id:  # Nothing changes when the owner is the same
+                    if asd_id not in owner_node_asd_list:
+                        # In case something messed up the config. This way the file can be rebuilt with this method
+                        owner_node_asd_list.append(asd_id)
+                    new_owner_node_asd_list = owner_node_asd_list
+                else:
+                    # Filter out the asd
+                    new_owner_node_asd_list = [i for i in owner_node_asd_list if i != asd_id]
+            else:
+                new_owner_node_asd_list = [asd_id]
+            node_asd_overview[owner_node_id] = new_owner_node_asd_list
             asd_node_overview[asd_id] = node_id
             try:
                 Configuration.set(node_asd_ownership_location, node_asd_overview)
@@ -84,8 +92,11 @@ class ASDConfigurationManager(object):
         node_id = System.get_my_machine_id()
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
         with cls._get_lock():  # Locking as someone else might be writing at this moment
-            asd_node_overview = Configuration.get(asd_node_ownership_location)
-            return asd_node_overview.get(asd_id) == node_id
+            try:
+                asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
+                return asd_node_overview.get(asd_id) == node_id
+            except:
+                cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))
 
     @classmethod
     def _get_lock(cls):
