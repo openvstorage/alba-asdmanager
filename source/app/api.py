@@ -24,11 +24,11 @@ from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFou
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from source.app import app
 from source.app.decorators import HTTPRequestDecorators
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
+from source.controllers.dualcontroller import DualController
 from source.controllers.generic import GenericController
 from source.controllers.maintenance import MaintenanceController
 from source.controllers.update import SDMUpdateController
@@ -521,4 +521,4 @@ class API(object):
     @post('/dual_controller/sync_stack')
     def sync_stack():
         stack_data = request.form.get('stack', {})
-
+        DualController.sync_stack(stack_data)

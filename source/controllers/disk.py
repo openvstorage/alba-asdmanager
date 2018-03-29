@@ -275,6 +275,9 @@ class DiskController(object):
             # Syncing should provide all information as the same hardware is accessed
             DiskController.sync_disks()
             mountpoint = disk.mountpoint
+            if mountpoint != disk_config['mountpoint']:
+                raise ValueError('Passive side might have the wrong disk. Found disk mountpoint ({0}) differs from the requested mountpoint ({1})'
+                                 .format(mountpoint, disk_config['mountpoint']))
         # Create mountpoint and mount
         DiskController._local_client.run(['mkdir', '-p', mountpoint])
         DiskController._local_client.run(['chown', '-R', 'alba:alba', mountpoint])

@@ -37,7 +37,8 @@ class DualController(object):
     SLOT_DATA_FORMAT = {'aliases': (list, str, True),
                         'mountpoint': (str, None, True),
                         'node_id': (str, None, True),
-                        'osds': (dict, OSD_DATA_FORMAT, True)}
+                        'osds': (dict, OSD_DATA_FORMAT, True),
+                        'partition_aliases': (list, str, True)}
 
     @classmethod
     def sync_stack(cls, stack):
@@ -50,9 +51,13 @@ class DualController(object):
         """
         cls.validate_stack(stack)
         # Compare the stack to our own
+        # @Todo check for removals too
+        # @todo figure out a way to check if fstab is falling behind on the passive side (outdated entries and such)
         for slot_id, slot_data in stack.iteritems():
             try:
                 disk = DiskList.get_by_alias(slot_id)
+                # Prepare the disk passively
+                DiskController.prepare_disk(disk, slot_data)
                 for osd_id, osd_data in slot_data['osds'].iteritems():
                     try:
                         asd = ASDList.get_by_asd_id(osd_id)
@@ -63,7 +68,16 @@ class DualController(object):
                         ASDController.create_asd(disk, asd_config=osd_data)
             except ObjectNotFoundException:
                 # Disk is not part of this ASD Manager, nothing to do
-                cls._logger.info('Syncing stack - Disk with alias {0} not found. Skipping...'.format(slot_id))
+                cls._logger.info('Syncing stack - Disk with alias {0} not found, syncing might be required. Skipping...'.format(slot_id))
+
+    @classmethod
+    def sync_fstab(cls):
+        """
+        Sync the FStab with the current stack layout
+        :return: None
+        :rtype: NoneType
+        """
+        pass
 
     @classmethod
     def _model_asd(cls, asd_data):
@@ -136,3 +150,18 @@ class DualController(object):
             raise ValueError('The stack should be a dict')
         for slot_id, slot_data in stack.iteritems():
             ExtensionsToolbox.verify_required_params(required_params=cls.SLOT_DATA_FORMAT, actual_params=slot_data)
+
+    @staticmethod
+    def _diff(first, second):
+        """
+        Return the difference between both lists
+        :param first: First list
+        :param second: Second list
+        :return: List of items that are different
+        """
+        try:
+            # Try to reduce complexity from n^2 to O(n log n) due to removing potential duplicates
+            second = set(second)
+        except TypeError:
+            pass
+        return [item for item in first if item not in second]
