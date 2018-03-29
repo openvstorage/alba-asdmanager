@@ -20,14 +20,13 @@ export PYTHONPATH="/opt/asd-manager:${PYTHONPATH}"
 export DISPLAY=:0
 export OVS_LOGTYPE_OVERRIDE=file
 
+#Import Generic CLI code from extensions
+source /usr/lib/python2.7/dist-packages/ovs_extensions/scripts/system/generic-code.sh
+
 function show_help {
     echo "ASD Manager CLI launcher"
     echo "------------------------"
-    echo "Usage:"
-    echo "  * Miscellaneous options:"
-    echo "    - asd-manager                       Launch ASD Manager shell (ipython)"
-    echo "    - asd-manager help                  Show this help section"
-    echo "    - asd-manager collect logs          Collect all ASD Manager logs to a tarball (for support purposes)"
+    show_generic_help
     echo ""
     echo "  * Setup options:"
     echo "    - asd-manager setup                 Launch ASD Manager setup"
@@ -37,6 +36,7 @@ function show_help {
     echo ""
     echo "  * Monitor options:"
     echo "    - asd-manager monitor services      Watch ASD Manager services"
+    echo ""
 }
 
 if [ "$1" = "monitor" ] ; then
@@ -57,6 +57,8 @@ elif [ "$1" = "remove" ] ; then
     else
         show_help
     fi
+elif [ "$1" = "unittest" ] ; then
+    test_unittest "$@"
 elif [ "$1" = "collect" ] ; then
     if [ "$2" = "logs" ] ; then
         FILENAME=asdmanager-`hostname`-`date "+%Y%m%d%H%M%S"`-logs.tar
