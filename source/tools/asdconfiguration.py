@@ -39,9 +39,11 @@ class ASDConfigurationManager(object):
 
     @classmethod
     def register_asd_usage(cls, asd_id):
+        # type: (int) -> None
         """
         Register that the current manager is owner of the ASD. Used by the Dual Controller setups
         :param asd_id: ID of ASD to register
+        :type asd_id: int
         :return: None
         """
         node_id = System.get_my_machine_id()
@@ -83,10 +85,12 @@ class ASDConfigurationManager(object):
 
     @classmethod
     def has_ownership(cls, asd_id):
+        # type: (str) -> bool
         """
         Check if the current manager has the ownership of the asd
         This does not guarantee that the ownership remains after the method was called!
         :param asd_id: ID of the ASD to check for
+        :type asd_id: str
         :return: True if the ownership is from this node else False
         """
         node_id = System.get_my_machine_id()
@@ -97,6 +101,7 @@ class ASDConfigurationManager(object):
                 return asd_node_overview.get(asd_id) == node_id
             except:
                 cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))
+                raise
 
     @classmethod
     def _get_lock(cls):

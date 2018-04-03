@@ -286,9 +286,65 @@ class DiskController(object):
         FSTab.add(partition_aliases=[disk.partition_aliases[0]], mountpoint=mountpoint, no_fail=False, no_auto=True)
         if active_prepare is True:
             if already_mounted is False:
-                DiskController._local_client.run(['mount', mountpoint])
+                DiskController.mount(mountpoint=mountpoint)
             DiskController.sync_disks()
         DiskController._logger.info('Prepare disk {0} complete'.format(disk.name))
+
+    @staticmethod
+    def mount(disk=None, mountpoint=None):
+        # type: (Optional[Disk], Optional[str]) -> None
+        """
+        Mounts the given disk or mountpoint
+        :param disk: Disk object to mount
+        :type disk: source.dal.object.disk.Disk
+        :raises Exception: when the mounting went wrong
+        :raises ValueError: when both arguments were not passed
+        :return: None
+        :rtype: NoneType
+        """
+        if all(x is None for x in [disk, mountpoint]):
+            raise ValueError('Either a disk or a mountpoint must be passed')
+        if disk is not None:
+            log = 'Disk {0} {{0}} on {1}'.format(disk.name, disk.mountpoint)
+            mountpoint = disk.mountpoint
+        else:
+            log = 'Mountpoint {0} {{0}}'.format(mountpoint)
+        try:
+            if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
+                DiskController._logger.info(log.format('already mounted on'))
+                return  # Already mounted
+            DiskController._local_client.run(['mount', mountpoint])
+        except Exception:
+            DiskController._logger.exception(log.format('errorred'))
+            raise
+
+    @staticmethod
+    def unmount(disk=None, mountpoint=None):
+        # type: (Optional[Disk], Optional[str]) -> None
+        """
+        Unmounts the given disk or mountpoint
+        :param disk: Disk object to mount
+        :type disk: source.dal.object.disk.Disk
+        :raises Exception: when the mounting went wrong
+        :raises ValueError: when both arguments were not passed
+        :return: None
+        :rtype: NoneType
+        """
+        if all(x is None for x in [disk, mountpoint]):
+            raise ValueError('Either a disk or a mountpoint must be passed')
+        if disk is not None:
+            log = 'Disk {0} {{0}} on {1}'.format(disk.name, disk.mountpoint)
+            mountpoint = disk.mountpoint
+        else:
+            log = 'Mountpoint {0} {{0}}'.format(mountpoint)
+        try:
+            if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
+                DiskController._local_client.run(['umount', mountpoint])
+                return
+            DiskController._logger.info(log.format('is not mounted on'))
+        except Exception:
+            DiskController._logger.exception(log.format('errorred'))
+            raise
 
     @staticmethod
     def clean_disk(disk):
@@ -305,9 +361,8 @@ class DiskController(object):
 
         FSTab.remove(disk.partition_aliases)
         if disk.mountpoint is not None:
-            umount_cmd = ['umount', disk.mountpoint]
             try:
-                DiskController._local_client.run(umount_cmd)
+                DiskController.unmount(disk=disk)
                 DiskController._local_client.dir_delete(disk.mountpoint)
             except Exception:
                 DiskController._logger.exception('Failure to umount or delete the mountpoint')

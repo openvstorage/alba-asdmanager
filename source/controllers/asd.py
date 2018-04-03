@@ -142,9 +142,7 @@ class ASDController(object):
         # Config path is set by the active side in a Dual controller setup
         params = {'LOG_SINK': Logger.get_sink_path('alba-asd_{0}'.format(asd_id)),
                   'CONFIG_PATH': Configuration.get_configuration_path(asd.config_key),
-                  'SERVICE_NAME': asd.service_name,
-                  'ALBA_PKG_NAME': alba_pkg_name,
-                  'ALBA_VERSION_CMD': alba_version_cmd}
+                  'ASD_ID': asd.asd_id}
         ASDController._local_client.run(['mkdir', '-p', homedir])
         ASDController._local_client.run(['chown', '-R', 'alba:alba', homedir])
         ASDController._service_manager.add_service(name=ASDController.ASD_PREFIX,

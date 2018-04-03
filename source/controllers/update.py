@@ -247,11 +247,33 @@ class SDMUpdateController(object):
             cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
             errors.append(ex)
 
+        # ASD processes need to check for ownership because of the Dual Controller. Service template was changed
+        try:
+            node_id = SettingList.get_setting_by_code(code='node_id').value
+            migration_setting = SettingList.get_setting_by_code(code='migration_version')
+            if migration_setting.value < 2:
+                asd_services = list(ASDController.list_asd_services())
+                for service_name in asd_services:
+                    config_key = ServiceFactory.SERVICE_CONFIG_KEY.format(node_id, service_name)
+                    if Configuration.exists(key=config_key):
+                        config = Configuration.get(key=config_key)
+                        if 'ASD_ID' in config:
+                            continue
+                        config['ASD_ID'] = service_name.rsplit('-', 1)[-1]
+                        # @todo enable
+                        Configuration.set(config_key, config)
+                        cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX,
+                                                                client=cls._local_client,
+                                                                target_name=service_name)
+        except Exception as ex:
+            cls._logger.exception('Failed to regenerate the ASD services for Dual Controller support')
+            errors.append(ex)
+
         if len(errors) == 0:
             cls._logger.info('No errors during non-crucial migration. Saving the migration setting')
             # Save migration settings when no errors occurred
             migration_setting = SettingList.get_setting_by_code(code='migration_version')
-            migration_setting.value = 1
+            migration_setting.value = 2
             migration_setting.save()
 
         cls._logger.info('Finished out of band migrations for SDM nodes')

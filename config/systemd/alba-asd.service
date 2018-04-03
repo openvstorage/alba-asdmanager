@@ -14,8 +14,9 @@ Environment=ALBA_LWT_ENGINE=libev
 Environment=OCAMLRUNPARAM='b,a=1,s=4096k,O=50'
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity
-ExecStartPre=/bin/sh -c "if [ ! -d <RUN_FILE_DIR> ]; then mkdir <RUN_FILE_DIR>; chown alba:alba <RUN_FILE_DIR>; fi; echo <ALBA_PKG_NAME>=`<ALBA_VERSION_CMD>` > <RUN_FILE_DIR>/<SERVICE_NAME>.version"
+ExecStartPre=python /opt/asd-manager/source/services/asd.py start-pre <ASD_ID>
 ExecStart=/usr/bin/alba asd-start --config <CONFIG_PATH> --log-sink <LOG_SINK>
+ExecStopPost=python /opt/asd-manager/source/services/asd.py stop-post <ASD_ID>
 ExecReload=/bin/bash -c "kill -s SIGUSR1 $MAINPID"
 LimitNOFILE=8192
 
