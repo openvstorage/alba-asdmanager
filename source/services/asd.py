@@ -63,18 +63,18 @@ class ASDService(object):
                     raise
                 os.chown(ServiceFactory.RUN_FILE_DIR, uid, gid)
             asd = ASDList.get_by_asd_id(asd_id)
-            cls._logger.info('Adding alba version info to the run file')
             running_alba_version = subprocess.check_output(alba_version_cmd.split())
             run_file_path = os.path.join(ServiceFactory.RUN_FILE_DIR, '{0}.version'.format(asd.service_name))
+            cls._logger.info('Adding alba version info to the run file (Path: {0})'.format(run_file_path))
             with open(run_file_path, 'w') as run_file:
                 entry = '{0}={1}'.format(alba_pkg_name, running_alba_version)
                 cls._logger.info('Running with {0}'.format(entry))
                 run_file.write(entry)
             if ASDConfigurationManager.has_ownership(asd_id) is False:
-                cls._logger.warning('Node {0} has no ownership over ASD with ID {1}'.format(node_id, asd_id))
+                cls._logger.warning('Node {0} has no ownership over ASD with ID {1}. Exiting'.format(node_id, asd_id))
                 sys.exit(1)
             # Mount the disk so the ASD can run
-            cls._logger.info('Mounting the disk for the ASD')
+            cls._logger.info('Mounting the disk for ASD with ID {0}'.format(asd_id))
             DiskController.mount(disk=asd.disk)
         except Exception:
             cls._logger.exception('Exception occurred during start-pre for ASD {0}'.format(asd_id))
@@ -95,6 +95,7 @@ class ASDService(object):
         try:
             # Mount the disk so the ASD can run
             asd = ASDList.get_by_asd_id(asd_id)
+            cls._logger.info('Unmounting the disk for ASD with ID {0}'.format(asd_id))
             DiskController.unmount(disk=asd.disk)
         except Exception:
             cls._logger.exception('Exception occurred during stop-post for ASD {0}'.format(asd_id))

@@ -3,6 +3,7 @@ Description=ALBA ASD
 After=asd-watcher.service
 
 [Service]
+# @todo Change user back and change the script
 Group=alba
 User=alba
 Restart=on-failure
@@ -10,13 +11,15 @@ RestartSec=10s
 TimeoutStopSec=60
 Environment=PYTHONPATH=:/opt/asd-manager
 Environment=ALBA_LWT_ENGINE=libev
+# Only start the ExecStart as user alba. Use root user for other actions
+PermissionsStartOnly=true
 # Garbage collection for ALBA
 Environment=OCAMLRUNPARAM='b,a=1,s=4096k,O=50'
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity
-ExecStartPre=python /opt/asd-manager/source/services/asd.py start-pre <ASD_ID>
+ExecStartPre=/usr/bin/python /opt/asd-manager/source/services/asd.py start-pre <ASD_ID>
 ExecStart=/usr/bin/alba asd-start --config <CONFIG_PATH> --log-sink <LOG_SINK>
-ExecStopPost=python /opt/asd-manager/source/services/asd.py stop-post <ASD_ID>
+ExecStopPost=/usr/bin/python /opt/asd-manager/source/services/asd.py stop-post <ASD_ID>
 ExecReload=/bin/bash -c "kill -s SIGUSR1 $MAINPID"
 LimitNOFILE=8192
 

@@ -25,10 +25,10 @@ from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.asd import ASD
+from source.tools.asdconfiguration import ASDConfigurationManager
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
-from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
 
 
@@ -67,7 +67,6 @@ class ASDController(object):
             ipaddresses = OSFactory.get_manager().get_ip_addresses(client=ASDController._local_client)
             if len(ipaddresses) == 0:
                 raise RuntimeError('Could not find any IP on the local node')
-        alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')  # Call here, because this potentially raises error, which should happen before actually making changes
 
         if active_create is True:
             # Fetch disk information
@@ -150,6 +149,7 @@ class ASDController(object):
                                                    params=params,
                                                    target_name=asd.service_name)
         if active_create is True:
+            ASDConfigurationManager.register_asd_usage(asd.asd_id)
             ASDController.start_asd(asd)
 
     @staticmethod

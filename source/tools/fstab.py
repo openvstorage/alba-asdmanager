@@ -34,6 +34,7 @@ class FSTab(object):
 
     @classmethod
     def add(cls, partition_aliases, mountpoint, no_fail=True, no_auto=False):
+        # type: (List[str], str, bool, bool) -> None
         """
         Add an entry for 1 of the partition_aliases if none present yet
         :param partition_aliases: Aliases of the partition to add to fstab
@@ -72,6 +73,7 @@ class FSTab(object):
 
     @classmethod
     def remove(cls, partition_aliases=None, mountpoint=None):
+        # type: (Optional[List[str]], Optional[str]) -> None
         """
         Remove an entry for each alias in partition_aliases that's present in fstab
         :param partition_aliases: Aliases of the partition to remove from fstab
@@ -88,6 +90,7 @@ class FSTab(object):
 
     @staticmethod
     def read():
+        # type: () -> Dict[str, str]
         """
         Retrieve the mounted ASD information from fstab
         :return: Information about mounted ASDs (alias / mountpoint)
@@ -97,45 +100,8 @@ class FSTab(object):
         return {entry.device: entry.mountpoint for entry in entries}
 
     @staticmethod
-    def _read():
-        with open(FSTab._file_name, 'r') as fstab:
-            contents = fstab.readlines()
-        skip = True
-        lines = []
-        for line in contents:
-            line = line.strip()
-            if line.startswith(FSTab._separators[1]):
-                break
-            if skip is False:
-                lines.append(line)
-            if line.startswith(FSTab._separators[0]):
-                skip = False
-        return lines
-
-    @staticmethod
-    def _write(lines):
-        with open(FSTab._file_name, 'r') as fstab:
-            contents = fstab.readlines()
-        skip = False
-        new_content = []
-        for line in contents:
-            line = line.strip()
-            if line.startswith(FSTab._separators[0]):
-                skip = True
-            if skip is False and line != '':
-                new_content.append(line)
-            if line.startswith(FSTab._separators[1]):
-                skip = False
-        if len(lines) > 0:
-            new_content.append('')
-            new_content.append(FSTab._separators[0])
-            new_content.extend([line.strip() for line in lines])
-            new_content.append(FSTab._separators[1])
-        with open(FSTab._file_name, 'w') as fstab:
-            fstab.write('{0}\n'.format('\n'.join(new_content)))
-
-    @staticmethod
     def _hydrate_entry(line):
+        # type: (str) -> FSTabEntry
         """
         Parse and add a line from fstab
         :param line: line that is present in fstab
@@ -160,6 +126,7 @@ class FSTab(object):
 
     @classmethod
     def _read_asd_entries(cls):
+        # type: () -> List[FSTabEntry]
         """
         Reads the FSTAB file
         :return: List of entries related to the ASD Manager
@@ -181,6 +148,7 @@ class FSTab(object):
 
     @classmethod
     def _write_asd_entries(cls, entries):
+        # type: (List[FSTabEntry]) -> None
         """
         Write new ASD Entries
         :param entries: List of entries to write
@@ -209,6 +177,7 @@ class FSTab(object):
 
     @classmethod
     def _filter_entries(cls, filter_options, entries=None, eq=False):
+        # type: (List[Tuple[str, any]], Optional[List[FSTabEntry]], bool) -> List[FSTabEntry]
         """
         Filters the fetched list of ASD entries
         The filter behaves in a 'not-equal' way by default
@@ -242,6 +211,7 @@ class FSTabEntry(object):
     """
 
     def __init__(self, device, mountpoint, filesystem, options, d=0, p=0):
+        # type: (str, str, str, str, int, int) -> None
         """
         Initializes a new FSTABEntry
         :param device: devicename eg /dev/sda
@@ -264,10 +234,13 @@ class FSTabEntry(object):
         self.p = p
 
     def __eq__(self, o):
+        # type: (Any) -> bool
         return str(self) == str(o)
 
     def __ne__(self, o):
+        # type: (Any) -> bool
         return str(self) != str(o)
 
     def __str__(self):
+        # type: () -> str
         return "{0} {1} {2} {3} {4} {5}".format(self.device, self.mountpoint, self.filesystem, self.options, self.d, self.p)

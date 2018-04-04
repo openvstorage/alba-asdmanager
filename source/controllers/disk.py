@@ -42,7 +42,22 @@ class DiskController(object):
     _logger = Logger('controllers')
 
     @staticmethod
+    def _select_alias_by_id(aliases):
+        # type: (List[str]) -> str
+        """
+        Find and return the alias with the by-id identifier
+        :param aliases: List of aliases
+        :return: The partition alias with the by-id identifier
+        :rtype: str
+        """
+        aliases_filtered = [alias for alias in aliases if alias.startswith('/dev/disk/by-id/')]
+        if len(aliases_filtered) == 0:
+            raise ValueError('No alias with \'by-id\' identifier')
+        return aliases_filtered[0]
+
+    @staticmethod
     def sync_disks():
+        # type: () -> None
         """
         Syncs the disks
         Changes made to this code should be reflected in the framework DiskController.sync_with_reality call.
@@ -239,7 +254,7 @@ class DiskController(object):
         if active_prepare is True:
             # Create partition
             mountpoint = '/mnt/alba-asd/{0}'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16)))
-            alias = disk.aliases[0]
+            alias = DiskController._select_alias_by_id(disk.aliases)
             DiskController._locate(device_alias=alias, start=False)
             DiskController._local_client.run(['umount', disk.mountpoint], allow_nonzero=True)
             DiskController._local_client.run(['parted', alias, '-s', 'mklabel', 'gpt'])
@@ -253,7 +268,7 @@ class DiskController(object):
                 disk = Disk(disk.id)
                 if len(disk.partitions) == 1:
                     try:
-                        DiskController._local_client.run(['mkfs.xfs', '-qf', disk.partition_aliases[0]])
+                        DiskController._local_client.run(['mkfs.xfs', '-qf', DiskController._select_alias_by_id(disk.partition_aliases)])
                         break
                     except CalledProcessError:
                         mountpoint = disk.mountpoint
@@ -274,6 +289,7 @@ class DiskController(object):
         else:
             # Syncing should provide all information as the same hardware is accessed
             DiskController.sync_disks()
+            # @todo what if the disk is not mounted on the active side
             mountpoint = disk.mountpoint
             if mountpoint != disk_config['mountpoint']:
                 raise ValueError('Passive side might have the wrong disk. Found disk mountpoint ({0}) differs from the requested mountpoint ({1})'
@@ -283,11 +299,10 @@ class DiskController(object):
         DiskController._local_client.run(['chown', '-R', 'alba:alba', mountpoint])
         # Dual Controller feature does not require the 'nofail' and 'noauto' entry
         # An FSTAB entry is required for both active and passive side
-        FSTab.add(partition_aliases=[disk.partition_aliases[0]], mountpoint=mountpoint, no_fail=False, no_auto=True)
+        FSTab.add(partition_aliases=[DiskController._select_alias_by_id(disk.partition_aliases)], mountpoint=mountpoint, no_fail=False, no_auto=True)
         if active_prepare is True:
             if already_mounted is False:
                 DiskController.mount(mountpoint=mountpoint)
-            DiskController.sync_disks()
         DiskController._logger.info('Prepare disk {0} complete'.format(disk.name))
 
     @staticmethod
@@ -299,21 +314,33 @@ class DiskController(object):
         :type disk: source.dal.object.disk.Disk
         :raises Exception: when the mounting went wrong
         :raises ValueError: when both arguments were not passed
+        :raises EnvironmentError: when a disk/mountpoint is provided that is not registered in FStab by the ASD manager
         :return: None
         :rtype: NoneType
         """
         if all(x is None for x in [disk, mountpoint]):
             raise ValueError('Either a disk or a mountpoint must be passed')
+        DiskController.sync_disks()  # Fetch the latest disk state
+        mountpoint_by_alias = FSTab.read()
         if disk is not None:
-            log = 'Disk {0} {{0}} on {1}'.format(disk.name, disk.mountpoint)
-            mountpoint = disk.mountpoint
+            if len(disk.partition_aliases) == 0:
+                raise ValueError('Disk {0} has no partitions. Cannot mount'.format(disk.name))
+            # Use the alias of the partition. The entry should be in FSTab
+            alias = DiskController._select_alias_by_id(disk.partition_aliases)
+            mountpoint_by_alias = FSTab.read()
+            mountpoint = mountpoint_by_alias.get(alias)
+            log = 'Disk {0} with partition alias {1} and potential mount on {2} {{0}}'.format(disk.name, alias, mountpoint)
         else:
+            # Check if present in FSTab
             log = 'Mountpoint {0} {{0}}'.format(mountpoint)
         try:
+            if mountpoint not in mountpoint_by_alias.values():
+                raise EnvironmentError(log.format('- Unable to determine where to mount. Entry not found in FSTab under ASD section'))
             if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
-                DiskController._logger.info(log.format('already mounted on'))
+                DiskController._logger.info(log.format('already mounted'))
                 return  # Already mounted
             DiskController._local_client.run(['mount', mountpoint])
+            DiskController.sync_disks()
         except Exception:
             DiskController._logger.exception(log.format('errorred'))
             raise
@@ -333,13 +360,14 @@ class DiskController(object):
         if all(x is None for x in [disk, mountpoint]):
             raise ValueError('Either a disk or a mountpoint must be passed')
         if disk is not None:
-            log = 'Disk {0} {{0}} on {1}'.format(disk.name, disk.mountpoint)
-            mountpoint = disk.mountpoint
+            log = 'Disk {0} {{0}} on {1}'.format(disk.name, disk.mountpoint)  # type: str
+            mountpoint = disk.mountpoint  # type: str
         else:
             log = 'Mountpoint {0} {{0}}'.format(mountpoint)
         try:
             if mountpoint and mountpoint in DiskController._local_client.run(['mount']):
                 DiskController._local_client.run(['umount', mountpoint])
+                DiskController.sync_disks()
                 return
             DiskController._logger.info(log.format('is not mounted on'))
         except Exception:
@@ -354,7 +382,6 @@ class DiskController(object):
         :type disk: source.dal.objects.disk.Disk
         :return: None
         """
-
         if disk.usable is False:
             raise RuntimeError('Cannot clean disk {0}'.format(disk.name))
         DiskController._logger.info('Cleaning disk {0}'.format(disk.name))
