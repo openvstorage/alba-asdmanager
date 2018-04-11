@@ -25,7 +25,7 @@ from ovs_extensions.generic.sshclient import SSHClient
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.asd import ASD
-from source.tools.asdconfiguration import ASDConfigurationManager
+from source.tools.relationmanager import RelationManager
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.osfactory import OSFactory
@@ -149,7 +149,7 @@ class ASDController(object):
                                                    params=params,
                                                    target_name=asd.service_name)
         if active_create is True:
-            ASDConfigurationManager.register_asd_usage(asd.asd_id)
+            RelationManager.register_asd_usage(asd.asd_id)
             ASDController.start_asd(asd)
 
     @staticmethod

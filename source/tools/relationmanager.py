@@ -19,9 +19,9 @@ from source.tools.logger import Logger
 from source.tools.system import System
 
 
-class ASDConfigurationManager(object):
+class RelationManager(object):
     """
-    Class which maintains the registration of ASD ownership
+    Class which maintains the registration of ASD ownership/nodecluster relations
     This is primarily used in Dual Controller setups
     Functionality:
     - Maintain two configuration entry:
@@ -50,6 +50,7 @@ class ASDConfigurationManager(object):
         node_asd_ownership_location = cls.NODE_ASD_OWNERSHIP_LOCATION.format(node_id)
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
         with cls._get_lock():
+            # Initially worked with a reversed mapping (asd to node) for faster lookups
             node_asd_overview = Configuration.get(node_asd_ownership_location, default={})
             asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
             old_node_asd_overview = copy.deepcopy(node_asd_overview)
@@ -97,7 +98,7 @@ class ASDConfigurationManager(object):
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
         with cls._get_lock():  # Locking as someone else might be writing at this moment
             try:
-                asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
+                asd_node_overview = Configuration.get(asd_node_ownership_location, default={})  # type: Dict[str, List[str]]
                 return asd_node_overview.get(asd_id) == node_id
             except:
                 cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))

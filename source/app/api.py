@@ -520,5 +520,28 @@ class API(object):
     @staticmethod
     @post('/dual_controller/sync_stack')
     def sync_stack():
+        """
+        Synchronizes the data of another ASD-Managers stack with thin one
+        :return: None
+        :rtype: NoneType
+        """
         stack_data = request.form.get('stack', {})
         DualController.sync_stack(stack_data)
+
+    @staticmethod
+    @post('/dual_controller/annex_slot')
+    def annex_slot(slot_id):
+        """
+        Take over the ownership of a slot
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        try:
+            disk = DiskList.get_by_alias(slot_id)
+        except ObjectNotFoundException:
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
+            raise
+        DiskController.annex_slot(disk)
+

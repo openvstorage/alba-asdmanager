@@ -461,3 +461,15 @@ class DiskController(object):
                 if controller_type == 'storcli64':
                     DiskController._logger.info('Location {0} for {1}'.format('start' if start is True else 'stop', location))
                     DiskController._local_client.run(['storcli64', location, 'start' if start is True else 'stop', 'locate'])
+
+    @staticmethod
+    def annex_slot(disk):
+        # type: (Disk) -> None
+        """
+        Take ownership of all ASDs on the given slot
+        :param disk: Disk object to remount
+        :type disk: source.dal.objects.disk.Disk
+        :return: None
+        :rtype: NoneType
+        """
+

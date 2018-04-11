@@ -24,7 +24,7 @@ sys.path.append('/opt/asd-manager')  # Path is normally properly set by the Syst
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.settinglist import SettingList
 from source.controllers.disk import DiskController
-from source.tools.asdconfiguration import ASDConfigurationManager
+from source.tools.relationmanager import RelationManager
 from source.tools.logger import Logger
 from source.tools.servicefactory import ServiceFactory
 from source.tools.packagefactory import PackageFactory
@@ -70,7 +70,7 @@ class ASDService(object):
                 entry = '{0}={1}'.format(alba_pkg_name, running_alba_version)
                 cls._logger.info('Running with {0}'.format(entry))
                 run_file.write(entry)
-            if ASDConfigurationManager.has_ownership(asd_id) is False:
+            if RelationManager.has_ownership(asd_id) is False:
                 cls._logger.warning('Node {0} has no ownership over ASD with ID {1}. Exiting'.format(node_id, asd_id))
                 sys.exit(1)
             # Mount the disk so the ASD can run
@@ -91,6 +91,8 @@ class ASDService(object):
         :return: None
         :rtype: NoneType
         """
+        # @todo check for potential other asds on the drive as they will also get impacted
+        # @todo Create a system to check if a dual controller was set
         _ = args, kwargs
         try:
             # Mount the disk so the ASD can run
