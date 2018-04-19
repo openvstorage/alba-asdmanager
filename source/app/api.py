@@ -262,6 +262,60 @@ class API(object):
             else:
                 raise RuntimeError('Still some ASDs configured on Disk {0}'.format(slot_id))
 
+    @staticmethod
+    @post('/slots/<slot_id>/ownership')
+    def claim_slot_ownership(slot_id):
+        """
+        Claim ownership of the slot.
+        This is a Dual Controller feature
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        try:
+            disk = DiskList.get_by_alias(slot_id)
+        except ObjectNotFoundException:
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
+            return None
+
+        if disk.available is True:
+            raise HttpNotAcceptableException(error='disk_not_configured',
+                                             error_description='Disk not yet configured')
+
+        with file_mutex('disk_{0}'.format(slot_id)):
+            last_exception = None
+            for asd in disk.asds:
+                try:
+                    ASDController.remove_asd(asd=asd)
+                except Exception as ex:
+                    last_exception = ex
+            disk = Disk(disk.id)
+            if len(disk.asds) == 0:
+                DiskController.clean_disk(disk=disk)
+            elif last_exception is not None:
+                raise last_exception
+            else:
+                raise RuntimeError('Still some ASDs configured on Disk {0}'.format(slot_id))
+
+    @staticmethod
+    @post('/slots/<slot_id>/restart')
+    def stop_slot(slot_id):
+        """
+        Stops all OSDs on the slode
+        :param slot_id: Identifier of the slot
+        :type slot_id: str
+        :return: None
+        :rtype: NoneType
+        """
+        try:
+            disk = DiskList.get_by_alias(slot_id)
+        except ObjectNotFoundException:
+            API._logger.warning('Disk with ID {0} is no longer present (or cannot be managed)'.format(slot_id))
+            return None
+        for asd in disk.asds:
+            ASDController.stop_asd(asd=asd)
+
     #########
     # DISKS #
     #########

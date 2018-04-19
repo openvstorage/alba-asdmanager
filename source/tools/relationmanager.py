@@ -14,9 +14,12 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import copy
+import time
+from random import randint
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.system import System
+from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException
 
 
 class RelationManager(object):
@@ -31,9 +34,13 @@ class RelationManager(object):
     """
     LOCK_EXPIRATION = 60
     LOCK_WAIT = 60
+    MAX_REGISTER_RETRIES = 20
 
     NODE_ASD_OWNERSHIP_LOCATION = '{0}/config/node_ownership'.format(Configuration.ASD_NODE_LOCATION)
     ASD_NODE_OWNER_LOCATION = '{0}/config/asd_ownership'.format(Configuration.ASD_NODE_LOCATION)
+
+    CLUSTER_NODE_RELATION_LOCATION = '{0}/config/cluster_node_relation'.format(Configuration.ASD_NODE_LOCATION)
+    NODE_CLUSTER_RELATION_LOCATION = '{0}/config/node_cluster_relation'.format(Configuration.ASD_NODE_LOCATION)
 
     _logger = Logger('asd_configuration')
 
@@ -49,8 +56,14 @@ class RelationManager(object):
         node_id = System.get_my_machine_id()
         node_asd_ownership_location = cls.NODE_ASD_OWNERSHIP_LOCATION.format(node_id)
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
-        with cls._get_lock():
-            # Initially worked with a reversed mapping (asd to node) for faster lookups
+
+        success = False
+        last_exception = None
+        tries = 0
+        while success is False:
+            tries += 1
+            if tries > cls.MAX_REGISTER_RETRIES:
+                raise last_exception
             node_asd_overview = Configuration.get(node_asd_ownership_location, default={})
             asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
             old_node_asd_overview = copy.deepcopy(node_asd_overview)
@@ -65,24 +78,31 @@ class RelationManager(object):
                         owner_node_asd_list.append(asd_id)
                     new_owner_node_asd_list = owner_node_asd_list
                 else:
-                    # Filter out the asd
+                    # Initiate a config cleanup
                     new_owner_node_asd_list = [i for i in owner_node_asd_list if i != asd_id]
+                    raise NotImplementedError()
+                    # @todo this should be saved in both registers and afterwards the register should happen again
             else:
                 new_owner_node_asd_list = [asd_id]
             node_asd_overview[owner_node_id] = new_owner_node_asd_list
             asd_node_overview[asd_id] = node_id
+            transaction = Configuration.begin_transaction()
+            for key, value, assert_value in [(node_asd_ownership_location, node_asd_overview, old_node_asd_overview),
+                                             (asd_node_ownership_location, asd_node_overview, old_asd_node_overview)]:
+
+                if value == {}:
+                    # If the value would be an empty dict, this means the config was never set
+                    # because the node_id should never be deleted of this instance once set
+                    assert_value = None  # assert the key does not exist
+                Configuration.assert_value(key, assert_value, transaction=transaction)
+                Configuration.set(key, value, transaction=transaction)
             try:
-                Configuration.set(node_asd_ownership_location, node_asd_overview)
-                Configuration.set(asd_node_ownership_location, asd_node_overview)
-            except Exception as ex:
-                # @todo overlook this. Might be dangerous
-                cls._logger.exception('Exception occurred while saving the new ownership of ASD {0}'.format(asd_id))
-                for args in [(node_asd_ownership_location, old_node_asd_overview), (asd_node_ownership_location, old_asd_node_overview)]:
-                    try:
-                        Configuration.set(*args)
-                    except:
-                        cls._logger.exception('Exception occurred while reverting ownership of ASD {0}'.format(asd_id))
-                raise ex
+                Configuration.apply_transaction(transaction=transaction)
+                success = True
+            except ConfigurationAssertionException as ex:
+                cls._logger.warning('Exception occurred while saving the new ownership of ASD {0}'.format(asd_id))
+                last_exception = ex
+                time.sleep(randint(0, 25) / 100.0)
 
     @classmethod
     def has_ownership(cls, asd_id):
@@ -93,16 +113,46 @@ class RelationManager(object):
         :param asd_id: ID of the ASD to check for
         :type asd_id: str
         :return: True if the ownership is from this node else False
+        :rtype: bool
         """
         node_id = System.get_my_machine_id()
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
-        with cls._get_lock():  # Locking as someone else might be writing at this moment
-            try:
-                asd_node_overview = Configuration.get(asd_node_ownership_location, default={})  # type: Dict[str, List[str]]
-                return asd_node_overview.get(asd_id) == node_id
-            except:
-                cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))
-                raise
+        try:
+            asd_node_overview = Configuration.get(asd_node_ownership_location, default={})  # type: Dict[str, List[str]]
+            return asd_node_overview.get(asd_id) == node_id
+        except:
+            cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))
+            raise
+
+    @classmethod
+    def is_claimable(cls, asd_id):
+        # type: (str) -> bool
+        """
+        Check if the current manager can claim the ownership of the asd
+        :param asd_id: ID of the ASD to check for
+        :type asd_id: str
+        :return: True if the ownership is from this node else False
+        :rtype: bool
+        """
+        node_id = System.get_my_machine_id()
+        asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
+        try:
+            asd_node_overview = Configuration.get(asd_node_ownership_location, default={})  # type: Dict[str, List[str]]
+            return asd_node_overview.get(asd_id) is None
+        except:
+            cls._logger.exception('Exception occurred while reading the ownership overview for ASD {0}'.format(asd_id))
+            raise
+
+    @classmethod
+    def is_part_of_cluster(cls):
+        node_id = System.get_my_machine_id()
+        node_cluster_relation = cls.NODE_CLUSTER_RELATION_LOCATION.format(node_id)
+        try:
+            node_cluster_overview = Configuration.get(node_cluster_relation, default={})
+            return node_cluster_overview.get(node_id) is not None
+        except:
+            cls._logger.exception('Exception occurred while reading the cluster relation overview for node {0}'.format(node_id))
+            raise
 
     @classmethod
     def _get_lock(cls):

@@ -51,7 +51,8 @@ class ASDService(object):
         _ = args, kwargs
         try:
             node_id = SettingList.get_setting_by_code(code='node_id').value
-            alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')  # Call here, because this potentially raises error, which should happen before actually making changes
+            # Call here, because this potentially raises error, which should happen before actually making changes
+            alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component='alba')
             if not os.path.exists(ServiceFactory.RUN_FILE_DIR):
                 cls._logger.info('Creating the run file directory')
                 os.makedirs(ServiceFactory.RUN_FILE_DIR)
@@ -70,12 +71,14 @@ class ASDService(object):
                 entry = '{0}={1}'.format(alba_pkg_name, running_alba_version)
                 cls._logger.info('Running with {0}'.format(entry))
                 run_file.write(entry)
-            if RelationManager.has_ownership(asd_id) is False:
-                cls._logger.warning('Node {0} has no ownership over ASD with ID {1}. Exiting'.format(node_id, asd_id))
-                sys.exit(1)
-            # Mount the disk so the ASD can run
-            cls._logger.info('Mounting the disk for ASD with ID {0}'.format(asd_id))
-            DiskController.mount(disk=asd.disk)
+            # Dual controller related:
+            if RelationManager.is_part_of_cluster():
+                if RelationManager.has_ownership(asd_id) is False:
+                    cls._logger.warning('Node {0} has no ownership over ASD with ID {1}. Exiting'.format(node_id, asd_id))
+                    sys.exit(1)
+                # Mount the disk so the ASD can run
+                cls._logger.info('Mounting the disk for ASD with ID {0}'.format(asd_id))
+                DiskController.mount(disk=asd.disk)
         except Exception:
             cls._logger.exception('Exception occurred during start-pre for ASD {0}'.format(asd_id))
             raise
@@ -92,13 +95,13 @@ class ASDService(object):
         :rtype: NoneType
         """
         # @todo check for potential other asds on the drive as they will also get impacted
-        # @todo Create a system to check if a dual controller was set
         _ = args, kwargs
         try:
-            # Mount the disk so the ASD can run
-            asd = ASDList.get_by_asd_id(asd_id)
-            cls._logger.info('Unmounting the disk for ASD with ID {0}'.format(asd_id))
-            DiskController.unmount(disk=asd.disk)
+            if RelationManager.is_part_of_cluster():
+                # Mount the disk so the ASD can run
+                asd = ASDList.get_by_asd_id(asd_id)
+                cls._logger.info('Unmounting the disk for ASD with ID {0}'.format(asd_id))
+                DiskController.unmount(disk=asd.disk)
         except Exception:
             cls._logger.exception('Exception occurred during stop-post for ASD {0}'.format(asd_id))
             raise

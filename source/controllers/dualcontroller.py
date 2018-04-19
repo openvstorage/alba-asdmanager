@@ -14,12 +14,17 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 from ovs_extensions.dal.base import ObjectNotFoundException
+from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from source.controllers.asd import ASDController
+from source.controllers.disk import DiskController
 from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
+from source.dal.lists.settinglist import SettingList
+from source.tools.configuration import Configuration
 from source.tools.logger import Logger
-from source.controllers.disk import DiskController
-from source.controllers.asd import ASDController
+from source.tools.servicefactory import ServiceFactory
+from source.tools.relationmanager import RelationManager
 
 
 class DualController(object):
@@ -27,6 +32,8 @@ class DualController(object):
     Class responsible for syncing models for Dual Controller support
     """
     _logger = Logger('controllers')
+    _service_manager = ServiceFactory.get_manager()
+    _local_client = SSHClient(endpoint='127.0.0.1', username='root')
 
     OSD_DATA_FORMAT = {'folder': (str, None, True),
                        'home': (str, None, True),
@@ -165,3 +172,32 @@ class DualController(object):
         except TypeError:
             pass
         return [item for item in first if item not in second]
+
+    @classmethod
+    def claim_ownership(cls, disk):
+        """
+        Claim ownership of all OSDs on the slot
+        :param disk: Disk to claim ownership for
+        :type disk: source.dal.objects.disk.Disk
+        :return: None
+        :rtype: NoneType
+        """
+        errors = []
+        if not RelationManager.is_part_of_cluster():
+            raise ValueError('Not part of a node cluster. No ownership changes can be made')
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        for asd in disk.asds:
+            if not cls._service_manager.has_service(asd.service_name, cls._local_client):
+                errors.append('No service found for ASD {0}'.format(asd.asd_id))
+                continue
+            if not Configuration.exists(asd.config_key):
+                errors.append('No configuration entry for ASD {0}'.format(asd.asd_id))
+        if len(errors) > 0:
+            raise RuntimeError('Ownership cannot be claimed for Disk {0}: \n - {1}'.format(disk.aliases[0], '\n - '.join(errors)))
+        for asd in disk.asds:
+            # Change to node id
+            asd_config = Configuration.get(asd.config_key)
+            asd_config['node_id'] = node_id
+            Configuration.set(asd.config_key, asd_config)
+            RelationManager.register_asd_usage(asd.asd_id)
+            cls._service_manager.start_service(asd.service_name, cls._local_client)
