@@ -21,6 +21,7 @@ This module contains logic related to updates
 import copy
 import json
 from subprocess import CalledProcessError
+from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.sshclient import SSHClient
 from source.asdmanager import BOOTSTRAP_FILE
 from source.controllers.asd import ASDController
@@ -150,55 +151,73 @@ class SDMUpdateController(object):
 
     @classmethod
     def execute_migration_code(cls):
+        # type: () -> None
         """
         Run some migration code after an update has been done
         :return: None
         :rtype: NoneType
         """
-        # Removal of bootstrap file and store API IP, API port and node ID in SQLite DB
         cls._logger.info('Starting out of band migrations for SDM nodes')
 
-        required_settings = ['api_ip', 'api_port', 'node_id', 'migration_version']
-        for setting in SettingList.get_settings():
-            if setting.code in required_settings:
-                required_settings.remove(setting.code)
+        ###########################
+        # Start crucial migration #
+        ###########################
 
-        if len(required_settings):
-            cls._logger.info('Missing required Settings: {0}'.format(', '.join(required_settings)))
+        # Removal of bootstrap file and store API IP, API port and node ID in SQLite DB
+        try:
             if cls._local_client.file_exists(BOOTSTRAP_FILE):
                 cls._logger.info('Bootstrap file still exists. Retrieving node ID')
                 with open(BOOTSTRAP_FILE) as bstr_file:
                     node_id = json.load(bstr_file)['node_id']
             else:
                 node_id = SettingList.get_setting_by_code(code='node_id').value
+        except Exception:
+            cls._logger.exception('Unable to determine the node ID, cannot migrate')
+            raise
 
-            cls._logger.info('Node ID: {0}'.format(node_id))
-            settings_dict = {'node_id': node_id}
-            if Configuration.exists(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id)):
-                main_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
-                settings_dict['api_ip'] = main_config['ip']
-                settings_dict['api_port'] = main_config['port']
+        try:
+            api_settings_map = {'api_ip': 'ip', 'api_port': 'port'}  # Map settings code to keys in the Config management
+            required_settings = ['node_id', 'migration_version'] + api_settings_map.keys()
+            for settings_code in required_settings:
+                try:
+                    _ = SettingList.get_setting_by_code(settings_code)
+                except ObjectNotFoundException:
+                    cls._logger.info('Missing required settings: {0}'.format(settings_code))
+                    if settings_code == 'node_id':
+                        value = node_id
+                    elif settings_code in api_settings_map.keys():
+                        # Information must be extracted from Configuration
+                        main_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+                        value = main_config[api_settings_map[settings_code]]
+                    elif settings_code == 'migration_version':
+                        # Introduce version for ASD Manager migration code
+                        value = 0
+                    else:
+                        raise NotImplementedError('No action implemented for setting {0}'.format(settings_code))
 
-            for code, value in settings_dict.iteritems():
-                cls._logger.info('Modeling Setting with code {0} and value {1}'.format(code, value))
-                setting = Setting()
-                setting.code = code
-                setting.value = value
-                setting.save()
+                    cls._logger.info('Modeling Setting with code {0} and value {1}'.format(settings_code, value))
+                    setting = Setting()
+                    setting.code = settings_code
+                    setting.value = value
+                    setting.save()
 
-            cls._local_client.file_delete(BOOTSTRAP_FILE)
+            if cls._local_client.file_exists(BOOTSTRAP_FILE):
+                cls._logger.info('Removing the bootstrap file')
+                cls._local_client.file_delete(BOOTSTRAP_FILE)
+        except Exception:
+            cls._logger.exception('Error during migration of code settings. Unable to proceed')
+            raise
 
-        # Introduce version for ASD Manager migration code
-        if 'migration_version' in required_settings:
-            setting = Setting()
-            setting.code = 'migration_version'
-            setting.value = 0
-            setting.save()
+        ###############################
+        # Start non-crucial migration #
+        ###############################
 
+        errors = []
         # Add installed package_name in version files and additional string replacements in service files
         try:
             migration_setting = SettingList.get_setting_by_code(code='migration_version')
             if migration_setting.value < 1:
+                cls._logger.info('Adding additional information to service files')
                 edition = Configuration.get_edition()
                 if edition == PackageFactory.EDITION_ENTERPRISE:
                     for version_file_name in cls._local_client.file_list(directory=ServiceFactory.RUN_FILE_DIR):
@@ -224,9 +243,15 @@ class SDMUpdateController(object):
                             cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX if service_name in asd_services else MaintenanceController.MAINTENANCE_PREFIX,
                                                                     client=cls._local_client,
                                                                     target_name=service_name)
-                migration_setting.value = 1
-                migration_setting.save()
-        except Exception:
+        except Exception as ex:
             cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
+            errors.append(ex)
+
+        if len(errors) == 0:
+            cls._logger.info('No errors during non-crucial migration. Saving the migration setting')
+            # Save migration settings when no errors occurred
+            migration_setting = SettingList.get_setting_by_code(code='migration_version')
+            migration_setting.value = 1
+            migration_setting.save()
 
         cls._logger.info('Finished out of band migrations for SDM nodes')
