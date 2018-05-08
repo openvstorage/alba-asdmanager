@@ -41,4 +41,5 @@ class System(_System):
         :return: Machine ID
         :rtype: str
         """
+
         return SettingList.get_setting_by_code(code='node_id').value
