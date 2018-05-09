@@ -21,6 +21,7 @@ Module for ASD Manager SetupController
 """
 import os
 import sys
+import copy
 import json
 import time
 import logging
@@ -60,6 +61,7 @@ def setup():
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(['Could not retrieve IP information on local node']))
         sys.exit(1)
+    validation_ip_addresses = copy.deepcopy(ipaddresses)
 
     local_client = SSHClient(endpoint='127.0.0.1', username='root')
     service_manager = ServiceFactory.get_manager()
@@ -70,12 +72,17 @@ def setup():
 
     config = _validate_and_retrieve_pre_config()
     interactive = len(config) == 0
+    ipmi_info = {'ip': None,
+                 'username': None,
+                 'pwd': None}
+
     if interactive is False:
         api_ip = config['api_ip']
         api_port = config.get('api_port', 8500)
         asd_ips = config.get('asd_ips', [])
         asd_start_port = config.get('asd_start_port', 8600)
         configuration_store = config.get('configuration_store', 'arakoon')
+        ipmi_info = config.get('ipmi', ipmi_info)
     else:
         api_ip = Interactive.ask_choice(choice_options=ipaddresses,
                                         question='Select the public IP address to be used for the API',
@@ -106,11 +113,18 @@ def setup():
                                                  default_value=8600)
         configuration_store = 'arakoon'
 
-    if api_ip not in ipaddresses:
+        message = 'Do you want to set IPMI configuration keys?'
+        proceed = Interactive.ask_yesno(message=message, default_value=False)
+        if proceed is True:
+            ipmi_info['ip'] = Interactive.ask_string(message='Enter the IPMI IP address', regex_info={'regex': ExtensionsToolbox.regex_ip})
+            ipmi_info['username'] = Interactive.ask_string(message='Enter the IPMI username')
+            ipmi_info['pwd'] = Interactive.ask_password(message='Enter the IPMI password')
+
+    if api_ip not in validation_ip_addresses:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid API IP {0} specified. Please choose from:'.format(api_ip)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
         sys.exit(1)
-    different_ips = set(asd_ips).difference(set(ipaddresses))
+    different_ips = set(asd_ips).difference(set(validation_ip_addresses))
     if different_ips:
         _print_and_log(level='error',
                        message='\n' + Interactive.boxed_message(lines=['Invalid ASD IPs {0} specified. Please choose from:'.format(asd_ips)] + ['  * {0}'.format(ip) for ip in ipaddresses]))
@@ -137,15 +151,18 @@ def setup():
                             contents=json.dumps({'configuration_store': configuration_store},
                                                 indent=4))
 
+    node_id = Configuration.initialize(config={'api_ip': api_ip,
+                                               'asd_ips': asd_ips,
+                                               'api_port': api_port,
+                                               'asd_start_port': asd_start_port,
+                                               'ipmi': ipmi_info})
+
     # Model settings
     _print_and_log(message=' - Store settings in DB')
     for code, value in {'api_ip': api_ip,
                         'api_port': api_port,
                         'configuration_store': configuration_store,
-                        'node_id': Configuration.initialize(config={'api_ip': api_ip,
-                                                                    'asd_ips': asd_ips,
-                                                                    'api_port': api_port,
-                                                                    'asd_start_port': asd_start_port})}.iteritems():
+                        'node_id': node_id}.iteritems():
         setting = Setting()
         setting.code = code
         setting.value = value
@@ -278,7 +295,7 @@ def _validate_and_retrieve_pre_config():
     errors = []
     config = config['asdmanager']
     actual_keys = config.keys()
-    allowed_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'configuration_store']
+    allowed_keys = ['api_ip', 'api_port', 'asd_ips', 'asd_start_port', 'configuration_store', 'ipmi']
     for key in actual_keys:
         if key not in allowed_keys:
             errors.append('Key {0} is not supported by the ASD manager'.format(key))
@@ -298,6 +315,11 @@ def _validate_and_retrieve_pre_config():
                                                                   'api_port': (int, {'min': 1025, 'max': 65535}, False),
                                                                   'asd_start_port': (int, {'min': 1025, 'max': 65435}, False),
                                                                   'configuration_store': (str, ['arakoon'], False)})
+        if config.get('ipmi') is not None:
+            ExtensionsToolbox.verify_required_params(actual_params=config.get('ipmi'),
+                                                     required_params={'ip': (str, ExtensionsToolbox.regex_ip, True),
+                                                                      'username': (str, None, True),
+                                                                      'pwd': (str, None, True)})
     except RuntimeError:
         _print_and_log(message='\n' + Interactive.boxed_message(['The asd-manager pre-configuration file does not contain correct information']),
                        level='exception')
