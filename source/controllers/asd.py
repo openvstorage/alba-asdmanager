@@ -126,7 +126,7 @@ class ASDController(object):
                 asd_config.update(data)
         else:
             asd_port = asd_config['port']
-            asd_id = asd_config['osd_id']
+            asd_id = asd_config['asd_id']
             homedir = asd_config['home']
 
         asd = ASD()

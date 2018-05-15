@@ -38,13 +38,13 @@ class DualController(object):
     OSD_DATA_FORMAT = {'folder': (str, None, True),
                        'home': (str, None, True),
                        'node_id': (str, None, False),
-                       'osd_id': (str, None, True),
+                       'asd_id': (str, None, True),
                        'port': (int, None, True),
                        'transport': (str, None, True)}
     SLOT_DATA_FORMAT = {'aliases': (list, str, True),
                         'mountpoint': (str, None, True),
                         'node_id': (str, None, True),
-                        'osds': (dict, OSD_DATA_FORMAT, True),
+                        'osds': (dict, None, True),
                         'partition_aliases': (list, str, True)}
 
     @classmethod
@@ -56,7 +56,7 @@ class DualController(object):
         :return: None
         :rtype: NoneType
         """
-        cls.validate_stack(stack)
+        stack = cls.filter_validate_stack(stack)
         # Compare the stack to our own
         # @Todo check for removals too
         # @todo figure out a way to check if fstab is falling behind on the passive side (outdated entries and such)
@@ -105,7 +105,7 @@ class DualController(object):
         ExtensionsToolbox.verify_required_params(required_params=cls.OSD_DATA_FORMAT, actual_params=asd_data)
 
     @classmethod
-    def validate_stack(cls, stack):
+    def filter_validate_stack(cls, stack):
         """
         Validates the stack data
         :param stack: Stack to validate (stack property of an AlbaNode)
@@ -150,13 +150,20 @@ class DualController(object):
                                                             'status_detail': '',
                                                             'usage': {'available': 1999306240000, 'size': 1999419994112, 'used': 113754112}}}}
         :type stack: dict
-        :return: None
-        :rtype: NoneType
+        :return: Filtered stack
+        :rtype: dict
         """
         if not isinstance(stack, dict):
             raise ValueError('The stack should be a dict')
+        filtered_stack = stack.copy()  # Shallow copy
         for slot_id, slot_data in stack.iteritems():
+            if slot_data.get('osds', {}) == {}:
+                filtered_stack.pop(slot_id)
+                continue
             ExtensionsToolbox.verify_required_params(required_params=cls.SLOT_DATA_FORMAT, actual_params=slot_data)
+            for osd_id, osd_data in slot_data['osds'].iteritems():
+                ExtensionsToolbox.verify_required_params(required_params=cls.OSD_DATA_FORMAT, actual_params=osd_data)
+        return filtered_stack
 
     @staticmethod
     def _diff(first, second):

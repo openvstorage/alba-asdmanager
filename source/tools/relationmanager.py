@@ -14,12 +14,10 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import copy
-import time
-from random import randint
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.system import System
-from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException
+from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException
 
 
 class RelationManager(object):
@@ -53,6 +51,19 @@ class RelationManager(object):
         :type asd_id: int
         :return: None
         """
+        # Wrap it in a lambda so it does not get executed here
+        Configuration.safely_store(callback=lambda: cls._get_registering_data(asd_id),
+                                   max_retries=20)
+
+    @classmethod
+    def _get_registering_data(cls, asd_id):
+        """
+        Gets all data to be saved. Used as callbacks for safely_store
+        :param asd_id: ID of ASD to register
+        :type asd_id: int
+        :return: The callback data
+        :rtype: list[tuple[str, dict, none]
+        """
         node_id = System.get_my_machine_id()
         node_asd_ownership_location = cls.NODE_ASD_OWNERSHIP_LOCATION.format(node_id)
         asd_node_ownership_location = cls.ASD_NODE_OWNER_LOCATION.format(node_id)
@@ -64,10 +75,20 @@ class RelationManager(object):
             tries += 1
             if tries > cls.MAX_REGISTER_RETRIES:
                 raise last_exception
-            node_asd_overview = Configuration.get(node_asd_ownership_location, default={})
-            asd_node_overview = Configuration.get(asd_node_ownership_location, default={})
-            old_node_asd_overview = copy.deepcopy(node_asd_overview)
-            old_asd_node_overview = copy.deepcopy(asd_node_overview)
+            try:
+
+                # Unable to use 'default=' as the assertion requires to know if the key was set to {} or not
+                node_asd_overview = Configuration.get(node_asd_ownership_location)
+                old_node_asd_overview = copy.deepcopy(node_asd_overview)
+            except ConfigurationNotFoundException:
+                node_asd_overview = {}
+                old_node_asd_overview = None
+            try:
+                asd_node_overview = Configuration.get(asd_node_ownership_location)
+                old_asd_node_overview = copy.deepcopy(asd_node_overview)
+            except ConfigurationNotFoundException:
+                asd_node_overview = {}
+                old_asd_node_overview = None
             # Search for potential different owners
             owner_node_id = asd_node_overview.get(asd_id)
             if owner_node_id is not None:
@@ -86,23 +107,8 @@ class RelationManager(object):
                 new_owner_node_asd_list = [asd_id]
             node_asd_overview[owner_node_id] = new_owner_node_asd_list
             asd_node_overview[asd_id] = node_id
-            transaction = Configuration.begin_transaction()
-            for key, value, assert_value in [(node_asd_ownership_location, node_asd_overview, old_node_asd_overview),
-                                             (asd_node_ownership_location, asd_node_overview, old_asd_node_overview)]:
-
-                if value == {}:
-                    # If the value would be an empty dict, this means the config was never set
-                    # because the node_id should never be deleted of this instance once set
-                    assert_value = None  # assert the key does not exist
-                Configuration.assert_value(key, assert_value, transaction=transaction)
-                Configuration.set(key, value, transaction=transaction)
-            try:
-                Configuration.apply_transaction(transaction=transaction)
-                success = True
-            except ConfigurationAssertionException as ex:
-                cls._logger.warning('Exception occurred while saving the new ownership of ASD {0}'.format(asd_id))
-                last_exception = ex
-                time.sleep(randint(0, 25) / 100.0)
+            return [(node_asd_ownership_location, node_asd_overview, old_node_asd_overview),
+                    (asd_node_ownership_location, asd_node_overview, old_asd_node_overview)]
 
     @classmethod
     def has_ownership(cls, asd_id):

@@ -579,7 +579,7 @@ class API(object):
         :return: None
         :rtype: NoneType
         """
-        stack_data = request.form.get('stack', {})
+        stack_data = json.loads(request.form.get('stack', {}))
         DualController.sync_stack(stack_data)
 
     @staticmethod
