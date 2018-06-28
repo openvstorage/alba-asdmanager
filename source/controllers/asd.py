@@ -43,14 +43,17 @@ class ASDController(object):
     _service_manager = ServiceFactory.get_manager()
 
     @staticmethod
-    def calculate_rocksdb_cache_size(asd_size):
+    def calculate_rocksdb_cache_size(disk):
         """
         Calculate the cache size for the RocksDB
-        :param asd_size:
-        :return:
+        :param disk: disk on which the asd is running
+        :type disk: source.dal.objects.disk.Disk
+        :return: None or int
         """
-        return int(asd_size / 1024 / 4)
-
+        if disk.is_ssd:  # No cache size is required to be specified for ASDs
+            return None
+        else:
+            return 128 * 1024 * 1024  # 128 MiB
 
     @staticmethod
     def create_asd(disk):
@@ -83,7 +86,7 @@ class ASDController(object):
             if asd.has_config:
                 config = Configuration.get(asd.config_key)
                 config['capacity'] = asd_size
-                config['rocksdb_block_cache_size'] = ASDController.calculate_rocksdb_cache_size(asd_size=asd_size)
+                config['rocksdb_block_cache_size'] = ASDController.calculate_rocksdb_cache_size(disk=disk)
                 Configuration.set(asd.config_key, config)
                 try:
                     ASDController._service_manager.send_signal(asd.service_name, signal.SIGUSR1, ASDController._local_client)
@@ -121,7 +124,7 @@ class ASDController(object):
                       'multicast': None,
                       'transport': 'tcp',
                       'log_level': 'info',
-                      'rocksdb_block_cache_size': ASDController.calculate_rocksdb_cache_size(asd_size=asd_size)}
+                      'rocksdb_block_cache_size': ASDController.calculate_rocksdb_cache_size(disk=disk)}
         if Configuration.get('/ovs/framework/rdma'):
             asd_config['rora_port'] = rora_port
             asd_config['rora_transport'] = 'rdma'
