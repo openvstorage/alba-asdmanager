@@ -43,14 +43,14 @@ class ASDController(object):
     _service_manager = ServiceFactory.get_manager()
 
     @staticmethod
-    def calculate_rocksdb_cache_size(disk):
+    def calculate_rocksdb_cache_size(is_ssd):
         """
         Calculate the cache size for the RocksDB
         :param disk: disk on which the asd is running
         :type disk: source.dal.objects.disk.Disk
         :return: None or int
         """
-        if disk.is_ssd:  # No cache size is required to be specified for ASDs
+        if is_ssd:  # No cache size is required to be specified for ASDs
             return None
         else:
             return 128 * 1024 * 1024  # 128 MiB
@@ -86,7 +86,9 @@ class ASDController(object):
             if asd.has_config:
                 config = Configuration.get(asd.config_key)
                 config['capacity'] = asd_size
-                config['rocksdb_block_cache_size'] = ASDController.calculate_rocksdb_cache_size(disk=disk)
+                cache_size = ASDController.calculate_rocksdb_cache_size(is_ssd=disk.is_ssd)
+                if cache_size:
+                    config.update({'rocksdb_block_cache_size': cache_size})
                 Configuration.set(asd.config_key, config)
                 try:
                     ASDController._service_manager.send_signal(asd.service_name, signal.SIGUSR1, ASDController._local_client)
@@ -123,8 +125,11 @@ class ASDController(object):
                       'capacity': asd_size,
                       'multicast': None,
                       'transport': 'tcp',
-                      'log_level': 'info',
-                      'rocksdb_block_cache_size': ASDController.calculate_rocksdb_cache_size(disk=disk)}
+                      'log_level': 'info'
+                      }
+        cache_size = ASDController.calculate_rocksdb_cache_size(is_ssd=disk.is_ssd)
+        if cache_size:
+            asd_config.update({'rocksdb_block_cache_size': cache_size})
         if Configuration.get('/ovs/framework/rdma'):
             asd_config['rora_port'] = rora_port
             asd_config['rora_transport'] = 'rdma'
