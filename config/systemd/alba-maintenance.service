@@ -1,6 +1,7 @@
 [Unit]
 Description=ALBA Maintenance
 After=asd-watcher.service
+SyslogIdentifier=%N
 
 [Service]
 Group=root

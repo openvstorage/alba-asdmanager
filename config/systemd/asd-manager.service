@@ -2,6 +2,7 @@
 Description=ASD Manager
 After=asd-watcher.service
 BindsTo=asd-watcher.service
+SyslogIdentifier=%N
 
 [Service]
 Group=root
