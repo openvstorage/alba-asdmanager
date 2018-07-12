@@ -1,11 +1,11 @@
 [Unit]
 Description=Watcher for the ASD Manager
 After=local-fs.target network-online.target
-SyslogIdentifier=%N
 
 [Service]
 Type=simple
 Environment=PYTHONPATH=/opt/asd-manager
+SyslogIdentifier=%N
 # The watcher will block until all services are running
 ExecStartPre=/usr/bin/python /opt/asd-manager/source/tools/watcher.py config wait
 # The waiter will block until one of the services is not reachable anymore
