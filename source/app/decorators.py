@@ -20,7 +20,7 @@ API decorators
 
 import json
 from flask import request
-from ovs_extensions.api.decorators import HTTPRequestDecorators as _HTTPRequestDecorators
+from ovs_extensions.api.decorators.flask import HTTPRequestFlaskDecorators as _HTTPRequestDecorators
 from source.app import app
 from source.asdmanager import BOOTSTRAP_FILE
 from source.dal.lists.settinglist import SettingList
