@@ -477,7 +477,7 @@ class API(object):
 
     @staticmethod
     @get('/maintenance')
-    @wrap
+    @wrap('services')
     def list_maintenance_services():
         """
         List all maintenance information
