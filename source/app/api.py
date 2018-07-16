@@ -25,7 +25,8 @@ from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
-from source.app.decorators import HTTPRequestDecorators
+from source.app.decorators.flask import HTTPRequestFlaskDecorators
+from source.app.decorators.generic import HTTPRequestGenericDecorators
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
@@ -44,10 +45,10 @@ class API(object):
     """ ALBA API """
     _logger = Logger('flask')
 
-    get = HTTPRequestDecorators.get
-    post = HTTPRequestDecorators.post
-    delete = HTTPRequestDecorators.delete
-    wrap = HTTPRequestDecorators.proper_wrap
+    get = HTTPRequestFlaskDecorators.get
+    post = HTTPRequestFlaskDecorators.post
+    delete = HTTPRequestFlaskDecorators.delete
+    wrap = HTTPRequestGenericDecorators.wrap_data
 
     ###########
     # GENERIC #
