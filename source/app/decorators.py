@@ -20,7 +20,8 @@ API decorators
 
 import json
 from flask import request
-from ovs_extensions.api.decorators.flask import HTTPRequestFlaskDecorators as _HTTPRequestDecorators
+from ovs_extensions.api.decorators.flask_requests import HTTPRequestFlaskDecorators
+from ovs_extensions.api.decorators.generic_requests import HTTPRequestGenericDecorators
 from source.app import app
 from source.asdmanager import BOOTSTRAP_FILE
 from source.dal.lists.settinglist import SettingList
@@ -28,7 +29,7 @@ from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 
 
-class HTTPRequestDecorators(_HTTPRequestDecorators):
+class HTTPRequestDecorators(HTTPRequestFlaskDecorators, HTTPRequestGenericDecorators):
     """
     Class with decorator functionality for HTTP requests
     """
