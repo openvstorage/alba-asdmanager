@@ -43,9 +43,12 @@ class DiskController(object):
 
     @staticmethod
     def sync_disks():
+        # type: () -> None
         """
         Syncs the disks
         Changes made to this code should be reflected in the framework DiskController.sync_with_reality call.
+        :return: None
+        :rtype: NoneType
         """
         disks, name_alias_mapping = DiskTools.model_devices()
         disks_by_name = dict((disk.name, disk) for disk in disks)
@@ -86,7 +89,6 @@ class DiskController(object):
         :return: None
         :rtype: NoneType
         """
-        cls._logger.info('Disk {0} - No longer found'.format(modeled_disk.name))
         cls._logger.info('Disk {0} - No longer found'.format(modeled_disk.name))
         if len(modeled_disk.asds) == 0:
             modeled_disk.delete()
@@ -322,7 +324,3 @@ class DiskController(object):
                 if controller_type == 'storcli64':
                     cls._logger.info('Location {0} for {1}'.format('start' if start is True else 'stop', location))
                     cls._local_client.run(['storcli64', location, 'start' if start is True else 'stop', 'locate'])
-
-
-if __name__ == '__main__':
-    DiskController.sync_disks()
