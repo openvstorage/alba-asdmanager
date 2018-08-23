@@ -39,7 +39,7 @@ class Disk(ASDBase):
                    Property(name='model', property_type=str, unique=False, mandatory=False),
                    Property(name='size', property_type=int, unique=False, mandatory=True),
                    Property(name='serial', property_type=str, unique=True, mandatory=False),
-                   Property(name='partitions', property_type=dict, unique=False, mandatory=False)]
+                   Property(name='partitions', property_type=list, unique=False, mandatory=False)]
     _relations = []
     _dynamics = ['mountpoint', 'available', 'usable', 'status', 'usage', 'partition_aliases']
 
