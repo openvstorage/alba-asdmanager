@@ -98,6 +98,7 @@ class DiskController(object):
                 for partition in modeled_disk.partitions:
                     cls._logger.warning('Disk {0} - Partition with offset {1} - Updated status to MISSING'.format(modeled_disk.name, partition['offset']))
                 modeled_disk.state = 'MISSING'
+                modeled_disk.save()
                 cls._logger.warning('Disk {0} - Updated status to MISSING'.format(modeled_disk.name))
 
     @classmethod
