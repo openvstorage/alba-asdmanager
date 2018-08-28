@@ -16,6 +16,13 @@
 """
 Constants involved in config management
 """
-import os
 
-S3_BASE = '/ovs/alba/asdnodes/{0}/s3'
+CACC_SOURCE = '/opt/OpenvStorage/config/arakoon_cacc.ini'
+CACC_LOCATION = '/opt/asd-manager/config/arakoon_cacc.ini'
+ASD_NODE_LOCATION = '/ovs/alba/asdnodes/{0}'
+CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
+ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)
+ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)
+ASD_NODE_CONFIG_MAIN_LOCATION_S3 = '{0}/config/main|s3'.format(ASD_NODE_LOCATION)
+ASD_NODE_CONFIG_IPMI_LOCATION = '{0}/config/ipmi'.format(ASD_NODE_LOCATION)
+ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)

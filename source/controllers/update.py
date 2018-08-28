@@ -24,6 +24,7 @@ from subprocess import CalledProcessError
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.sshclient import SSHClient
 from source.asdmanager import BOOTSTRAP_FILE
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.maintenance import MaintenanceController
 from source.dal.lists.settinglist import SettingList
@@ -187,7 +188,7 @@ class SDMUpdateController(object):
                         value = node_id
                     elif settings_code in api_settings_map.keys():
                         # Information must be extracted from Configuration
-                        main_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+                        main_config = Configuration.get(ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
                         value = main_config[api_settings_map[settings_code]]
                     elif settings_code == 'migration_version':
                         # Introduce version for ASD Manager migration code
