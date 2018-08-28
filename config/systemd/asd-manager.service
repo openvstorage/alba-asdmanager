@@ -9,6 +9,7 @@ User=root
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
+SyslogIdentifier=%N
 Environment=PYTHONPATH=/opt/asd-manager
 WorkingDirectory=/opt/asd-manager/source
 LimitMEMLOCK=infinity

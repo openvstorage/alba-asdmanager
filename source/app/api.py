@@ -47,29 +47,32 @@ class API(object):
     get = HTTPRequestDecorators.get
     post = HTTPRequestDecorators.post
     delete = HTTPRequestDecorators.delete
+    wrap = HTTPRequestDecorators.wrap_data
 
     ###########
     # GENERIC #
     ###########
     @staticmethod
     @get('/')
+    @wrap('node_id')
     def index():
         """
         Retrieve the local node ID
         :return: Node ID
         :rtype: dict
         """
-        return {'node_id': SettingList.get_setting_by_code(code='node_id').value}
+        return SettingList.get_setting_by_code(code='node_id').value
 
     @staticmethod
     @get('/net', authenticate=False)
+    @wrap('ips')
     def net():
         """
         Retrieve IP information
         :return: IPs found on the local system (excluding the loop-back IPs)
         :rtype: dict
         """
-        return {'ips': OSFactory.get_manager().get_ip_addresses()}
+        return OSFactory.get_manager().get_ip_addresses()
 
     @staticmethod
     @post('/net')
@@ -84,13 +87,14 @@ class API(object):
 
     @staticmethod
     @get('/collect_logs')
+    @wrap('filename')
     def collect_logs():
         """
         Collect the logs
         :return: The location where the file containing the logs was stored
         :rtype: dict
         """
-        return {'filename': GenericController.collect_logs()}
+        return GenericController.collect_logs()
 
     @staticmethod
     @app.route('/downloads/<filename>')
@@ -112,6 +116,7 @@ class API(object):
 
     @staticmethod
     @get('/slots')
+    @wrap()
     def get_slots():
         """
         Gets the current stack (slot based)
@@ -393,6 +398,7 @@ class API(object):
 
     @staticmethod
     @post('/update/execute/<status>')
+    @wrap('status')
     def execute_update(status):
         """
         This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
@@ -406,10 +412,11 @@ class API(object):
         with file_mutex('package_update'):
             SDMUpdateController.update(package_name='alba')
             SDMUpdateController.update(package_name='openvstorage-sdm')
-            return {'status': 'done'}
+            return 'done'
 
     @staticmethod
     @get('/update/installed_version_package/<package_name>')
+    @wrap('version')
     def update_installed_version_package(package_name):
         """
         Retrieve the currently installed package version
@@ -418,7 +425,7 @@ class API(object):
         :return: Version of the currently installed package
         :rtype: str
         """
-        return {'version': SDMUpdateController.get_installed_version_for_package(package_name=package_name)}
+        return SDMUpdateController.get_installed_version_for_package(package_name=package_name)
 
     @staticmethod
     @post('/update/execute_migration_code')
@@ -448,6 +455,7 @@ class API(object):
 
     @staticmethod
     @get('/service_status/<name>')
+    @wrap('status')
     def get_service_status(name):
         """
         Retrieve the status of the service specified
@@ -460,8 +468,8 @@ class API(object):
         service_manager = ServiceFactory.get_manager()
         if service_manager.has_service(name=name, client=client):
             status = service_manager.get_service_status(name=name, client=client)
-            return {'status': (status == 'active', status)}
-        return {'status': None}
+            return status == 'active', status
+        return None
 
     ########################
     # MAINTENANCE SERVICES #
@@ -469,13 +477,14 @@ class API(object):
 
     @staticmethod
     @get('/maintenance')
+    @wrap('services')
     def list_maintenance_services():
         """
         List all maintenance information
         :return: The names of all maintenance services found on the system
         :rtype: dict
         """
-        return {'services': list(MaintenanceController.get_services())}
+        return list(MaintenanceController.get_services())
 
     @staticmethod
     @post('/maintenance/<name>/add')

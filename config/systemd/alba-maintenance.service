@@ -8,6 +8,7 @@ User=root
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=60
+SyslogIdentifier=%N
 Environment=LD_LIBRARY_PATH=/usr/lib/alba
 Environment=ALBA_LWT_ENGINE=libev
 # Garbage collection for ALBA
