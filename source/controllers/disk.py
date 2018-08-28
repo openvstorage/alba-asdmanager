@@ -29,6 +29,7 @@ from ovs_extensions.generic.disk import DiskTools, Disk as GenericDisk
 from ovs_extensions.generic.sshclient import SSHClient
 from source.constants.s3 import S3_BASE
 from source.dal.lists.disklist import DiskList
+from source.dal.lists.settinglist import SettingList
 from source.dal.objects.disk import Disk
 from source.tools.configuration import Configuration
 from source.tools.fstab import FSTab
@@ -52,7 +53,8 @@ class DiskController(object):
         :return: None
         :rtype: NoneType
         """
-        s3 = Configuration.get(S3_BASE, default=False)
+        node_id = SettingList.get_setting_by_code(code='node_id').value
+        s3 = Configuration.get(S3_BASE.format(node_id), default=False)
         disks, name_alias_mapping = DiskTools.model_devices(s3=s3)
         disks_by_name = dict((disk.name, disk) for disk in disks)
         alias_name_mapping = name_alias_mapping.reverse_mapping()

@@ -16,5 +16,6 @@
 """
 Constants involved in config management
 """
+import os
 
-S3_BASE = '/ovs/alba/s3'
+S3_BASE = '/ovs/alba/asdnodes/{0}/s3'
