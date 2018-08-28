@@ -27,8 +27,10 @@ from subprocess import CalledProcessError
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.disk import DiskTools, Disk as GenericDisk
 from ovs_extensions.generic.sshclient import SSHClient
+from source.constants.s3 import S3_BASE
 from source.dal.lists.disklist import DiskList
 from source.dal.objects.disk import Disk
+from source.tools.configuration import Configuration
 from source.tools.fstab import FSTab
 from source.tools.logger import Logger
 
@@ -50,7 +52,8 @@ class DiskController(object):
         :return: None
         :rtype: NoneType
         """
-        disks, name_alias_mapping = DiskTools.model_devices()
+        s3 = Configuration.get(S3_BASE, default=False)
+        disks, name_alias_mapping = DiskTools.model_devices(s3=s3)
         disks_by_name = dict((disk.name, disk) for disk in disks)
         alias_name_mapping = name_alias_mapping.reverse_mapping()
         # Specific for the asd-manager: handle unique constraint exception
