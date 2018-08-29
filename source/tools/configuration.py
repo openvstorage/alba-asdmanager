@@ -23,7 +23,7 @@ import random
 import string
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.configuration import Configuration as _Configuration
-from source.constants.asd import *
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, ASD_NODE_CONFIG_NETWORK_LOCATION, ASD_NODE_CONFIG_IPMI_LOCATION, ASD_NODE_LOCATION
 from source.dal.lists.settinglist import SettingList
 
 
