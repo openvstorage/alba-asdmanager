@@ -17,8 +17,7 @@
 Constants involved in config management
 """
 
-CACC_SOURCE = '/opt/OpenvStorage/config/arakoon_cacc.ini'
-CACC_LOCATION = '/opt/asd-manager/config/arakoon_cacc.ini'
+CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
 ASD_NODE_LOCATION = '/ovs/alba/asdnodes/{0}'
 CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
 ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)

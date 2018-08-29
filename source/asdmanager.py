@@ -33,7 +33,7 @@ from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
-from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, CACC_LOCATION, CACC_SOURCE, CONFIG_STORE_LOCATION
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, CACC_LOCATION, CONFIG_STORE_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
@@ -136,12 +136,6 @@ def setup():
                        message='\n' + Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100']))
         sys.exit(1)
 
-    # Write necessary files
-    if not local_client.file_exists(CACC_LOCATION) and local_client.file_exists(CACC_SOURCE):  # Try to copy automatically
-        try:
-            local_client.file_upload(CACC_LOCATION, CACC_SOURCE)
-        except Exception:
-            pass
     if interactive is True:
         while not local_client.file_exists(CACC_LOCATION):
             _print_and_log(level='warning',
