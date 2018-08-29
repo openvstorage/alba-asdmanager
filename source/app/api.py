@@ -26,6 +26,7 @@ from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
 from source.app.decorators import HTTPRequestDecorators
+from source.constants.asd import ASD_NODE_CONFIG_NETWORK_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
@@ -83,7 +84,7 @@ class API(object):
         :rtype: NoneType
         """
         node_id = SettingList.get_setting_by_code(code='node_id').value
-        Configuration.set('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), json.loads(request.form['ips']))
+        Configuration.set('{0}|ips'.format(ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), json.loads(request.form['ips']))
 
     @staticmethod
     @get('/collect_logs')

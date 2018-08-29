@@ -25,7 +25,7 @@ import time
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from source.tools.logger import Logger
-
+from source.constants.asd import CACC_LOCATION
 
 class Watcher(object):
     """
@@ -67,7 +67,7 @@ class Watcher(object):
                     self.log_message(target, '  Error during configuration store test: {0}'.format(ex), 2)
                     return False
 
-                with open(Configuration.CACC_LOCATION) as config_file:
+                with open(CACC_LOCATION) as config_file:
                     contents = config_file.read()
                 config = ArakoonClusterConfig(cluster_id='cacc', load_config=False)
                 config.read_config(contents=contents)
@@ -81,12 +81,12 @@ class Watcher(object):
                     except Exception as ex:
                         self.log_message(target, '  Configuration stored in configuration store seems to be corrupt: {0}'.format(ex), 2)
                         return False
-                    temp_filename = '{0}~'.format(Configuration.CACC_LOCATION)
+                    temp_filename = '{0}~'.format(CACC_LOCATION)
                     with open(temp_filename, 'w') as config_file:
                         config_file.write(contents)
                         config_file.flush()
                         os.fsync(config_file)
-                    os.rename(temp_filename, Configuration.CACC_LOCATION)
+                    os.rename(temp_filename, CACC_LOCATION)
                     if Watcher.LOG_CONTENTS is not None:
                         self.log_message(target, '  Configuration changed, trigger restart', 1)
                         sys.exit(1)
