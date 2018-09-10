@@ -26,6 +26,7 @@ from ovs_extensions.generic.configuration import Configuration as _Configuration
 from ovs_extensions.constants.config import CONFIG_STORE_LOCATION
 from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, ASD_NODE_CONFIG_NETWORK_LOCATION, ASD_NODE_CONFIG_IPMI_LOCATION, ASD_NODE_LOCATION
 from source.dal.lists.settinglist import SettingList
+from source.tools.system import System
 
 
 class Configuration(_Configuration):
@@ -71,14 +72,16 @@ class Configuration(_Configuration):
         cls.set(key='/ovs/alba/logging',
                 value={'target': 'console', 'level': 'DEBUG'},
                 raw=False)
+        cls.register_usage(System.get_component_identifier())
         return node_id
 
     @classmethod
     def uninitialize(cls):
+        # type: () -> List[str]
         """
         Remove initially stored values from configuration store
-        :return: None
-        :rtype: NoneType
+        :return: The currently registered users
+        :rtype: List[str]
         """
         try:
             node_id = SettingList.get_setting_by_code(code='node_id').value
@@ -86,6 +89,7 @@ class Configuration(_Configuration):
             return
         if cls.dir_exists(ASD_NODE_LOCATION.format(node_id)):
             cls.delete(ASD_NODE_LOCATION.format(node_id))
+        return cls.unregister_usage(System.get_component_identifier())
 
     @classmethod
     def get_store_info(cls):

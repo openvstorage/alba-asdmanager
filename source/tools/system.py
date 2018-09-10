@@ -26,6 +26,7 @@ class System(_System):
     """
     System class for the ASD Manager
     """
+
     def __init__(self):
         """
         Dummy init method
@@ -43,3 +44,13 @@ class System(_System):
         """
 
         return SettingList.get_setting_by_code(code='node_id').value
+
+    @staticmethod
+    def get_component_identifier():
+        # type: () -> str
+        """
+        Retrieve the identifier of the component
+        :return: The ID of the component
+        :rtype: str
+        """
+        return 'asd-manager'

@@ -224,9 +224,6 @@ def remove(silent=None):
                            message='\n' + Interactive.boxed_message(['Abort removal']))
             sys.exit(1)
 
-    _print_and_log(message=' - Removing from configuration management')
-    Configuration.uninitialize()
-
     if len(all_asds) > 0:
         _print_and_log(message=' - Removing disks')
         for disk in DiskList.get_disks():
@@ -260,6 +257,11 @@ def remove(silent=None):
             _print_and_log(message='   - Removing service {0}'.format(service_name))
             service_manager.stop_service(name=service_name, client=local_client)
             service_manager.remove_service(name=service_name, client=local_client)
+
+    _print_and_log(message=' - Removing from configuration management')
+    remaining_users = Configuration.uninitialize()
+    if not remaining_users:
+        local_client.file_delete(filenames=CACC_LOCATION)
 
     local_client.file_delete(filenames=CACC_LOCATION)
     local_client.file_delete(filenames='{0}/main.db'.format(Setting.DATABASE_FOLDER))
