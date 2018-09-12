@@ -33,6 +33,7 @@ from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
 from source.tools.servicefactory import ServiceFactory
+from source.tools.system import System
 
 
 class SDMUpdateController(object):
@@ -214,9 +215,9 @@ class SDMUpdateController(object):
         ###############################
 
         errors = []
+        migration_setting = SettingList.get_setting_by_code(code='migration_version')
         # Add installed package_name in version files and additional string replacements in service files
         try:
-            migration_setting = SettingList.get_setting_by_code(code='migration_version')
             if migration_setting.value < 1:
                 cls._logger.info('Adding additional information to service files')
                 edition = Configuration.get_edition()
@@ -248,11 +249,19 @@ class SDMUpdateController(object):
             cls._logger.exception('Failed to regenerate the ASD and Maintenance services')
             errors.append(ex)
 
+        try:
+            if migration_setting.value < 2:
+                if System.get_component_identifier() not in Configuration.get(Configuration.get_registration_key(), default=[]):
+                    Configuration.register_usage(System.get_component_identifier())
+        except Exception as ex:
+            cls._logger.exception('Failed to register the asd-manager')
+            errors.append(ex)
+
         if len(errors) == 0:
             cls._logger.info('No errors during non-crucial migration. Saving the migration setting')
             # Save migration settings when no errors occurred
             migration_setting = SettingList.get_setting_by_code(code='migration_version')
-            migration_setting.value = 1
+            migration_setting.value = 2
             migration_setting.save()
 
         cls._logger.info('Finished out of band migrations for SDM nodes')
