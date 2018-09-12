@@ -263,7 +263,6 @@ def remove(silent=None):
     if not remaining_users:
         local_client.file_delete(filenames=CACC_LOCATION)
 
-    local_client.file_delete(filenames=CACC_LOCATION)
     local_client.file_delete(filenames='{0}/main.db'.format(Setting.DATABASE_FOLDER))
     _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager removal completed']))
 
