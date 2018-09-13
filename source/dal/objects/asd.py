@@ -81,7 +81,7 @@ class ASD(ASDBase):
                 service_state = ASD._service_manager.get_service_status(self.service_name, ASD._local_client)
                 if service_state == 'activating':
                     data.update({'state': 'warning',
-                                 'state_detail': 'service_starting'})
+                                 'state_detail': 'service_activating'})
                 elif service_state == 'active':
                     data.update({'state': 'ok',
                                  'state_detail': None})

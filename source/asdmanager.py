@@ -33,6 +33,7 @@ from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, CACC_LOCATION, CONFIG_STORE_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
@@ -135,19 +136,13 @@ def setup():
                        message='\n' + Interactive.boxed_message(['API port cannot be in the range of the ASD port + 100']))
         sys.exit(1)
 
-    # Write necessary files
-    if not local_client.file_exists(Configuration.CACC_LOCATION) and local_client.file_exists(Configuration.CACC_SOURCE):  # Try to copy automatically
-        try:
-            local_client.file_upload(Configuration.CACC_LOCATION, Configuration.CACC_SOURCE)
-        except Exception:
-            pass
     if interactive is True:
-        while not local_client.file_exists(Configuration.CACC_LOCATION):
+        while not local_client.file_exists(CACC_LOCATION):
             _print_and_log(level='warning',
-                           message=' - Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(Configuration.CACC_LOCATION))
+                           message=' - Please place a copy of the Arakoon\'s client configuration file at: {0}'.format(CACC_LOCATION))
             Interactive.ask_continue()
 
-    local_client.file_write(filename=Configuration.CONFIG_STORE_LOCATION,
+    local_client.file_write(filename=CONFIG_STORE_LOCATION,
                             contents=json.dumps({'configuration_store': configuration_store},
                                                 indent=4))
 
@@ -229,9 +224,6 @@ def remove(silent=None):
                            message='\n' + Interactive.boxed_message(['Abort removal']))
             sys.exit(1)
 
-    _print_and_log(message=' - Removing from configuration management')
-    Configuration.uninitialize()
-
     if len(all_asds) > 0:
         _print_and_log(message=' - Removing disks')
         for disk in DiskList.get_disks():
@@ -266,7 +258,11 @@ def remove(silent=None):
             service_manager.stop_service(name=service_name, client=local_client)
             service_manager.remove_service(name=service_name, client=local_client)
 
-    local_client.file_delete(filenames=Configuration.CACC_LOCATION)
+    _print_and_log(message=' - Removing from configuration management')
+    remaining_users = Configuration.uninitialize()
+    if not remaining_users:
+        local_client.file_delete(filenames=CACC_LOCATION)
+
     local_client.file_delete(filenames='{0}/main.db'.format(Setting.DATABASE_FOLDER))
     _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager removal completed']))
 
@@ -349,7 +345,7 @@ if __name__ == '__main__':
         with open(BOOTSTRAP_FILE) as bstr_file:
             node_id = json.load(bstr_file)['node_id']
     try:
-        asd_manager_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+        asd_manager_config = Configuration.get(ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
     except:
         raise RuntimeError('Configuration management unavailable')
 

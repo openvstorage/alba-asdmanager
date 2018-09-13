@@ -23,22 +23,16 @@ import random
 import string
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.configuration import Configuration as _Configuration
+from ovs_extensions.constants.config import CONFIG_STORE_LOCATION
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, ASD_NODE_CONFIG_NETWORK_LOCATION, ASD_NODE_CONFIG_IPMI_LOCATION, ASD_NODE_LOCATION
 from source.dal.lists.settinglist import SettingList
+from source.tools.system import System
 
 
 class Configuration(_Configuration):
     """
     Extends the 'default' configuration class
     """
-    CACC_SOURCE = '/opt/OpenvStorage/config/arakoon_cacc.ini'
-    CACC_LOCATION = '/opt/asd-manager/config/arakoon_cacc.ini'
-    ASD_NODE_LOCATION = '/ovs/alba/asdnodes/{0}'
-    CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
-    ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)
-    ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)
-    ASD_NODE_CONFIG_IPMI_LOCATION = '{0}/config/ipmi'.format(ASD_NODE_LOCATION)
-    ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)
-
     _unittest_data = {}
 
     def __init__(self):
@@ -59,40 +53,43 @@ class Configuration(_Configuration):
         with open('/etc/openvstorage_sdm_id', 'r') as sdm_id_file:
             node_id = sdm_id_file.read().strip()
 
-        cls.set(key=Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id),
+        cls.set(key=ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id),
                 value={'ip': config['api_ip'],
                        'port': config['api_port'],
                        'node_id': node_id,
                        'version': 0,
                        'password': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32)),
                        'username': 'root'})
-        cls.set(key=Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
+        cls.set(key=ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id),
                 value={'ips': config['asd_ips'],
                        'port': config['asd_start_port']})
 
         ipmi = {'ip': config.get('ipmi', {}).get('ip'),
                 'username': config.get('ipmi', {}).get('username'),
                 'password': config.get('ipmi', {}).get('pwd')}
-        cls.set(key=Configuration.ASD_NODE_CONFIG_IPMI_LOCATION.format(node_id), value=ipmi)
+        cls.set(key=ASD_NODE_CONFIG_IPMI_LOCATION.format(node_id), value=ipmi)
 
         cls.set(key='/ovs/alba/logging',
                 value={'target': 'console', 'level': 'DEBUG'},
                 raw=False)
+        cls.register_usage(System.get_component_identifier())
         return node_id
 
     @classmethod
     def uninitialize(cls):
+        # type: () -> List[str]
         """
         Remove initially stored values from configuration store
-        :return: None
-        :rtype: NoneType
+        :return: The currently registered users
+        :rtype: List[str]
         """
         try:
             node_id = SettingList.get_setting_by_code(code='node_id').value
         except ObjectNotFoundException:
             return
-        if cls.dir_exists(Configuration.ASD_NODE_LOCATION.format(node_id)):
-            cls.delete(Configuration.ASD_NODE_LOCATION.format(node_id))
+        if cls.dir_exists(ASD_NODE_LOCATION.format(node_id)):
+            cls.delete(ASD_NODE_LOCATION.format(node_id))
+        return cls.unregister_usage(System.get_component_identifier())
 
     @classmethod
     def get_store_info(cls):
@@ -101,6 +98,6 @@ class Configuration(_Configuration):
         :return: The store method
         :rtype: str
         """
-        with open(cls.CONFIG_STORE_LOCATION) as config_file:
+        with open(CONFIG_STORE_LOCATION) as config_file:
             contents = json.load(config_file)
             return contents['configuration_store']

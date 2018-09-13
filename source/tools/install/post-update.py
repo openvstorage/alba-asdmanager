@@ -34,6 +34,7 @@ if __name__ == '__main__':
     from ovs_extensions.generic.toolbox import ExtensionsToolbox
     from ovs_extensions.services.interfaces.systemd import Systemd
     from source.asdmanager import BOOTSTRAP_FILE
+    from source.constants.asd import ASD_NODE_CONFIG_LOCATION
     from source.controllers.maintenance import MaintenanceController
     from source.tools.configuration import Configuration
     from source.tools.logger import Logger
@@ -59,7 +60,7 @@ if __name__ == '__main__':
             with open('/etc/openvstorage_sdm_id', 'r') as id_file:
                 node_id = id_file.read().strip()
 
-        key = '{0}/versions'.format(Configuration.ASD_NODE_CONFIG_LOCATION.format(node_id))
+        key = '{0}/versions'.format(ASD_NODE_CONFIG_LOCATION.format(node_id))
         version = Configuration.get(key) if Configuration.exists(key) else 0
 
         asd_manager_service_name = 'asd-manager'

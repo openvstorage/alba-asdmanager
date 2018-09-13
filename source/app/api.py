@@ -19,13 +19,14 @@ API views
 """
 
 import json
-from flask import request, send_from_directory
+from flask import send_from_directory
 from ovs_extensions.api.exceptions import HttpNotAcceptableException, HttpNotFoundException
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from source.app import app
 from source.app.decorators import HTTPRequestDecorators
+from source.constants.asd import ASD_NODE_CONFIG_NETWORK_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.generic import GenericController
@@ -48,6 +49,7 @@ class API(object):
     post = HTTPRequestDecorators.post
     delete = HTTPRequestDecorators.delete
     wrap = HTTPRequestDecorators.wrap_data
+    provide_request_data = HTTPRequestDecorators.provide_request_data
 
     ###########
     # GENERIC #
@@ -56,6 +58,7 @@ class API(object):
     @get('/')
     @wrap('node_id')
     def index():
+        # type: () -> dict
         """
         Retrieve the local node ID
         :return: Node ID
@@ -67,6 +70,7 @@ class API(object):
     @get('/net', authenticate=False)
     @wrap('ips')
     def net():
+        # type: () -> dict
         """
         Retrieve IP information
         :return: IPs found on the local system (excluding the loop-back IPs)
@@ -76,19 +80,24 @@ class API(object):
 
     @staticmethod
     @post('/net')
-    def set_net():
+    @provide_request_data
+    def set_net(request_data):
+        # type: (dict) -> None
         """
         Set IP information
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
         :return: None
         :rtype: NoneType
         """
         node_id = SettingList.get_setting_by_code(code='node_id').value
-        Configuration.set('{0}|ips'.format(Configuration.ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), json.loads(request.form['ips']))
+        Configuration.set('{0}|ips'.format(ASD_NODE_CONFIG_NETWORK_LOCATION.format(node_id)), request_data['ips'])
 
     @staticmethod
     @get('/collect_logs')
     @wrap('filename')
     def collect_logs():
+        # type: () -> dict
         """
         Collect the logs
         :return: The location where the file containing the logs was stored
@@ -99,6 +108,7 @@ class API(object):
     @staticmethod
     @app.route('/downloads/<filename>')
     def download_logs(filename):
+        # type: (str) -> any
         """
         Download the tgz containing the logs
         :param filename: Name of the file to make available for download
@@ -118,6 +128,7 @@ class API(object):
     @get('/slots')
     @wrap()
     def get_slots():
+        # type: () -> dict
         """
         Gets the current stack (slot based)
         :return: Stack information
@@ -133,6 +144,7 @@ class API(object):
     @staticmethod
     @post('/slots/<slot_id>/asds')
     def asd_add(slot_id):
+        # type: (str) -> None
         """
         Add an ASD to the slot specified
         :param slot_id: Identifier of the slot
@@ -151,6 +163,7 @@ class API(object):
     @staticmethod
     @delete('/slots/<slot_id>/asds/<asd_id>')
     def asd_delete_by_slot(slot_id, asd_id):
+        # type: (str, str) -> None
         """
         Delete an ASD from the slot specified
         :param slot_id: Identifier of the slot
@@ -172,6 +185,7 @@ class API(object):
     @staticmethod
     @post('/slots/<slot_id>/asds/<asd_id>/restart')
     def asd_restart(slot_id, asd_id):
+        # type: (str, str) -> None
         """
         Restart an ASD
         :param slot_id: Identifier of the slot
@@ -190,13 +204,17 @@ class API(object):
 
     @staticmethod
     @post('/slots/<slot_id>/asds/<asd_id>/update')
-    def asd_update(slot_id, asd_id):
+    @provide_request_data
+    def asd_update(slot_id, asd_id, request_data):
+        # type: (str, str, dict) -> None
         """
         Restart an ASD
         :param slot_id: Identifier of the slot
         :type slot_id: str
         :param asd_id: Identifier of the ASD  (eg: bnAWEXuPHN5YJceCeZo7KxaQW86ixXd4, found under /mnt/alba-asd/WDCztMxmRqi6Hx21/)
         :type asd_id: str
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
         :return: None
         :rtype: NoneType
         """
@@ -205,11 +223,12 @@ class API(object):
         if len(asds) != 1:
             raise HttpNotFoundException(error='asd_not_found',
                                         error_description='Could not find ASD {0} on Slot {1}'.format(asd_id, slot_id))
-        ASDController.update_asd(asd=asds[0], update_data=json.loads(request.form['update_data']))
+        ASDController.update_asd(asd=asds[0], update_data=request_data['update_data'])
 
     @staticmethod
     @post('/slots/<slot_id>/restart')
     def slot_restart(slot_id):
+        # type: (str) -> None
         """
        Restart a slot
        :param slot_id: Identifier of the slot  (eg: 'pci-0000:03:00.0-sas-0x5000c29f4cf04566-lun-0')
@@ -228,6 +247,7 @@ class API(object):
     @staticmethod
     @delete('/slots/<slot_id>')
     def clear_slot(slot_id):
+        # type: (str) -> None
         """
         Clears a slot
         :param slot_id: Identifier of the slot
@@ -352,6 +372,7 @@ class API(object):
     @staticmethod
     @get('/update/package_information')
     def get_package_information_new():
+        # type: () -> dict
         """
         Retrieve update information
         This call is used by the new framework code (as off 30 Nov 2016)
@@ -366,6 +387,7 @@ class API(object):
     @staticmethod
     @get('/update/information')
     def get_package_information_old():
+        # type: () -> dict
         """
         Retrieve update information
         This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
@@ -388,8 +410,11 @@ class API(object):
     @staticmethod
     @post('/update/install/<package_name>')
     def update(package_name):
+        # type: (str) -> None
         """
         Install the specified package
+        :param package_name: Name of the package to update
+        :type package_name: str
         :return: None
         :rtype: NoneType
         """
@@ -400,13 +425,14 @@ class API(object):
     @post('/update/execute/<status>')
     @wrap('status')
     def execute_update(status):
+        # type: (str) -> str
         """
         This call is required when framework has old code and SDM has been updated (as off 30 Nov 2016)
         Old code tries to initiate update providing a status, while new code no longer requires this status
         :param status: Unused
         :type status: str
         :return: The status of the ongoing update
-        :rtype: dict
+        :rtype: str
         """
         _ = status
         with file_mutex('package_update'):
@@ -418,6 +444,7 @@ class API(object):
     @get('/update/installed_version_package/<package_name>')
     @wrap('version')
     def update_installed_version_package(package_name):
+        # type: (str) -> str
         """
         Retrieve the currently installed package version
         :param package_name: Name of the package to retrieve the version for
@@ -430,6 +457,7 @@ class API(object):
     @staticmethod
     @post('/update/execute_migration_code')
     def update_execute_migration_code():
+        # type: () -> None
         """
         Run some migration code after an update has been done
         :return: None
@@ -444,19 +472,24 @@ class API(object):
 
     @staticmethod
     @post('/update/restart_services')
-    def restart_services():
+    @provide_request_data
+    def restart_services(request_data):
+        # type: (dict) -> None
         """
         Restart services
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
         :return: None
         :rtype: NoneType
         """
         with file_mutex('package_update'):
-            SDMUpdateController.restart_services(service_names=json.loads(request.form.get('service_names', "[]")))
+            SDMUpdateController.restart_services(service_names=json.loads(request_data.get('service_names', [])))
 
     @staticmethod
     @get('/service_status/<name>')
     @wrap('status')
     def get_service_status(name):
+        # type: (str) -> Union[Tuple[bool, str], None]
         """
         Retrieve the status of the service specified
         :param name: Name of the service to check
@@ -479,37 +512,46 @@ class API(object):
     @get('/maintenance')
     @wrap('services')
     def list_maintenance_services():
+        # type: () -> List[str]
         """
         List all maintenance information
         :return: The names of all maintenance services found on the system
-        :rtype: dict
+        :rtype: list
         """
         return list(MaintenanceController.get_services())
 
     @staticmethod
     @post('/maintenance/<name>/add')
-    def add_maintenance_service(name):
+    @provide_request_data
+    def add_maintenance_service(name, request_data):
+        # type: (str, dict) -> None
         """
         Add a maintenance service with a specific name
         :param name: Name of the maintenance service
         :type name: str
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
         :return: None
         :rtype: NoneType
         """
         MaintenanceController.add_maintenance_service(name=name,
-                                                      abm_name=request.form['abm_name'],
-                                                      alba_backend_guid=request.form['alba_backend_guid'],
-                                                      read_preferences=json.loads(request.form.get('read_preferences', "[]")))
+                                                      abm_name=request_data['abm_name'],
+                                                      alba_backend_guid=request_data['alba_backend_guid'],
+                                                      read_preferences=request_data.get('read_preferences', []))
 
     @staticmethod
     @post('/maintenance/<name>/remove')
-    def remove_maintenance_service(name):
+    @provide_request_data
+    def remove_maintenance_service(name, request_data):
+        # type: (str, dict) -> None
         """
         Remove a maintenance service with a specific name
         :param name: Name of the maintenance service
         :type name: str
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
         :return: None
         :rtype: NoneType
         """
         MaintenanceController.remove_maintenance_service(name=name,
-                                                         alba_backend_guid=request.form.get('alba_backend_guid'))
+                                                         alba_backend_guid=request_data.get('alba_backend_guid'))

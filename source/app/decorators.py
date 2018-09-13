@@ -24,6 +24,7 @@ from ovs_extensions.api.decorators.flask_requests import HTTPRequestFlaskDecorat
 from ovs_extensions.api.decorators.generic_requests import HTTPRequestGenericDecorators
 from source.app import app
 from source.asdmanager import BOOTSTRAP_FILE
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION
 from source.dal.lists.settinglist import SettingList
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
@@ -54,7 +55,7 @@ class HTTPRequestDecorators(HTTPRequestFlaskDecorators, HTTPRequestGenericDecora
         except:
             node_id = SettingList.get_setting_by_code(code='node_id').value
 
-        node_config = Configuration.get(Configuration.ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
+        node_config = Configuration.get(ASD_NODE_CONFIG_MAIN_LOCATION.format(node_id))
         username = node_config['username']
         password = node_config['password']
         auth = request.authorization
