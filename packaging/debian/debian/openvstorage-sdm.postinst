@@ -38,5 +38,5 @@ if [[ ! -z "$2" ]]
 then
     cd /opt/asd-manager
     find . -name "*.pyc" -exec rm -f {} \;
-    python ./source/tools/install/post-update.py >> /var/log/post-update-openvstorage-sdm.log 2>&1
+    python ./source/tools/install/post-update.py
 fi
