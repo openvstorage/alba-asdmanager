@@ -78,6 +78,9 @@ class PostUpdate(object):
         This means that the asd-manager was added to another cluster different to the one that the framework/other components are on
         A machine can only be part of one cluster now.
         """
+        if CACC_LOCATION_OLD == CACC_LOCATION:
+            # Manual intervention changed the constants
+            return
         if os.path.exists(CACC_LOCATION_OLD):
             if os.path.exists(CACC_LOCATION):
                 if filecmp.cmp(CACC_LOCATION_OLD, CACC_LOCATION):
