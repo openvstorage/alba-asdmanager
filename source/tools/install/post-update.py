@@ -23,6 +23,7 @@ Post update script for package openvstorage-sdm
 import os
 import sys
 import json
+import errno
 import shutil
 import filecmp
 sys.path.append('/opt/asd-manager')
@@ -47,6 +48,22 @@ class PostUpdate(object):
     service_manager = ServiceFactory.get_manager()
 
     CURRENT_VERSION = 7
+
+    @staticmethod
+    def ensure_directory(file_path):
+        """
+        Ensures the directory for a given file
+        :param file_path: Path to the file
+        :return: None
+        :rtype: NoneType
+        """
+        directory = os.path.dirname(file_path)
+        try:
+            # Safer to capture the exception than to check if the directory exists (which can have race condition problems).
+            os.makedirs(directory)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
 
     @classmethod
     def update(cls):
@@ -93,6 +110,7 @@ class PostUpdate(object):
                                          'update the /opt/asd-manager/constants/asd.py and change `CACC_LOCATION=CACC_LOCATION_OLD`'
                                          'and run '.format(CACC_LOCATION_OLD, CACC_LOCATION))
             else:
+                cls.ensure_directory(CACC_LOCATION)
                 shutil.copyfile(CACC_LOCATION_OLD, CACC_LOCATION)
                 os.remove(CACC_LOCATION_OLD)
 
