@@ -27,6 +27,7 @@ from StringIO import StringIO
 from source.tools.logger import Logger
 from source.constants.asd import CACC_LOCATION
 
+
 class Watcher(object):
     """
     Watcher class
@@ -96,6 +97,7 @@ class Watcher(object):
         except Exception as ex:
             self.log_message(target, 'Unexpected exception: {0}'.format(ex), 2)
             return False
+
 
 if __name__ == '__main__':
     given_target = sys.argv[1]
