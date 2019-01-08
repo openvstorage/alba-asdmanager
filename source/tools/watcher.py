@@ -23,9 +23,9 @@ import os
 import sys
 import time
 from ConfigParser import RawConfigParser
+from ovs_extensions.constants.config import CACC_LOCATION
 from StringIO import StringIO
 from source.tools.logger import Logger
-from source.constants.asd import CACC_LOCATION
 
 
 class Watcher(object):
