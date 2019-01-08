@@ -18,11 +18,10 @@ Constants involved in config management
 """
 
 CACC_LOCATION_OLD = '/opt/asd-manager/config/arakoon_cacc.ini'  # Used for post-update.py
-CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
 ASD_NODE_LOCATION = '/ovs/alba/asdnodes/{0}'
 CONFIG_STORE_LOCATION = '/opt/asd-manager/config/framework.json'
-ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)
-ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)
-ASD_NODE_CONFIG_MAIN_LOCATION_S3 = '{0}/config/main|s3'.format(ASD_NODE_LOCATION)
-ASD_NODE_CONFIG_IPMI_LOCATION = '{0}/config/ipmi'.format(ASD_NODE_LOCATION)
-ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)
+ASD_NODE_CONFIG_LOCATION = '{0}/config'.format(ASD_NODE_LOCATION)                   #/ovs/alba/asdnodes/{0}/config
+ASD_NODE_CONFIG_MAIN_LOCATION = '{0}/config/main'.format(ASD_NODE_LOCATION)         #/ovs/alba/asdnodes/{0}/config/main
+ASD_NODE_CONFIG_MAIN_LOCATION_S3 = '{0}/config/main|s3'.format(ASD_NODE_LOCATION)   #/ovs/alba/asdnodes/{0}/config/main|s3
+ASD_NODE_CONFIG_IPMI_LOCATION = '{0}/config/ipmi'.format(ASD_NODE_LOCATION)         #/ovs/alba/asdnodes/{0}/config/ipmi|ipmi
+ASD_NODE_CONFIG_NETWORK_LOCATION = '{0}/config/network'.format(ASD_NODE_LOCATION)   #/ovs/alba/asdnodes/{0}/config/network

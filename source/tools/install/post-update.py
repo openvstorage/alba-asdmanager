@@ -32,9 +32,10 @@ os.environ['OVS_LOGTYPE_OVERRIDE'] = 'file'  # Make sure we log to file during u
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from ovs_extensions.constants.config import CACC_LOCATION
 from ovs_extensions.services.interfaces.systemd import Systemd
 from source.asdmanager import BOOTSTRAP_FILE
-from source.constants.asd import ASD_NODE_CONFIG_LOCATION, CACC_LOCATION_OLD, CACC_LOCATION
+from source.constants.asd import ASD_NODE_CONFIG_LOCATION, CACC_LOCATION_OLD
 from source.controllers.maintenance import MaintenanceController
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
