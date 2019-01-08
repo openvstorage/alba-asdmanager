@@ -26,6 +26,7 @@ import json
 import time
 import logging
 from threading import Thread
+from ovs_extensions.constants.config import CACC_LOCATION
 from ovs_extensions.generic.interactive import Interactive
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -33,7 +34,7 @@ from source.dal.lists.asdlist import ASDList
 from source.dal.lists.disklist import DiskList
 from source.dal.lists.settinglist import SettingList
 from source.dal.objects.setting import Setting
-from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, CACC_LOCATION, CONFIG_STORE_LOCATION
+from source.constants.asd import ASD_NODE_CONFIG_MAIN_LOCATION, CONFIG_STORE_LOCATION
 from source.controllers.asd import ASDController
 from source.controllers.disk import DiskController
 from source.controllers.maintenance import MaintenanceController
