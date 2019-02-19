@@ -97,7 +97,7 @@ class API(object):
     @get('/collect_logs')
     @wrap('filename')
     def collect_logs():
-        # type: () -> dict
+        # type: () -> str
         """
         Collect the logs
         :return: The location where the file containing the logs was stored
@@ -555,3 +555,21 @@ class API(object):
         """
         MaintenanceController.remove_maintenance_service(name=name,
                                                          alba_backend_guid=request_data.get('alba_backend_guid'))
+
+    @staticmethod
+    @post('/maintenance/<name>/regenerate')
+    @provide_request_data
+    def regenerate_maintenance_service(name, request_data):
+        # type: (str, dict) -> None
+        """
+        Restart services
+        :param name: name of the maintenance service
+        :type name: str
+        :param request_data: Data about the request (given by the decorator)
+        :type request_data: dict
+        :return: None
+        :rtype: NoneType
+        """
+        with file_mutex('regenerate_maintenance'):
+            SDMUpdateController.restart_services(service_names=json.loads([name]),
+                                                 regenerate=True)

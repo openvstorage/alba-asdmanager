@@ -19,6 +19,7 @@ This module contains the maintenance controller (maintenance service logic)
 """
 
 from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.constants.arakoon import ARAKOON_CONFIG
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
@@ -69,7 +70,7 @@ class MaintenanceController(object):
                       'ALBA_VERSION_CMD': alba_version_cmd}
             Configuration.set(key=config_location,
                               value={'log_level': 'info',
-                                     'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
+                                     'albamgr_cfg_url': Configuration.get_configuration_path(ARAKOON_CONFIG.format(abm_name)),
                                      'read_preference': [] if read_preferences is None else read_preferences,
                                      'multicast_discover_osds': False})
 
