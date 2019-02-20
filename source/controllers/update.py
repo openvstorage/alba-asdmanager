@@ -128,7 +128,7 @@ class SDMUpdateController(object):
             return str(installed_version[package_name])
 
     @classmethod
-    def restart_services(cls, service_names, regenerate=False):
+    def restart_services(cls, service_names):
         """
         Restart the services specified
         :param service_names: Names of the services to restart
@@ -148,11 +148,7 @@ class SDMUpdateController(object):
 
             cls._logger.info('Restarting service {0}'.format(service_name))
             try:
-                if regenerate:
-                    cls._service_manager.regenerate_service(service_name, cls._local_client)
-                else:
-                    cls._service_manager.restart_service(service_name, cls._local_client)
-
+                cls._service_manager.restart_service(service_name, cls._local_client)
             except CalledProcessError:
                 cls._logger.exception('Failed to restart service {0}'.format(service_name))
 
