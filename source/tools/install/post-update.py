@@ -33,6 +33,7 @@ from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs_extensions.constants.config import CACC_LOCATION
+from ovs_extensions.constants.alba import MAINTENANCE_PREFIX
 from ovs_extensions.services.interfaces.systemd import Systemd
 from source.asdmanager import BOOTSTRAP_FILE
 from source.constants.asd import ASD_NODE_CONFIG_LOCATION, CACC_LOCATION_OLD
@@ -204,7 +205,7 @@ class PostUpdate(object):
                             if Configuration.exists(configuration_key):
                                 # Rewrite the service file
                                 cls.service_manager.add_service(
-                                    name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                    name=ASDController.ASD_PREFIX if service_name in asd_service_names else MAINTENANCE_PREFIX,
                                     client=local_client,
                                     params=Configuration.get(configuration_key),
                                     target_name=service_name)
@@ -237,7 +238,7 @@ class PostUpdate(object):
                                         if Configuration.exists(configuration_key):
                                             # No need to edit the service version file, since this change only requires a daemon-reload
                                             cls.service_manager.add_service(
-                                                name=ASDController.ASD_PREFIX if service_name in asd_service_names else MaintenanceController.MAINTENANCE_PREFIX,
+                                                name=ASDController.ASD_PREFIX if service_name in asd_service_names else MAINTENANCE_PREFIX,
                                                 client=local_client,
                                                 params=Configuration.get(configuration_key),
                                                 target_name=service_name)

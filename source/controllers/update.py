@@ -21,6 +21,7 @@ This module contains logic related to updates
 import copy
 import json
 from subprocess import CalledProcessError
+from ovs_extensions.constants.alba import MAINTENANCE_PREFIX
 from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.generic.sshclient import SSHClient
 from source.asdmanager import BOOTSTRAP_FILE
@@ -246,7 +247,7 @@ class SDMUpdateController(object):
                             config['ALBA_PKG_NAME'] = PackageFactory.PKG_ALBA_EE
                             config['ALBA_VERSION_CMD'] = PackageFactory.VERSION_CMD_ALBA
                             Configuration.set(key=config_key, value=config)
-                            cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX if service_name in asd_services else MaintenanceController.MAINTENANCE_PREFIX,
+                            cls._service_manager.regenerate_service(name=ASDController.ASD_PREFIX if service_name in asd_services else MAINTENANCE_PREFIX,
                                                                     client=cls._local_client,
                                                                     target_name=service_name)
         except Exception as ex:
