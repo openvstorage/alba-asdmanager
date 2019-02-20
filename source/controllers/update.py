@@ -261,24 +261,11 @@ class SDMUpdateController(object):
             cls._logger.exception('Failed to register the asd-manager')
             errors.append(ex)
 
-        try:
-            if migration_setting.value < 3:
-                # This migration is due to the config management rework and the new pathing of a lot of configs, among which backend configs
-                # This will update asd-manager maintenance config services to latest greatest config path
-                cls._logger.info('Regenerating maintanence services')
-                for service_name in list(MaintenanceController.get_services()):
-                    cls._service_manager.regenerate_service(name=MaintenanceController.MAINTENANCE_PREFIX,
-                                                            client=cls._local_client,
-                                                            target_name=service_name)
-        except Exception as ex:
-            cls._logger.exception('Failed to regenerate Maintenance services')
-            errors.append(ex)
-
         if len(errors) == 0:
             cls._logger.info('No errors during non-crucial migration. Saving the migration setting')
             # Save migration settings when no errors occurred
             migration_setting = SettingList.get_setting_by_code(code='migration_version')
-            migration_setting.value = 3
+            migration_setting.value = 2
             migration_setting.save()
 
         cls._logger.info('Finished out of band migrations for SDM nodes')
