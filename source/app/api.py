@@ -97,7 +97,7 @@ class API(object):
     @get('/collect_logs')
     @wrap('filename')
     def collect_logs():
-        # type: () -> dict
+        # type: () -> str
         """
         Collect the logs
         :return: The location where the file containing the logs was stored

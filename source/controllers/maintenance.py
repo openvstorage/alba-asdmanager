@@ -19,6 +19,8 @@ This module contains the maintenance controller (maintenance service logic)
 """
 
 from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.constants.arakoon import ARAKOON_CONFIG
+from ovs_extensions.constants.alba import BACKEND_MAINTENANCE_CONFIG, BACKEND_MAINTENANCE_SERVICE, MAINTENANCE_PREFIX
 from source.tools.configuration import Configuration
 from source.tools.logger import Logger
 from source.tools.packagefactory import PackageFactory
@@ -29,8 +31,8 @@ class MaintenanceController(object):
     """
     Maintenance controller class
     """
-    MAINTENANCE_KEY = '/ovs/alba/backends/{0}/maintenance/{1}'
-    MAINTENANCE_PREFIX = 'alba-maintenance'
+    MAINTENANCE_KEY = BACKEND_MAINTENANCE_SERVICE
+    MAINTENANCE_PREFIX = MAINTENANCE_PREFIX
     _local_client = SSHClient(endpoint='127.0.0.1', username='root')
     _service_manager = ServiceFactory.get_manager()
 
@@ -42,7 +44,7 @@ class MaintenanceController(object):
         :rtype: generator
         """
         for service_name in MaintenanceController._service_manager.list_services(MaintenanceController._local_client):
-            if service_name.startswith(MaintenanceController.MAINTENANCE_PREFIX):
+            if service_name.startswith(MAINTENANCE_PREFIX):
                 yield service_name
 
     @staticmethod
@@ -62,18 +64,18 @@ class MaintenanceController(object):
         """
         if MaintenanceController._service_manager.has_service(name, MaintenanceController._local_client) is False:
             alba_pkg_name, alba_version_cmd = PackageFactory.get_package_and_version_cmd_for(component=PackageFactory.COMP_ALBA)
-            config_location = '{0}/config'.format(MaintenanceController.MAINTENANCE_KEY.format(alba_backend_guid, name))
+            config_location = BACKEND_MAINTENANCE_CONFIG.format(alba_backend_guid, name)
             params = {'LOG_SINK': Logger.get_sink_path('alba_maintenance'),
                       'ALBA_CONFIG': Configuration.get_configuration_path(config_location),
                       'ALBA_PKG_NAME': alba_pkg_name,
                       'ALBA_VERSION_CMD': alba_version_cmd}
             Configuration.set(key=config_location,
                               value={'log_level': 'info',
-                                     'albamgr_cfg_url': Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_name)),
+                                     'albamgr_cfg_url': Configuration.get_configuration_path(ARAKOON_CONFIG.format(abm_name)),
                                      'read_preference': [] if read_preferences is None else read_preferences,
                                      'multicast_discover_osds': False})
 
-            MaintenanceController._service_manager.add_service(name=MaintenanceController.MAINTENANCE_PREFIX,
+            MaintenanceController._service_manager.add_service(name=MAINTENANCE_PREFIX,
                                                                client=MaintenanceController._local_client,
                                                                params=params,
                                                                target_name=name)
@@ -96,6 +98,6 @@ class MaintenanceController(object):
             MaintenanceController._service_manager.remove_service(name, MaintenanceController._local_client)
 
         if alba_backend_guid is not None:
-            key = MaintenanceController.MAINTENANCE_KEY.format(alba_backend_guid, name)
+            key = BACKEND_MAINTENANCE_SERVICE.format(alba_backend_guid, name)
             if Configuration.dir_exists(key=key):
                 Configuration.delete(key=key)
