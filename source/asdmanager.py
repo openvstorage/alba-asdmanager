@@ -177,6 +177,8 @@ def setup():
                        message='\n' + Interactive.boxed_message(['Starting watcher failed']))
         sys.exit(1)
 
+    del local_client
+
     _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager setup completed']))
 
 
