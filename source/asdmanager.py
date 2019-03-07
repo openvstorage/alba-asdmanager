@@ -175,10 +175,10 @@ def setup():
         Configuration.uninitialize()
         _print_and_log(level='exception',
                        message='\n' + Interactive.boxed_message(['Starting watcher failed']))
+        del local_client
         sys.exit(1)
 
     del local_client
-
     _print_and_log(message='\n' + Interactive.boxed_message(['ASD Manager setup completed']))
 
 
