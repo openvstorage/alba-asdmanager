@@ -58,7 +58,7 @@ class Watcher(object):
         try:
             if target == 'config':
                 self.log_message(target, 'Testing configuration store...', 0)
-                from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import NoGuarantee
+                from pyrakoon.compat import NoGuarantee
                 from source.tools.arakooninstaller import ArakoonInstaller, ArakoonClusterConfig
                 from source.tools.configuration import Configuration
 
