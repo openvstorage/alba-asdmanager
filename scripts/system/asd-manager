@@ -35,6 +35,10 @@ function show_help {
     echo ""
     echo "  * Monitor options:"
     echo "    - asd-manager monitor services      Watch ASD Manager services"
+    echo ""
+    echo "  * Run automated local update:"
+    echo "    - asd-manager local_update alba             Execute a local update of alba and its dependencies"
+    echo ""
 }
 
 if [ "$1" = "monitor" ] ; then
@@ -61,6 +65,16 @@ elif [ "$1" = "collect" ] ; then
         tar uvf ${LOGFILE} /var/log/dmesg* > /dev/null 2>&1
         gzip ${LOGFILE} > /dev/null
         echo ${FILENAME}.gz
+    else
+        show_help
+    fi
+elif [ "$1" = "local_update" ] ; then
+    if [ "$2" = "alba" ] ; then
+            python -c """
+from ovs.lib.update.albacomponent_update import AlbaComponentUpdater
+from ovs.extensions.generic.system import System
+AlbaComponentUpdater.do_update(System.get_my_machine_id())
+"""
     else
         show_help
     fi
