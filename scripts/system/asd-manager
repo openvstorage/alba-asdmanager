@@ -71,8 +71,8 @@ elif [ "$1" = "collect" ] ; then
 elif [ "$1" = "local_update" ] ; then
     if [ "$2" = "alba" ] ; then
             python -c """
-from ovs.lib.update.albacomponent_update import AlbaComponentUpdater
-from ovs.extensions.generic.system import System
+from source.tools.update.albacomponent_update import AlbaComponentUpdater
+from source.tools.system import System
 AlbaComponentUpdater.do_update(System.get_my_machine_id(), True)
 """
     else
