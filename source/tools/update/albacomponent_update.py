@@ -17,12 +17,14 @@
 
 from ovs_extensions.update.alba_component_update import AlbaComponentUpdater as _AlbacomponentUpdater
 from source.tools.system import System
+from source.tools.log_handler import LogHandler
 
 
 class AlbaComponentUpdater(_AlbacomponentUpdater):
     """
     Implementation of abstract class to update alba
     """
+    logger = LogHandler.get('update', 'alba')
 
     @classmethod
     def get_node_id(cls):
@@ -32,3 +34,4 @@ class AlbaComponentUpdater(_AlbacomponentUpdater):
         :return:
         """
         return System.get_my_machine_id()
+
